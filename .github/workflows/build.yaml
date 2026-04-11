@@ -1,4 +1,4 @@
-name: Standalone build with Pyinstaller
+name: macOS tests
 
 on:
   push:
@@ -7,75 +7,21 @@ on:
     branches: [ master ]
 
 jobs:
-  build:
-    runs-on: ubuntu-20.04
+  test:
+    runs-on: macos-latest
     steps:
-    - uses: actions/checkout@v2
-      
-    # necessary because pyinstaller does not work when entry has the same
-    # name as the python package
-    - name: setup entrypoint for pyinstaller
-      run: mv echo360.py entrypoint.py
-    # - name: Package Application
-    #   uses: JackMcKew/pyinstaller-action-linux@main
-    #   with:
-    #     path: .
-
-    # we are directly executing commands because GH action pyinstaller (somehow)
-    # doesn't have _curse (import problem)
-    - name: Linux PyInstaller
-      run: pip install -r requirements.txt && pip install pyinstaller && python -m PyInstaller echo360.spec
-    - uses: actions/upload-artifact@v2
+    - uses: actions/checkout@v4
+    - uses: actions/setup-python@v5
       with:
-        name: echo360-linux
-        path: dist/echo360
-        #path: dist/linux/echo360
-
-    - name: add window-curse to window build
-      run: echo windows-curses >> requirements.txt
-    - name: Windows PyInstaller
-      uses: JackMcKew/pyinstaller-action-windows@main
-      with:
-        path: .
-    - uses: actions/upload-artifact@v2
-      with:
-        name: echo360-window
-        path: dist/windows/echo360.exe
-
-    #############################################
-
-    - name: Set outputs
-      id: vars
-      run: echo "::set-output name=sha_short::$(git rev-parse --short HEAD)"
-    - name: Check outputs
-      run: echo ${{ steps.vars.outputs.sha_short }}
-    - name: Create Release
-      id: create_release
-      uses: actions/create-release@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        tag_name: ${{ steps.vars.outputs.sha_short }}
-        release_name: "Standalone echo360 executable (SHA: ${{ steps.vars.outputs.sha_short }})"
-        draft: false
-        prerelease: false
-    - name: Upload Release Asset Linux
-      # id: upload-release-asset 
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: dist/echo360
-        asset_name: echo360-linux
-        asset_content_type: application/octet-stream
-    - name: Upload Release Asset
-      # id: upload-release-asset windows
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: dist/windows/echo360.exe
-        asset_name: echo360-windows.exe
-        asset_content_type: application/octet-stream
+        python-version: "3.11"
+    - name: Install minimal test dependencies
+      run: |
+        python -m pip install --upgrade pip
+        python -m pip install --no-deps -e .
+        python -m pip install requests selenium yt-dlp pytest
+    - name: CLI help
+      run: python -m swinydl.main --help
+    - name: Doctor
+      run: python -m swinydl.main doctor
+    - name: Unit tests
+      run: python -m unittest discover -s tests -v

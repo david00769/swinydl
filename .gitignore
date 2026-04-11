@@ -1,4 +1,14 @@
-_echo360venv
+_swinydlvenv
+.venv/
+swinydl-output/
+vendor/parakeet-tdt-0.6b-v3/
+vendor/parakeet-tdt-0.6b-v3-coreml/
+vendor/speaker-diarization-coreml/
+swift/ParakeetCoreMLRunner/.build/
+tmp-fluid/
+tmp-youtube/
+tmp-youtube-tests/
+echo360Downloader.log
 
 # Byte-compiled / optimized / DLL files
 __pycache__/

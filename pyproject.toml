@@ -1,0 +1,41 @@
+[build-system]
+requires = ["setuptools>=77", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "swinydl"
+version = "4.0.0"
+description = "SWinyDL: transcript-first Echo360 tooling for macOS Apple Silicon"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.11"
+authors = [{ name = "David Siroky" }]
+dependencies = [
+  "huggingface-hub>=0.31.0",
+  "requests>=2.32.0",
+  "selenium>=4.21.0",
+  "truststore>=0.10.0",
+  "yt-dlp>=2025.1.15",
+]
+classifiers = [
+  "Environment :: Console",
+  "License :: OSI Approved :: MIT License",
+  "Operating System :: MacOS",
+  "Operating System :: MacOS :: MacOS X",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3 :: Only",
+  "Topic :: Multimedia :: Sound/Audio :: Speech",
+  "Topic :: Utilities",
+]
+
+[dependency-groups]
+dev = ["pytest>=8.0.0"]
+
+[project.scripts]
+swinydl = "swinydl.main:main"
+
+[tool.setuptools]
+include-package-data = true
+
+[tool.setuptools.packages.find]
+include = ["swinydl*"]

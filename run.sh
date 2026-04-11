@@ -1,7 +1,7 @@
 #!/bin/bash
 
-PYTHON=python
-VENV_NAME=_echo360venv
+PYTHON=${PYTHON:-}
+VENV_NAME=_swinydlvenv
 
 error_exit(){
     echo "$1" 1>&2
@@ -14,32 +14,37 @@ error_clean_exit(){
 }
 
 cd "`dirname \"$0\"`"  # go to the script directory
-if $PYTHON -c 'import sys; sys.exit(1 if sys.hexversion<0x03000000 else 0)'; then
-    VENV=venv  # using python 3
-else
-    VENV=virtualenv  # using python 2
-    $PYTHON -c "import $VENV" || $PYTHON -m pip install --user $VENV >/dev/null 2>&1
+
+if [ -z "$PYTHON" ]; then
+  for candidate in python3 python; do
+    if command -v "$candidate" >/dev/null 2>&1 && "$candidate" - <<'PY' >/dev/null 2>&1
+import sys
+raise SystemExit(0 if sys.version_info >= (3, 11) else 1)
+PY
+    then
+      PYTHON="$candidate"
+      break
+    fi
+  done
 fi
+
+[ -n "$PYTHON" ] || error_exit "Python 3.11 or newer is required"
+command -v "$PYTHON" >/dev/null 2>&1 || error_exit "Python 3.11+ is required but '$PYTHON' was not found"
+"$PYTHON" - <<'PY' || error_exit "Python 3.11 or newer is required"
+import sys
+raise SystemExit(0 if sys.version_info >= (3, 11) else 1)
+PY
 # Check if virtual environment had been created
 if [ ! -d "$VENV_NAME" ]; then
-  echo Checking pip is installed
-  $PYTHON -m ensurepip --default-pip >/dev/null 2>&1
-  $PYTHON -m pip >/dev/null 2>&1
-  if [ $? -ne 0 ]; then
-    echo pip is still not installed!...
-    echo Try to install it with sudo?
-    echo Run: \"sudo $PYTHON -m ensurepip --default-pip\"
-    exit 1
-  fi
   echo Creating python virtual environment in "$VENV_NAME/"...
-  $PYTHON -m $VENV $VENV_NAME || error_exit "Failed to create virtual environment"
+  "$PYTHON" -m venv $VENV_NAME || error_exit "Failed to create virtual environment"
   source $VENV_NAME/bin/activate || error_exit "Failed to source virtual environment"
   echo Upgrading pip...
-  $PYTHON -m pip install --upgrade pip
-  echo Installing all pip dependency inside virtual environment...
-  $PYTHON -m pip install -r requirements.txt || error_clean_exit "Something went wrong while installing pip packages"
+  python -m pip install --upgrade pip
+  echo Installing swinydl in editable mode...
+  python -m pip install -e . || error_clean_exit "Something went wrong while installing swinydl"
 fi
 
 source $VENV_NAME/bin/activate || error_exit "Failed to source virtual environment (try to delete '$VENV_NAME/' and re-run)"
 
-$PYTHON echo360.py "$@"
+python -m swinydl.main "$@"

@@ -1,0 +1,27 @@
+{
+  "section": {
+    "course": {
+      "identifier": "INFO1001",
+      "name": "Intro to Echo360"
+    },
+    "presentations": {
+      "pageContents": [
+        {
+          "richMedia": "https://view.streaming.sydney.edu.au:8443/ess/portal/presentation/lesson-uuid-1",
+          "title": "Week 1 Lecture",
+          "startTime": "2026-04-01T10:00:00Z",
+          "captions": [
+            {
+              "src": "https://cdn.example.edu/lesson-uuid-1.vtt"
+            }
+          ]
+        },
+        {
+          "richMedia": "https://view.streaming.sydney.edu.au:8443/ess/portal/presentation/lesson-uuid-2",
+          "title": "Week 2 Lecture",
+          "startTime": "2026-04-08T10:00:00Z"
+        }
+      ]
+    }
+  }
+}

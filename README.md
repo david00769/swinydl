@@ -1,320 +1,387 @@
-# Echo360 Videos Downloader
+# SWinyDL v4
 
-[![PyPI - Version](https://img.shields.io/pypi/v/echo360)](https://pypi.org/project/echo360/)
-[![Package Application with Pyinstaller](https://github.com/soraxas/echo360/actions/workflows/build.yaml/badge.svg)](https://github.com/soraxas/echo360/actions/)
-[![linux-downloads](https://img.shields.io/badge/Download%20Executable-Linux%20&%20Mac-blueviolet)](https://github.com/soraxas/echo360/releases/latest/download/echo360-linux)
-[![windows-downloads](https://img.shields.io/badge/Download%20Executable-Windows-blue)](https://github.com/soraxas/echo360/releases/latest/download/echo360-windows.exe)
+SWinyDL: transcript-first Echo360 tooling for macOS Apple Silicon.
 
-echo360 is a command-line Python tool that allows you to download lecture videos from any university's Echo360 system and echo360 Cloud platform. All that's required is the particular course's url. See the FAQ for tips on how to find it.
+This repository is designed specifically for Apple Silicon Macs. It is not intended as a general cross-platform package.
 
-The way this script works _should_ support all university's echo360 system in theory, see FAQ for details.
+Tested platform:
+- macOS 26.4 (`25E246`) on Apple Silicon
 
-See it in action:
+`swinydl` keeps the Echo360-specific browser login and lesson discovery flow, but replaces the old custom HLS downloader with `yt-dlp` and makes transcription the default product path.
 
-<p align="center">
-    <img width="700" height="auto" src="docs/images/demo.gif" alt="echo360 demo" />
-</p>
+For day-to-day use, the simplest launch path is:
 
-**NEWS:** It now works with `echo360.org` platform as well. Special thanks to [*@cloudrac3r*](https://github.com/cloudrac3r) and *Emma* for their kind offering of providing sources and helped debugging it. Read [FAQ](#echo360-cloud) for details.
-
-# Getting Started
-
-### Automated Installation
-
-**Linux / MacOS**
-
-```shell
-./run.sh COURSE_URL  # where COURSE_URL is your course url
+```bash
+uv run app.py
 ```
 
-**Windows**
+If you launch it with no arguments, the app:
 
-```shell
-run.bat COURSE_URL  # where COURSE_URL is your course url
+1. asks you to press enter to launch Chrome
+2. lets you log in and navigate to the target page
+3. captures the browser URL when you press enter again
+4. runs the default `process` workflow against that captured URL
+
+On first real use, if the default local CoreML model bundles are missing, the app automatically downloads them from the documented Hugging Face sources before continuing.
+
+## What v4 Does
+
+- inspects Echo360 courses and lists lessons
+- prefers speaker-aware ASR by default so transcripts include speaker labels
+- can reuse native Echo360 captions when you explicitly turn diarization off
+- runs a local `Parakeet` CoreML backend on Apple Silicon
+- keeps diarization as a separate local CoreML speaker pipeline
+- writes `.txt`, `.srt`, and structured `.json` outputs
+- deletes temporary media after successful transcription unless you opt in to keep it
+- supports explicit media download as a separate subcommand
+- is tuned for lecture-style content with one dominant speaker and occasional audience participation
+
+## Scope
+
+- macOS Apple Silicon only
+- tested on macOS `26.4` (`25E246`)
+- Chrome or Chromium only
+- Python `>=3.11`
+- package distribution via `pip` or `uv`
+- Swift toolchain via Xcode command line tools
+- no Windows support
+- no Firefox support
+- no PhantomJS support
+
+## Install
+
+### `uv`
+
+```bash
+uv sync
 ```
 
-The scripts will boostrap all installation and download all needed files on the fly.
+### `pip`
 
-**pip**
-
-```shell
-pip install echo360
-echo360-downloader COURSE_URL  # where COURSE_URL is your course url
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+python -m pip install --upgrade pip
+python -m pip install -e .
 ```
 
-### Optional
+## Dependency Management
 
--   ffmpeg (for transcoding ts file to mp4 file) See [here (windows)](https://www.easytechguides.com/install-ffmpeg/) or [here](https://github.com/adaptlearning/adapt_authoring/wiki/Installing-FFmpeg) for a brief instructions of installing it in different OS.
+- [pyproject.toml](pyproject.toml) defines the allowed dependency ranges for the package.
+- [uv.lock](uv.lock) records the currently tested resolution.
+- `swinydl doctor` checks runtime readiness only. It does not manage package versions.
+- There is no separate `requirements.txt` or `MANIFEST.in` to maintain in v4. Packaging and dependency policy live in `pyproject.toml`.
+- Third-party model and dependency provenance is documented in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
 
-## Manual
+Upgrade to newer compatible dependency versions with:
 
-The provided script automated every operations, and install all dependency in a local python virtual environment. You can also use the system-wise python installation by manual installation. Get started by first install all requirements:
-
-```shell
-pip install -r requirements.txt  # or with: python -m pip install -r requirements.txt
+```bash
+uv lock --upgrade
+uv sync
 ```
 
-Then run with:
+## Requirements
 
-```shell
-python echo360.py
+- Google Chrome or Chromium installed
+- Swift installed via Xcode command line tools
+- `ffmpeg` on `PATH`
+- an interactive Echo360 login in the Chrome profile on first use
+- local Parakeet CoreML assets staged at `./vendor/parakeet-tdt-0.6b-v3-coreml` or exposed through `ECHO360_PARAKEET_COREML_DIR`
+- local speaker diarizer CoreML assets staged at `./vendor/speaker-diarization-coreml` or exposed through `ECHO360_DIARIZER_COREML_DIR`
+
+## Quickstart
+
+For a new machine, the shortest supported path is:
+
+1. `uv sync`
+2. `swinydl bootstrap-models`
+3. Run `swinydl doctor`
+4. Run `uv run app.py`, press enter to launch Chrome, then log in and navigate to the target page before pressing enter again
+5. Or bypass the browser-guided flow and run `swinydl transcribe /path/to/local/file.mp4` for a local file
+
+`uv sync` installs the Python dependencies declared in [pyproject.toml](pyproject.toml), including the Hugging Face client used by model bootstrap. The first time the CoreML runners are built, Swift Package Manager also resolves the Swift-side dependency declared in [Package.swift](swift/ParakeetCoreMLRunner/Package.swift).
+
+If you skip step 2, `swinydl process`, `swinydl transcribe`, `swinydl doctor`, and `uv run app.py` will auto-bootstrap the default repo-local model bundles when they are missing.
+
+## Bootstrap Models
+
+The repo ignores downloaded model bundles under `vendor/` because they can be recreated from public Hugging Face sources.
+
+Those staged bundles are third-party assets and are not covered by this repository's MIT license. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+`bootstrap-models` downloads every staged model artifact the runtime expects:
+
+- Parakeet ASR CoreML bundles:
+  - `Preprocessor.mlmodelc/**`
+  - `Encoder.mlmodelc/**`
+  - `Decoder.mlmodelc/**`
+  - `JointDecision.mlmodelc/**`
+  - `parakeet_vocab.json`
+- Speaker diarizer CoreML bundles:
+  - `Segmentation.mlmodelc/**`
+  - `FBank.mlmodelc/**`
+  - `Embedding.mlmodelc/**`
+  - `PldaRho.mlmodelc/**`
+  - `plda-parameters.json`
+  - `xvector-transform.json`
+
+Use the built-in bootstrap command:
+
+```bash
+swinydl bootstrap-models
 ```
 
-### Operating System
+Fetch only one bundle if needed:
 
--   Linux
--   OS X
--   Windows
-
-# Usage
-
-**NOTE THAT** all the below command you can substitute `python echo360.py` with `./run.sh` (or `run.bat` if you are in windows)
-
-### Quick Start
-
-```shell
->>> python echo360.py                       \
-    https://view.streaming.sydney.edu.au:8443/ess/portal/section/2018_S1C_INFO1001_ND
+```bash
+swinydl bootstrap-models --target parakeet
+swinydl bootstrap-models --target diarizer
 ```
 
-### Script args
-```
->>> usage: echo360.py [-h] [--output OUTPUT_PATH]
-                  [--after-date AFTER_DATEYYYY-MM-DD)]
-                  [--before-date BEFORE_DATE(YYYY-MM-DD] [--unikey UNIKEY]
-                  [--password PASSWORD] [--setup-credentials]
-                  [--download-phantomjs-binary] [--chrome] [--firefox]
-                  [--echo360cloud] [--interactive] [--alternative_feeds]
-                  [--debug] [--auto | --manual]
-                  ECHO360_URL
+Re-download staged files:
 
-Download lectures from portal.
-
-positional arguments:
-  ECHO360_URL           Full URL of the echo360 course page, or only the UUID
-                        (which defaults to USYD). The URL of the course's
-                        video lecture page, for example: http://recordings.eng
-                        ineering.illinois.edu/ess/portal/section/115f3def-7371
-                        -4e98-b72f-6efe53771b2a)
-
-optional arguments:
-  -h, --help            show this help message and exit
-  --output OUTPUT_PATH, -o OUTPUT_PATH
-                        Path to the desired output directory. The output
-                        directory must exist. Otherwise the current directory
-                        is used.
-  --after-date AFTER_DATE(YYYY-MM-DD)
-                        Only download lectures newer than AFTER_DATE
-                        (inclusive). Note: this may be combined with --before-
-                        date.
-  --before-date BEFORE_DATE(YYYY-MM-DD)
-                        Only download lectures older than BEFORE_DATE
-                        (inclusive). Note: this may be combined with --after-
-                        date
-  --unikey UNIKEY, -u UNIKEY
-                        Your unikey for your University of Sydney elearning
-                        account
-  --password PASSWORD, -p PASSWORD
-                        Your password for your University of Sydney elearning
-                        account
-  --setup-credentials   Open a chrome instance to expose an ability for user
-                        to log into any website to obtain credentials needed
-                        before proceeding. (implies using chrome-driver)
-  --download-phantomjs-binary
-                        Force the echo360.py script to download a local binary
-                        file for phantomjs (will override system bin)
-  --chrome              Use Chrome Driver instead of phantomjs webdriver. You
-                        must have chromedriver installed in your PATH.
-  --firefox             Use Firefox Driver instead of phantomjs webdriver. You
-                        must have geckodriver installed in your PATH.
-  --interactive, -i     Interactively pick the lectures you want, instead of
-                        download all (default) or based on dates .
-  --alternative_feeds, -a
-                        Download first two video feeds. Since some university
-                        have multiple video feeds, with this option on the
-                        downloader will also try to download the second
-                        video, which could be the alternative feed. Might
-                        only work on some 'echo360.org' hosts.
-  --debug               Enable extensive logging.
-  --auto                Only effective for 'echo360.org' host. When set, this
-                        script will attempts to automatically redirects after
-                        you had logged into your institution's SSO.
-  --manual, -m          [Deprecated] Only effective for 'echo360.org' host.
-                        When set, the script requires user to manually
-                        continue the script within the terminal. This is the
-                        default behaviour and exists only for backward
-                        compatibility reason.
-```
-# Examples
-
-```shell
->>> python echo360.py                  \
-    "041698d6-f43a-4b09-a39a-b90475a63530" \  # Note this default to USYD's echo360
-    --output "~/Lectures"                     # Use full URL for other University
+```bash
+swinydl bootstrap-models --force
 ```
 
-### Download all available lectures
+### Stage a Local Parakeet CoreML Bundle
 
-```shell
->>> python echo360.py                  \
-    "041698d6-f43a-4b09-a39a-b90475a63530" \
-    --output "~/Lectures"
+`swinydl` expects a staged CoreML model directory with this layout:
+
+```text
+vendor/parakeet-tdt-0.6b-v3-coreml/
+  Preprocessor.mlmodelc/
+  Encoder.mlmodelc/
+  Decoder.mlmodelc/
+  JointDecision.mlmodelc/
+  parakeet_vocab.json
 ```
 
-### Download all lectures on or before a date
+The runtime uses that directory offline through the Swift/CoreML runner. Pull the staged bundle directly from the upstream CoreML repo with:
 
-```shell
->>> python echo360.py                  \
-    "041698d6-f43a-4b09-a39a-b90475a63530" \
-    --output "~/Lectures"                  \
-    --before-date "2014-10-14"
+```bash
+swinydl bootstrap-models --target parakeet
 ```
 
-### Download all lectures on or after a date
+### Model Provenance And Update Sources
 
-```shell
->>> python echo360.py                  \
-    "041698d6-f43a-4b09-a39a-b90475a63530" \
-    --output "~/Lectures"                  \
-    --after-date "2014-10-14"
+The repo consumes staged local CoreML bundles, but those bundles come from public upstream model repos.
+
+For ASR, the current update chain is:
+
+- preferred public CoreML pull source: [FluidInference/parakeet-tdt-0.6b-v3-coreml](https://huggingface.co/FluidInference/parakeet-tdt-0.6b-v3-coreml)
+- canonical base model: [nvidia/parakeet-tdt-0.6b-v3](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3)
+
+The local staged directory names map to the CoreML conversion artifacts:
+
+- `Preprocessor.mlmodelc`
+- `Encoder.mlmodelc`
+- `Decoder.mlmodelc`
+- `JointDecision.mlmodelc`
+- `parakeet_vocab.json`
+
+For speaker diarization, the current update chain is:
+
+- preferred public CoreML pull source: [FluidInference/speaker-diarization-coreml](https://huggingface.co/FluidInference/speaker-diarization-coreml)
+- canonical base pipeline: [pyannote/speaker-diarization-community-1](https://huggingface.co/pyannote/speaker-diarization-community-1)
+
+The local diarizer bundle is a CoreML packaging of the same conceptual pipeline pieces used by the pyannote `community-1` stack:
+
+- segmentation: [pyannote/segmentation-3.0](https://huggingface.co/pyannote/segmentation-3.0)
+- speaker embedding: [pyannote/wespeaker-voxceleb-resnet34-LM](https://huggingface.co/pyannote/wespeaker-voxceleb-resnet34-LM)
+- clustering family: VBx, documented in the `community-1` model card citations
+
+When updating this repo, prefer the public CoreML repos first. Use the canonical upstream Hugging Face model cards to understand architecture changes, licenses, and benchmark shifts. Treat local `vendor/` contents as staged runtime artifacts, not as the authoritative source of model lineage.
+
+## Commands
+
+### Inspect a course
+
+```bash
+swinydl inspect "https://echo360.org.au/section/UUID/home"
 ```
 
-### Download all lectures in a given date range (inclusive)
+### Default transcript workflow
 
-```shell
->>> python echo360.py                  \
-    "041698d6-f43a-4b09-a39a-b90475a63530" \
-    --output "~/Lectures"                  \
-    --after-date "2014-08-26"              \
-    --before-date "2014-10-14"
+```bash
+swinydl process "https://echo360.org.au/section/UUID/home"
 ```
 
-### Use chrome driver (instead of phantomjs)
+`process` is the normal product path: inspect lessons, fetch the best audio path, transcribe it, and label speaker turns by default.
 
-Note: sometime it works better than phantomjs in some system
+The equivalent friendly launcher is:
 
-```shell
->>> python echo360.py                  \
-    "041698d6-f43a-4b09-a39a-b90475a63530" \
-    --chrome
+```bash
+uv run app.py
 ```
 
-# FAQ
+That launcher:
 
-### Is my university supported?
+1. asks you to press Enter to launch Chrome
+2. opens Chrome with the app's persistent profile
+3. lets you log in and navigate to the right Canvas or Echo360 page
+4. captures the current browser URL when you press Enter again
+5. runs the default `process` workflow against that captured page
 
-This is first built for the echo system in the University of Sydney, and then validated in several other universities' echo system. In theory, as long as the url are in the format of:
+### Force the local Parakeet CoreML backend
 
-```shell
-https://$(hostname)/ess/portal/section/$(UUID)
-```
-or
-```shell
-https://echo360.org[.xx]/
-```
-or with a dot net variant
-```shell
-https://echo360.net[.xx]/
+```bash
+swinydl process "https://echo360.org.au/section/UUID/home" --asr-backend parakeet
 ```
 
-... then it should be supported.
+### Keep normalized audio
 
-The variables `$(hostname)` and `$(UUID)` are what differentiate different University's echo360 system. If there is no credentials needed (ie no need to login before accessing the page), then 90% of the time it should works. If login is needed, some extra work might need to be put in before it works for your university. If that is the case, create an issue to let me know.
-
-As for `echo360.org`, see [this](#echo360-cloud).
-
-### How do I retrieve the Course URL for a course?
-
-You should go to the main Echo360 Lecture page, which usually composed of all the lecturer recordings in a list format as shown below. It's the main page that lists all the recorded lectures and gives you the option to stream them or download them individually. This is important for downloading all the available videos from within the course.
-
-<img height="auto" src="docs/images/course_page.png" alt="echo360 course main page" />
-
-You can usually find this link on your course's main webpage. If your course webpage only links directly to videos, then you should be able to navigate back **by clicking the title of your course name (top of page)**.
-
-The URL for the University of Sydney - 2017 semester 2 of CIVL4903 looks like
-
-    https://view.streaming.sydney.edu.au:8443/ess/portal/section/041698d6-f43a-4b09-a39a-b90475a63530
-
-which you can verify is correct in the above screenshot. **This should be the full URL you enter into the script, for all other universities' echo system.**
-
-The UUID (Unified Unique IDentifier) is the last element of the URL. So in the above example it's,
-
-    041698d6-f43a-4b09-a39a-b90475a63530
-
-### echo360 cloud
-
-Echo360 cloud refers to websites in the format of `https://echo360.org[.xx]`. This module now officially support this platform.
-
-<p align="center">
-<img height="auto" width="700" src="docs/images/echo360cloud_home.png" alt="echo360 cloud course main page" />
-</p>
-
-This method requires you to setup SSO credentials, therefore, it needs to open up a browser for you to setup your own university's SSO credentials.
-
-To download videos, run:
-```shell
-./run.sh https://echo360.<org|net>[.xx]/section/$(UUID)/home
-```
-where `[.xx]` is an optional country flag specific to your echo360 platform and `$(UUID)` is the unique identifier for your course. This should the url that you can retrieve from your course's *main page* like the following.
-
-<img height="auto" src="docs/images/echo360cloud_course-page.png" alt="echo360 cloud course main page" />
-
-Note that this implies `setup-credential` option and will use chrome-webdriver by default. If you don't have chrome or prefer to use firefox, run it with the ` --firefox` flag like so:
-```shell
-./run.sh https://echo360.<org|net>[.xx]/section/$(UUID)/home --firefox
+```bash
+swinydl process "https://echo360.org.au/section/UUID/home" --keep-audio
 ```
 
-After running the command, it will opens up a browser instance, most likely with a login page. You should then login with your student's credentials like what you would normally do. After you have successfully logged in, the module should automatically redirects you and continues. If the script hangs (e.g. failed to recognises that you have logged in), feel free to let me know.
+### Download media explicitly
 
-
-### I'm not sure of how to run it?
-
-First, you'd need to install [Python](https://www.python.org/downloads/) in your system. Then, you can follow the youtube tutorial videos to get an idea of how to use the module.
-
-- For [Windows users](https://www.youtube.com/watch?v=Lv1wtjnCcwI) (and showcased how to retrieve actual echo360 course url)
-[![](docs/images/youtube_win_tutorial.jpg)](https://www.youtube.com/watch?v=Lv1wtjnCcwI)
-
-### My credentials does not work?
-
-You can setup any credentials need with manually logging into websites, by running the script with:
-```sh
-./run.sh ECHO360_URL --setup-credential
+```bash
+swinydl download "https://echo360.org.au/section/UUID/home" --media both
 ```
-This will open up a chrome instance that allows you to log into your website as you normally do. Afterwards, simply type 'continue' into your shell and press enter to continue to proceeds with the rest of the script.
 
-### My credentials does not work (echo360.org)?
+Use `download` when you explicitly want Echo360 media artifacts on disk. Use `process` for the normal inspect -> fetch audio -> transcribe flow.
 
-For echo360.org, the default behaviour is it will always require you to setup-credentials, and the module will automatically detect login token and proceed the download process. For some institutions, this seems to be not sufficient (#29).
+### Transcribe a local file
 
-You can disable such behaviour with
-```sh
-./run.sh ECHO360_ORG_URL --manual
+```bash
+swinydl transcribe ~/Downloads/lecture.mp4
 ```
-for manual setup; and once you had logged in, type
-```sh
-continue
+
+### Control speaker separation explicitly
+
+```bash
+swinydl transcribe ~/Downloads/lecture.mp4 --diarization on
 ```
-in your terminal to continue.
 
-### How do I download only individual video(s)?
+Disable speaker separation only when you want raw caption reuse or the fastest possible transcript path:
 
-You are in luck! It is now possible to pick a subset of videos to download from (instead of needing to download everything like before). Just pass the interactive argument like this:
-```sh
-./run.sh ECHO360_URL --interactive  # or ./run.sh ECHO360_URL -i
+```bash
+swinydl transcribe ~/Downloads/lecture.mp4 --diarization off
 ```
-...and it shall presents an interactive screen for you to pick each individual video(s) that you want to download, like the screenshot as shown below.
 
-<img src="/docs/images/pick_individual_videos_screenshot.png" width="650" height="auto" >
+### Environment check
 
-### My lecture has two video feeds, how can I download both of them?
+```bash
+swinydl doctor
+```
 
-You can add argument `--alternative_feeds` or simply `-a` to download both video feeds.
+`doctor` is a runtime health check. It validates the local environment for Swift, Chrome, ffmpeg, the local Parakeet CoreML backend, and the local CoreML speaker diarizer. It does not install dependencies or decide package versions.
 
-### Technical details
+JSON output is also available:
 
-The current script uses a web-driver to emulate as a web-browser in order to retrieve the original streaming link. There are current two options for the web-driver: PhantomJS and Chrome. It then uses a hls downloader to simultaneously download all the smaller parts of the videos, and combined into one. Transcoding into mp4 will be performed if ffmpeg is present in your system, and all files will be renamed into a nice format.
+```bash
+swinydl doctor --json
+```
 
-# Credits
+## Verification Status
 
-Credits to [jhalstead85](https://github.com/jhalstead85/lecho360) for which this script is based upon.
-This script has then been adopted to be usable for USYD echo360. It was then extended to work in canvas (which uses a human-readable name instead of UUID); and later automated the entire process and become usable for all other universities.
+What has been verified locally:
+
+- the CLI boots and the test suite passes
+- the local Parakeet CoreML transcription path runs end to end
+- the local CoreML diarization path runs end to end
+- transcript artifacts are emitted as `.txt`, `.srt`, and `.json`
+
+What is still being tuned:
+
+- diarization quality for short back-and-forth dialogue is not good enough yet
+- the current pipeline can collapse two-speaker conversations into one dominant label
+- the intended target remains lecture-style audio with one primary speaker and occasional questions or interruptions
+
+So the current state is:
+
+- transcription: working
+- speaker separation execution: working
+- speaker separation quality: still under active tuning
+
+## Defaults
+
+- default command: `process`
+- default output root: `./swinydl-output`
+- default transcript source: `auto`
+- default ASR backend: `auto`
+- default diarization mode: `on`
+- default outputs: `.txt`, `.srt`, `.json`
+- default media policy: delete temporary media after success
+- default browser/session policy: persistent Chrome profile in `~/Library/Application Support/swinydl/browser-profile/`
+
+Output layout:
+
+```text
+./swinydl-output/<course-slug>/<lesson-key>.txt
+./swinydl-output/<course-slug>/<lesson-key>.srt
+./swinydl-output/<course-slug>/<lesson-key>.json
+./swinydl-output/<course-slug>/_runs/<run-id>.json
+```
+
+`lesson-key` format:
+
+```text
+<date-or-undated>__<lesson-id-or-index>__<slug>
+```
+
+## Migration From The Old CLI
+
+- the old interactive picker is gone
+- the old custom downloader stack is gone
+- Firefox, PhantomJS, and bundled driver downloaders are gone
+- video download is now explicit via `swinydl download`
+- the legacy `swinydl-downloader` alias is no longer part of the main supported surface; use `swinydl process` or `swinydl download`
+- the CLI now targets a local Parakeet CoreML backend
+- packaging is driven by `pyproject.toml` and `uv.lock`; there is no separate `requirements.txt` workflow
+
+## Backend Notes
+
+- `--asr-backend auto` resolves to the local Parakeet CoreML backend.
+- The default model directory is `./vendor/parakeet-tdt-0.6b-v3-coreml`.
+- Set `ECHO360_PARAKEET_COREML_DIR` to point at a different staged CoreML repo directory.
+- Set `ECHO360_PARAKEET_COREML_VERSION=v2` if you stage the English-only v2 CoreML bundle instead.
+- The Python CLI does not run Parakeet directly. It shells into a small Swift helper that loads the CoreML bundles, runs transcription on Apple Silicon, and returns token timings as JSON.
+- Token timings are reconstructed into words and transcript segments in Python, then written to `.txt`, `.srt`, and `.json`.
+- Speaker diarization is also local. Python shells into a second Swift helper that loads the staged CoreML diarizer bundles and returns speaker segments as JSON.
+- The default diarizer model directory is `./vendor/speaker-diarization-coreml`.
+- Set `ECHO360_DIARIZER_COREML_DIR` to point at a different staged diarizer model directory.
+- The current diarization defaults are chosen for lecture-style media, not highly conversational two-speaker content.
+- The repo-local `vendor` model directory is ignored by git because the staged CoreML bundle is large and machine-local.
+
+### Stage a Local Speaker Diarizer CoreML Bundle
+
+`swinydl` expects a staged diarizer directory with this layout:
+
+```text
+vendor/speaker-diarization-coreml/
+  Segmentation.mlmodelc/
+  FBank.mlmodelc/
+  Embedding.mlmodelc/
+  PldaRho.mlmodelc/
+  plda-parameters.json
+  xvector-transform.json
+```
+
+The diarization runner loads those offline CoreML assets directly through Swift/CoreML. Pull the staged bundle directly from the upstream CoreML repo with:
+
+```bash
+swinydl bootstrap-models --target diarizer
+```
+
+The repo currently expects these local filenames, even though upstream bundles may use different names internally:
+
+- `Segmentation.mlmodelc`
+- `FBank.mlmodelc`
+- `Embedding.mlmodelc`
+- `PldaRho.mlmodelc`
+- `plda-parameters.json`
+- `xvector-transform.json`
+
+If an upstream CoreML release changes file names but not the underlying model roles, keep the repo-local staged names stable and adapt the staging step.
+
+## Development
+
+Create a local environment and install the package in editable mode:
+
+```bash
+uv sync --group dev
+./.venv/bin/python -m unittest discover -s tests -v
+```

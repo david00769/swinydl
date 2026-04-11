@@ -1,5 +1,5 @@
-title: Echo360 Downloader
-description: Cli tool for automated downloads of echo360 videos
+title: SWinyDL
+description: SWinyDL: transcript-first Echo360 tooling for macOS Apple Silicon
 show_downloads: true
 google_analytics:
 theme: jekyll-theme-leap-day

@@ -552,7 +552,6 @@ wheels = [
 
 [[package]]
 name = "swinydl"
-version = "4.0.0"
 source = { editable = "." }
 dependencies = [
     { name = "huggingface-hub" },

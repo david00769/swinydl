@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-"""Friendly root entrypoint for `uv run app.py` usage."""
+"""Legacy Chrome-fallback entrypoint for `uv run app.py` usage."""
 
 import re
 import sys
@@ -11,7 +11,7 @@ from swinydl.main import main
 
 
 def _capture_course_url_from_browser() -> list[str]:
-    """Launch Chrome, let the user navigate, then capture the current URL."""
+    """Launch the Chrome fallback flow, let the user navigate, then capture the current URL."""
     try:
         input(
             "Press [enter] to launch Chrome.\n"

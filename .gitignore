@@ -61,6 +61,8 @@ coverage.xml
 
 # Sphinx documentation
 docs/_build/
+safari/SWinyDLSafari.xcodeproj/xcuserdata/
+*.xcuserstate
 
 # PyBuilder
 target/

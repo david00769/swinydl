@@ -4,8 +4,10 @@ See the repository root [README](../README.md) for the supported install and usa
 
 The v4 line is transcript-first:
 
+- Safari wrapper app + Safari Web Extension
 - `swinydl inspect COURSE_URL`
 - `swinydl process COURSE_URL`
+- `swinydl process-manifest PATH`
 - `swinydl download COURSE_URL --media audio|video|both`
 - `swinydl transcribe PATH`
 - `swinydl doctor`
@@ -15,22 +17,59 @@ The v4 line is transcript-first:
 For day-to-day use, the simplest entrypoint is:
 
 ```bash
-uv run app.py
+./install.sh
 ```
 
-With no arguments, that launcher opens Chrome with the persistent profile, waits for you to log in and navigate to the target Canvas or Echo360 page, captures the current browser URL when you press Enter again, and then runs the normal `swinydl process` workflow against that captured URL.
+`install.sh` is the primary supported setup path. It validates the local Xcode prerequisites, runs `uv sync`, bootstraps the CoreML bundles, regenerates the Safari project, builds `SWinyDLSafariApp.app`, and opens the built app plus Safari.
+
+For a first-time non-technical Mac user, the simplest setup path is:
+
+1. `xcode-select --install`
+2. install Homebrew if needed
+3. `brew install uv ffmpeg xcodegen`
+4. run `./install.sh`
+5. enable `SWinyDL Safari` in Safari Settings
+
+After that:
+
+1. Enable the bundled Safari extension in Safari Settings
+2. If it does not appear, enable Safari's Develop menu and turn on `Allow Unsigned Extensions`
+3. If you want to verify the extension is registered, run `pluginkit -mAvvv -p com.apple.Safari.web-extension | rg SWinyDL`
+4. Open a logged-in Canvas or Echo360 page in Safari
+5. Use the extension popup to load the course, choose whether downloaded media should be deleted after transcription, and launch a manifest-driven backend job into the native wrapper app window
+
+The native wrapper window shows per-lesson transcript files and can open the transcription folder directly.
+It also shows whether the Parakeet ASR model bundle and speaker diarizer bundle are ready.
+
+The backend has also been verified non-interactively on public sample media:
+
+- local Parakeet CoreML ASR completes unattended
+- local CoreML diarization completes unattended
+- concurrent transcribes no longer share the same temp workspace or bootstrap state
+
+The old Chrome-guided launcher still exists as fallback:
+
+```bash
+uv run app.py
+```
 
 Supported scope:
 
 - macOS Apple Silicon
-- Chrome or Chromium
+- Safari-first, Chrome fallback
+- local repo install, not signed or notarized distribution
 - Python `>=3.11`
 - Swift toolchain available on `PATH`
+- xcodegen available on `PATH`
 - package install via `pip` or `uv`
 
 The old video-downloader implementation, PhantomJS, Firefox, and custom HLS code are intentionally removed from the supported path.
 
 Dependency ranges live in `pyproject.toml`, the tested resolution lives in `uv.lock`, and `swinydl doctor` is only for runtime readiness checks.
+
+GitHub Releases are the update source of truth. The native wrapper can notify about newer releases, but updates are still guided local rebuilds via `./install.sh`, not binary self-patching.
+
+If no GitHub release has been published yet, the wrapper app's update check will report that no releases were found. That is expected until the first published release tag exists.
 
 There is no separate `requirements.txt` or `MANIFEST.in` workflow in v4.
 
@@ -38,6 +77,7 @@ The transcription stack now uses:
 
 - local Parakeet CoreML via the repo-local Swift runner
 - local CoreML speaker diarization via a second Swift runner
+- a Safari-native entrypoint that launches `swinydl process-manifest`
 
 `--asr-backend auto` resolves to Parakeet CoreML.
 
@@ -47,9 +87,18 @@ The flow is:
 2. Python invokes the local Swift runner.
 3. Swift loads the staged CoreML Parakeet bundles and runs transcription on Apple Silicon.
 4. Swift returns token timings as JSON.
-5. Python reconstructs words and transcript segments, then writes `.txt`, `.srt`, and `.json`.
+5. Python reconstructs words and transcript segments, then writes `.txt`, `.srt`, and `.json`, with `.txt` treated as the primary human-facing transcript.
 
 Speaker diarization is on by default and runs through the local CoreML diarizer bundles staged under `vendor/speaker-diarization-coreml` or pointed to by `ECHO360_DIARIZER_COREML_DIR`.
+
+Current validation status:
+
+- backend execution is working for unattended local-file transcription
+- transcript artifacts are written correctly for `.txt`, `.srt`, and `.json`
+- the native wrapper shows stage-level lesson progress, elapsed time, and recent activity from the manifest status sidecar
+- concurrency races in bootstrap and temp-workspace handling have been fixed
+- live Safari-authenticated Canvas/Echo360 runs still need continued real-world validation
+- diarization quality is still tuned for lecture-style media rather than fast two-speaker dialogue
 
 The supported staging path is:
 

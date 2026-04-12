@@ -10,7 +10,15 @@ from .system import (
     ffmpeg_version,
     find_chrome_binary,
     find_swift_binary,
+    find_xcodebuild_binary,
+    find_xcodegen_binary,
+    safari_built_app_path,
+    safari_extension_bundle_path,
+    safari_project_path,
+    safari_project_spec_path,
     swift_version,
+    xcode_first_launch_ready,
+    xcode_select_path,
 )
 from .transcription import (
     diarization_runtime_status,
@@ -33,6 +41,10 @@ def doctor() -> dict[str, object]:
         "platform": platform.platform(),
         "machine": machine,
         "swift_binary": find_swift_binary(),
+        "xcodebuild_binary": find_xcodebuild_binary(),
+        "xcode_select_path": xcode_select_path(),
+        "xcode_first_launch_ready": xcode_first_launch_ready(),
+        "xcodegen_binary": find_xcodegen_binary(),
         "swift_version": swift_version(),
         "chrome_binary": find_chrome_binary(),
         "chrome_version": chrome_version(),
@@ -43,11 +55,16 @@ def doctor() -> dict[str, object]:
     checks = [
         _check_python(python_version),
         _check_platform(machine),
+        _check_xcode_select(env),
+        _check_xcode_first_launch(env),
         _check_swift(env),
+        _check_xcodegen(env),
+        _check_safari_project(),
+        _check_safari_build(),
         _check_chrome(env),
         _check_ffmpeg(env),
         _check_ssl(env),
-        _check_package("selenium", required=True, message="Selenium is installed."),
+        _check_package("selenium", required=False, message="Selenium is installed for the Chrome fallback flow."),
         _check_package("yt_dlp", required=True, message="yt-dlp is installed."),
         _check_asr_backend_parakeet(),
         _check_diarization_backend(),
@@ -98,12 +115,43 @@ def _check_platform(machine: str) -> dict[str, object]:
 def _check_chrome(env: dict[str, object]) -> dict[str, object]:
     chrome_binary = env["chrome_binary"]
     if chrome_binary:
-        return _check("chrome", "pass", f"Chrome available at {chrome_binary}.")
+        return _check("chrome", "pass", f"Chrome fallback is available at {chrome_binary}.")
     return _check(
         "chrome",
-        "fail",
+        "warn",
         "Chrome or Chromium was not found.",
-        fix="Install Google Chrome or Chromium so Selenium can reuse a persistent browser profile.",
+        fix="Safari is now the preferred interactive path. Install Chrome only if you want the legacy Selenium fallback.",
+    )
+
+
+def _check_xcode_select(env: dict[str, object]) -> dict[str, object]:
+    path = env["xcode_select_path"]
+    if path:
+        return _check("xcode-select", "pass", f"Xcode developer directory is set to {path}.")
+    return _check(
+        "xcode-select",
+        "fail",
+        "Xcode command line tools are not configured.",
+        fix="Install Xcode or Xcode command line tools, then run `xcode-select -p` to verify the active developer directory.",
+    )
+
+
+def _check_xcode_first_launch(env: dict[str, object]) -> dict[str, object]:
+    ready = env["xcode_first_launch_ready"]
+    if ready is True:
+        return _check("xcode-first-launch", "pass", "Xcode first-launch setup and license acceptance are complete.")
+    if ready is False:
+        return _check(
+            "xcode-first-launch",
+            "fail",
+            "Xcode first-launch setup is incomplete.",
+            fix="Open Xcode once or run `sudo xcodebuild -license accept` and `sudo xcodebuild -runFirstLaunch`.",
+        )
+    return _check(
+        "xcode-first-launch",
+        "warn",
+        "Unable to determine Xcode first-launch status.",
+        fix="Run `xcodebuild -checkFirstLaunchStatus` locally and complete the required setup if needed.",
     )
 
 
@@ -117,6 +165,58 @@ def _check_swift(env: dict[str, object]) -> dict[str, object]:
         "fail",
         "Swift was not found on PATH.",
         fix="Install Xcode command line tools so the Parakeet CoreML runner can be built locally.",
+    )
+
+
+def _check_xcodegen(env: dict[str, object]) -> dict[str, object]:
+    xcodegen_binary = env["xcodegen_binary"]
+    if xcodegen_binary:
+        return _check("xcodegen", "pass", f"xcodegen available at {xcodegen_binary}.")
+    return _check(
+        "xcodegen",
+        "warn",
+        "xcodegen was not found on PATH.",
+        fix="Install xcodegen if you want to regenerate the Safari wrapper Xcode project from safari/project.yml.",
+    )
+
+
+def _check_safari_project() -> dict[str, object]:
+    project_spec = safari_project_spec_path()
+    project_file = safari_project_path() / "project.pbxproj"
+    if project_file.exists():
+        return _check("safari-project", "pass", f"Generated Safari Xcode project is present at {project_file}.")
+    if project_spec.exists():
+        return _check(
+            "safari-project",
+            "warn",
+            f"Safari XcodeGen spec is present at {project_spec}, but the generated project is missing.",
+            fix="Run `xcodegen generate --spec safari/project.yml` to regenerate the Safari wrapper project.",
+        )
+    return _check(
+        "safari-project",
+        "fail",
+        "Safari wrapper project files are missing.",
+        fix="Restore `safari/project.yml` and regenerate the Safari wrapper project.",
+    )
+
+
+def _check_safari_build() -> dict[str, object]:
+    app_bundle = safari_built_app_path()
+    extension_bundle = safari_extension_bundle_path()
+    if app_bundle.exists() and extension_bundle.exists():
+        return _check("safari-app-build", "pass", f"Built Safari wrapper app is present at {app_bundle}.")
+    if app_bundle.exists():
+        return _check(
+            "safari-app-build",
+            "warn",
+            f"Built app exists at {app_bundle}, but the embedded Safari extension bundle is missing.",
+            fix="Rebuild the app with `./install.sh` or `xcodebuild` so the extension is embedded in the wrapper app.",
+        )
+    return _check(
+        "safari-app-build",
+        "warn",
+        f"Built Safari wrapper app was not found at {app_bundle}.",
+        fix="Run `./install.sh` to build the wrapper app locally before enabling the Safari extension.",
     )
 
 

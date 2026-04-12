@@ -7,31 +7,78 @@ This repository is designed specifically for Apple Silicon Macs. It is not inten
 Tested platform:
 - macOS 26.4 (`25E246`) on Apple Silicon
 
-`swinydl` keeps the Echo360-specific browser login and lesson discovery flow, but replaces the old custom HLS downloader with `yt-dlp` and makes transcription the default product path.
+`swinydl` keeps the Echo360-specific discovery and media retrieval flow, but replaces the old custom HLS downloader with `yt-dlp`, makes transcription the default product path, and now treats Safari as the preferred interactive entrypoint.
 
-For day-to-day use, the simplest launch path is:
+For day-to-day use, the primary path is:
+
+```bash
+./install.sh
+```
+
+That installer:
+
+- validates local prerequisites
+- runs `uv sync`
+- bootstraps the staged CoreML bundles
+- regenerates and builds the Safari wrapper app
+- opens the app and Safari so you can enable the extension
+
+Then:
+
+1. Enable `SWinyDL Safari` in Safari Settings
+2. Open a logged-in Canvas or Echo360 page in Safari
+3. Use the extension popup to select lessons and choose whether downloaded media should be deleted after transcription
+4. Watch stage-by-stage progress in the native wrapper window, including active lesson, elapsed time, recent activity, and the emitted `.txt`, `.srt`, and `.json` files
+
+## First-Time Mac User
+
+If you are not technical, use this path and ignore the rest of the commands in this README:
+
+1. Install Apple’s command line tools by running `xcode-select --install`
+2. Install Homebrew if you do not already have it
+3. Install the three tools SWinyDL expects:
+
+```bash
+brew install uv ffmpeg xcodegen
+```
+
+4. In Terminal, change into the SWinyDL folder
+5. Run:
+
+```bash
+./install.sh
+```
+
+6. Wait for the installer to finish
+7. In Safari, open `Settings > Extensions` and enable `SWinyDL Safari`
+8. If the extension does not appear, open Safari’s Develop menu and turn on `Allow Unsigned Extensions`
+9. Open your Canvas or Echo360 page in Safari and use the extension popup
+
+What `./install.sh` does for you:
+
+- creates the Python environment
+- downloads the Parakeet and speaker-diarizer model files if they are missing
+- builds the Mac app and Safari extension
+- opens the app and Safari when setup is finished
+
+You do not need to download the Parakeet model manually.
+
+The Chrome-guided launcher still exists as a fallback:
 
 ```bash
 uv run app.py
 ```
 
-If you launch it with no arguments, the app:
-
-1. asks you to press enter to launch Chrome
-2. lets you log in and navigate to the target page
-3. captures the browser URL when you press enter again
-4. runs the default `process` workflow against that captured URL
-
-On first real use, if the default local CoreML model bundles are missing, the app automatically downloads them from the documented Hugging Face sources before continuing.
-
 ## What v4 Does
 
 - inspects Echo360 courses and lists lessons
+- adds a Safari Web Extension popup for whole-course lesson selection
+- adds a native macOS wrapper app that launches backend jobs and shows progress
 - prefers speaker-aware ASR by default so transcripts include speaker labels
 - can reuse native Echo360 captions when you explicitly turn diarization off
 - runs a local `Parakeet` CoreML backend on Apple Silicon
 - keeps diarization as a separate local CoreML speaker pipeline
-- writes `.txt`, `.srt`, and structured `.json` outputs
+- writes `.txt`, `.srt`, and structured `.json` outputs, with `.txt` treated as the primary user-facing transcript
 - deletes temporary media after successful transcription unless you opt in to keep it
 - supports explicit media download as a separate subcommand
 - is tuned for lecture-style content with one dominant speaker and occasional audience participation
@@ -40,23 +87,93 @@ On first real use, if the default local CoreML model bundles are missing, the ap
 
 - macOS Apple Silicon only
 - tested on macOS `26.4` (`25E246`)
-- Chrome or Chromium only
+- Safari-first interactive flow, Chrome fallback only
+- local developer-style install from the repo, not App Store distribution
 - Python `>=3.11`
 - package distribution via `pip` or `uv`
 - Swift toolchain via Xcode command line tools
+- `xcodegen` for regenerating the Safari Xcode project
 - no Windows support
 - no Firefox support
 - no PhantomJS support
 
 ## Install
 
-### `uv`
+### Recommended: local repo install with Safari
+
+```bash
+./install.sh
+```
+
+This is the supported install flow for this repo.
+
+It checks:
+
+- Python `>=3.11`
+- `uv`
+- `ffmpeg`
+- `xcodegen`
+- `xcode-select`
+- Xcode first-launch and license acceptance
+
+It builds the containing app at:
+
+```text
+./safari/.build/Debug/SWinyDLSafariApp.app
+```
+
+After the installer finishes:
+
+1. In Safari, open `Settings > Extensions`
+2. Enable `SWinyDL Safari`
+3. If the extension does not appear, enable Safari's Develop menu and turn on `Allow Unsigned Extensions`
+4. If you want to confirm Safari sees the extension bundle, run:
+
+```bash
+pluginkit -mAvvv -p com.apple.Safari.web-extension | rg SWinyDL
+```
+
+5. Open a logged-in Canvas or Echo360 page and use the extension popup to launch jobs
+
+How to tell if the models are ready:
+
+- the Mac app header shows `Models ready` when both model bundles are present
+- the empty state also shows `Parakeet ASR: Ready` and `Speaker diarizer: Ready`
+- from Terminal, `swinydl doctor` should complete with no failures
+
+The Safari popup includes a default-on setting:
+
+- `Delete downloaded media after transcription to conserve disk space`
+
+When that setting stays on, SWinyDL removes downloaded media after transcript generation. If you turn it off, `Download + Transcribe` retains the downloaded media files on disk.
+
+The native wrapper app shows the transcript artifacts for successful lessons and exposes `Open Transcription Folder` so you can jump straight to the generated files.
+
+### Manual install if you do not want the guided script
+
+```bash
+uv sync
+swinydl bootstrap-models
+xcodegen generate --spec safari/project.yml
+xcodebuild \
+  -project safari/SWinyDLSafari.xcodeproj \
+  -scheme SWinyDLSafariApp \
+  -configuration Debug \
+  -derivedDataPath safari/.build/DerivedData \
+  CONFIGURATION_BUILD_DIR="$PWD/safari/.build/Debug" \
+  CODE_SIGNING_ALLOWED=NO \
+  build
+open safari/.build/Debug/SWinyDLSafariApp.app
+open -a Safari
+```
+
+### Python-only fallback install
 
 ```bash
 uv sync
 ```
 
-### `pip`
+or:
 
 ```bash
 python3 -m venv .venv
@@ -82,26 +199,132 @@ uv sync
 
 ## Requirements
 
-- Google Chrome or Chromium installed
+- Safari enabled with the SWinyDL extension for the preferred interactive flow
+- Xcode or Xcode command line tools installed and selected via `xcode-select`
+- Xcode first-launch setup and license acceptance complete
 - Swift installed via Xcode command line tools
+- `xcodegen` on `PATH`
 - `ffmpeg` on `PATH`
-- an interactive Echo360 login in the Chrome profile on first use
 - local Parakeet CoreML assets staged at `./vendor/parakeet-tdt-0.6b-v3-coreml` or exposed through `ECHO360_PARAKEET_COREML_DIR`
 - local speaker diarizer CoreML assets staged at `./vendor/speaker-diarization-coreml` or exposed through `ECHO360_DIARIZER_COREML_DIR`
+- Chrome or Chromium only if you want the legacy Selenium fallback
 
 ## Quickstart
 
 For a new machine, the shortest supported path is:
 
-1. `uv sync`
-2. `swinydl bootstrap-models`
-3. Run `swinydl doctor`
-4. Run `uv run app.py`, press enter to launch Chrome, then log in and navigate to the target page before pressing enter again
-5. Or bypass the browser-guided flow and run `swinydl transcribe /path/to/local/file.mp4` for a local file
+1. `./install.sh`
+2. Enable the SWinyDL Safari extension in Safari Settings
+3. Open a supported Canvas or Echo360 page in Safari and use the extension popup to launch jobs
+4. Or use direct CLI fallback:
+
+```bash
+swinydl process COURSE_URL
+swinydl process-manifest /path/to/job.json
+swinydl transcribe /path/to/local/file.mp4
+```
 
 `uv sync` installs the Python dependencies declared in [pyproject.toml](pyproject.toml), including the Hugging Face client used by model bootstrap. The first time the CoreML runners are built, Swift Package Manager also resolves the Swift-side dependency declared in [Package.swift](swift/ParakeetCoreMLRunner/Package.swift).
 
-If you skip step 2, `swinydl process`, `swinydl transcribe`, `swinydl doctor`, and `uv run app.py` will auto-bootstrap the default repo-local model bundles when they are missing.
+If the staged model bundles are missing, `swinydl process`, `swinydl process-manifest`, `swinydl transcribe`, `swinydl doctor`, and `uv run app.py` will auto-bootstrap the default repo-local model bundles automatically.
+
+## Updating SWinyDL
+
+GitHub Releases are the source of truth for updates:
+
+- [david00769/swinydl releases](https://github.com/david00769/swinydl/releases)
+
+The native Safari wrapper checks GitHub Releases on launch and from `Check for Updates...`. Under the current unsigned local-install model, updates are guided rebuilds, not in-place binary patching.
+
+When a new release is available, update with:
+
+```bash
+git pull --tags
+uv sync
+./install.sh
+```
+
+Run `swinydl bootstrap-models` separately only if the release notes mention model layout changes.
+
+If the wrapper app cannot resolve the local repo root, it falls back to opening the GitHub release page and the local README update instructions.
+
+If you have not published any GitHub Releases yet, the native wrapper's update check will report that no releases were found. That is expected. The release-check UI only becomes meaningful after the first published GitHub release tag.
+
+## Troubleshooting
+
+### Safari extension does not appear
+
+1. Make sure the containing app exists at:
+
+```text
+./safari/.build/Debug/SWinyDLSafariApp.app
+```
+
+2. Run the app once:
+
+```bash
+open ./safari/.build/Debug/SWinyDLSafariApp.app
+```
+
+3. Open Safari and check `Settings > Extensions`
+4. If the extension is still missing, enable Safari's Develop menu and turn on `Allow Unsigned Extensions`
+5. Confirm Safari has registered the extension:
+
+```bash
+pluginkit -mAvvv -p com.apple.Safari.web-extension | rg SWinyDL
+```
+
+6. If the built app or embedded extension is missing, rebuild with:
+
+```bash
+./install.sh
+```
+
+You can also confirm the app health directly with:
+
+```bash
+swinydl doctor
+```
+
+### Where do the transcript files show up?
+
+The native wrapper app now shows the emitted transcript files for each successful lesson. `.txt` is the primary transcript most users care about, while `.srt` and `.json` remain available as secondary artifacts:
+
+- `.txt` for the main readable transcript
+- `.srt` for timed captions
+- `.json` for structured transcript and status data
+
+Each lesson row exposes:
+
+- `Preview TXT` for an in-app text preview
+- `Open Transcript` with `.txt` preferred by default
+- `Open Transcription Folder` for the full artifact directory
+
+### Backend runs feel slow or silent
+
+The native wrapper now shows stage-level status for `downloading`, `extracting audio`, `transcribing`, `diarizing`, and `writing files`, plus active lesson, elapsed time, and a recent activity log.
+
+The CoreML runners still do not expose fine-grained token-level inference progress, so some stages can remain visually steady for a while on large lectures.
+
+What has been verified locally:
+
+- unattended `swinydl transcribe` works on public sample media
+- diarized and non-diarized local transcription both complete successfully
+- concurrent transcribes no longer collide on shared temp paths or model bootstrap state
+
+If a run appears stuck for an unusually long time, check the output directory and rerun:
+
+```bash
+swinydl doctor
+```
+
+### Update check says no releases were found
+
+That means the GitHub repo does not have a published release yet. The app checks:
+
+- [david00769/swinydl releases](https://github.com/david00769/swinydl/releases)
+
+Publish a first release there if you want the wrapper app to notify about new versions.
 
 ## Bootstrap Models
 
@@ -195,6 +418,12 @@ When updating this repo, prefer the public CoreML repos first. Use the canonical
 
 ## Commands
 
+### Safari-first interactive flow
+
+`./install.sh` is the primary supported setup path. It leaves you with a built Safari app in `./safari/.build/Debug/SWinyDLSafariApp.app`.
+
+The Safari app + extension path is the preferred interactive flow. The extension loads the full course inventory from the current logged-in Safari page, then sends a manifest-driven job into the native wrapper app.
+
 ### Inspect a course
 
 ```bash
@@ -209,13 +438,19 @@ swinydl process "https://echo360.org.au/section/UUID/home"
 
 `process` is the normal product path: inspect lessons, fetch the best audio path, transcribe it, and label speaker turns by default.
 
-The equivalent friendly launcher is:
+The Safari wrapper launches the backend through the manifest entrypoint:
+
+```bash
+swinydl process-manifest /path/to/job.json
+```
+
+The equivalent legacy browser-guided fallback is:
 
 ```bash
 uv run app.py
 ```
 
-That launcher:
+That launcher remains Chrome-based and:
 
 1. asks you to press Enter to launch Chrome
 2. opens Chrome with the app's persistent profile
@@ -267,7 +502,7 @@ swinydl transcribe ~/Downloads/lecture.mp4 --diarization off
 swinydl doctor
 ```
 
-`doctor` is a runtime health check. It validates the local environment for Swift, Chrome, ffmpeg, the local Parakeet CoreML backend, and the local CoreML speaker diarizer. It does not install dependencies or decide package versions.
+`doctor` is a runtime health check. It validates the local environment for Xcode command line readiness, Swift, xcodegen, the generated Safari project, the built Safari wrapper app, Chrome fallback availability, ffmpeg, the local Parakeet CoreML backend, and the local CoreML speaker diarizer. It does not install dependencies or decide package versions.
 
 JSON output is also available:
 
@@ -282,13 +517,16 @@ What has been verified locally:
 - the CLI boots and the test suite passes
 - the local Parakeet CoreML transcription path runs end to end
 - the local CoreML diarization path runs end to end
-- transcript artifacts are emitted as `.txt`, `.srt`, and `.json`
+- unattended transcription succeeds on public sample media without human input
+- concurrent transcribes of the same sample now complete successfully
+- transcript artifacts are emitted as `.txt`, `.srt`, and `.json`, with `.txt` emphasized in the native app
 
 What is still being tuned:
 
 - diarization quality for short back-and-forth dialogue is not good enough yet
 - the current pipeline can collapse two-speaker conversations into one dominant label
 - the intended target remains lecture-style audio with one primary speaker and occasional questions or interruptions
+- the live Safari-authenticated Canvas/Echo360 path still needs more real-world validation after the recent backend concurrency fixes
 
 So the current state is:
 
@@ -304,8 +542,10 @@ So the current state is:
 - default ASR backend: `auto`
 - default diarization mode: `on`
 - default outputs: `.txt`, `.srt`, `.json`
+- default primary deliverable: `.txt`
 - default media policy: delete temporary media after success
-- default browser/session policy: persistent Chrome profile in `~/Library/Application Support/swinydl/browser-profile/`
+- default interactive entrypoint: Safari wrapper app + Safari Web Extension
+- default browser/session fallback: persistent Chrome profile in `~/Library/Application Support/swinydl/browser-profile/`
 
 Output layout:
 

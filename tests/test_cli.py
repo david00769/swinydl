@@ -45,3 +45,14 @@ class CliTests(unittest.TestCase):
 
         self.assertEqual(exit_code, 2)
         stderr.write.assert_called()
+
+    def test_process_manifest_routes_to_manifest_workflow(self):
+        summary = SimpleNamespace(
+            results=[],
+            course=SimpleNamespace(course_title="Course"),
+        )
+        with patch("swinydl.workflow.process_manifest", return_value=summary) as process_manifest:
+            exit_code = main.main(["process-manifest", "/tmp/job.json"])
+
+        self.assertEqual(exit_code, 0)
+        process_manifest.assert_called_once_with("/tmp/job.json")

@@ -1,0 +1,51 @@
+name: SWinyDLSafari
+options:
+  createIntermediateGroups: true
+  minimumXcodeGenVersion: 2.45.3
+configs:
+  Debug: debug
+  Release: release
+targets:
+  SWinyDLSafariApp:
+    type: application
+    platform: macOS
+    deploymentTarget: "14.0"
+    sources:
+      - path: Shared/Sources
+      - path: SWinyDLSafariApp/Sources
+    settings:
+      base:
+        INFOPLIST_FILE: SWinyDLSafariApp/Info.plist
+        PRODUCT_BUNDLE_IDENTIFIER: com.davidsiroky.swinydl.SafariApp
+        CODE_SIGN_ENTITLEMENTS: SWinyDLSafariApp/SWinyDLSafariApp.entitlements
+        SWIFT_VERSION: "5.0"
+        INFOPLIST_KEY_CFBundleDisplayName: "SWinyDL Safari"
+        INFOPLIST_KEY_SWINYDLRepoRoot: "$(PROJECT_DIR)/.."
+        INFOPLIST_KEY_SWINYDLDefaultPython: "$(PROJECT_DIR)/../.venv/bin/python"
+        ENABLE_APP_SANDBOX: YES
+        ENABLE_OUTGOING_NETWORK_CONNECTIONS: YES
+        ENABLE_USER_SELECTED_FILES: readonly
+        LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/../Frameworks"
+        OTHER_LDFLAGS: "-framework SafariServices -framework WebKit"
+    dependencies:
+      - target: SWinyDLSafariExtension
+        embed: true
+
+  SWinyDLSafariExtension:
+    type: app-extension
+    platform: macOS
+    deploymentTarget: "14.0"
+    sources:
+      - path: Shared/Sources
+      - path: SWinyDLSafariExtension/Sources
+    resources:
+      - path: SWinyDLSafariExtension/Resources
+    settings:
+      base:
+        INFOPLIST_FILE: SWinyDLSafariExtension/Info.plist
+        PRODUCT_BUNDLE_IDENTIFIER: com.davidsiroky.swinydl.SafariApp.Extension
+        CODE_SIGN_ENTITLEMENTS: SWinyDLSafariExtension/SWinyDLSafariExtension.entitlements
+        SWIFT_VERSION: "5.0"
+        SKIP_INSTALL: YES
+        LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/../Frameworks"
+        OTHER_LDFLAGS: "-framework SafariServices -framework WebKit"

@@ -20,19 +20,27 @@ def build_parser() -> argparse.ArgumentParser:
         prog="swinydl",
         description=(
             "SWinyDL: transcript-first Echo360 CLI for macOS Apple Silicon.\n\n"
-            "Normal usage is either:\n"
+            "Preferred interactive usage is the Safari wrapper and Safari Web Extension.\n"
+            "Run ./install.sh from the repo root to set up the local Python runtime, staged CoreML models, and built Safari app.\n"
+            "CLI usage is still supported for fallback and automation.\n\n"
+            "Common direct CLI usage is either:\n"
             "  swinydl process COURSE_URL\n"
-            "or the guided launcher:\n"
+            "or manifest-driven execution from the Safari bridge:\n"
+            "  swinydl process-manifest /path/to/job.json\n"
+            "or the legacy guided Chrome launcher:\n"
             "  uv run app.py\n\n"
-            "The guided launcher opens Chrome with your persistent profile, lets you log in and "
-            "navigate to the target Canvas or Echo360 page, then captures the current browser URL "
-            "and runs the default process workflow against it."
+            "The Safari path launches jobs from a logged-in Safari page through the native wrapper app. "
+            "The guided launcher remains available as a Chrome-based fallback that captures the current browser URL "
+            "and runs the default process workflow against it. Generated outputs include TXT, SRT, and JSON, with TXT as the primary transcript."
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
+            "Setup:\n"
+            "  ./install.sh\n\n"
             "Common flows:\n"
             "  swinydl inspect COURSE_URL\n"
             "  swinydl process COURSE_URL\n"
+            "  swinydl process-manifest /path/to/job.json\n"
             "  swinydl download COURSE_URL --media audio\n"
             "  swinydl transcribe /path/to/local/file.mp4\n"
             "  swinydl bootstrap-models\n"
@@ -58,6 +66,12 @@ def build_parser() -> argparse.ArgumentParser:
     process_parser.add_argument("--force-asr", action="store_true")
     process_parser.add_argument("--keep-audio", action="store_true")
     process_parser.add_argument("--force", action="store_true")
+
+    manifest_parser = subparsers.add_parser(
+        "process-manifest",
+        help="Process a Safari/native-wrapper manifest without launching a browser.",
+    )
+    manifest_parser.add_argument("manifest_path")
 
     download_parser = subparsers.add_parser("download", help="Explicitly download Echo360 media.")
     _add_course_and_filters(download_parser)
@@ -96,7 +110,7 @@ def main(argv: list[str] | None = None) -> int:
     """Run the CLI and return a shell-style exit code."""
     configure_runtime_ssl()
     argv = list(sys.argv[1:] if argv is None else argv)
-    if argv and argv[0] not in {"inspect", "process", "download", "transcribe", "bootstrap-models", "doctor", "--version", "-h", "--help"}:
+    if argv and argv[0] not in {"inspect", "process", "process-manifest", "download", "transcribe", "bootstrap-models", "doctor", "--version", "-h", "--help"}:
         argv.insert(0, "process")
 
     parser = build_parser()
@@ -151,6 +165,13 @@ def main(argv: list[str] | None = None) -> int:
                 force=args.force,
             )
             summary = process_course(args.course_url, options)
+            _print_process_summary(summary)
+            return 1 if any(result.status == "failed" for result in summary.results) else 0
+
+        if args.command == "process-manifest":
+            from .workflow import process_manifest
+
+            summary = process_manifest(args.manifest_path)
             _print_process_summary(summary)
             return 1 if any(result.status == "failed" for result in summary.results) else 0
 

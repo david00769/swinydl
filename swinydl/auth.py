@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-"""Chrome session management for interactive Echo360 access and cookie reuse."""
+"""Authenticated session providers for browser-backed and manifest-backed runs."""
 
 from contextlib import suppress
+from dataclasses import asdict
 from http.cookiejar import MozillaCookieJar
 import tempfile
 import time
@@ -14,11 +15,35 @@ from selenium.webdriver.chrome.service import Service
 
 from .app_paths import browser_profile_dir, ensure_runtime_dirs, logs_dir
 from .echo_exceptions import BrowserSetupError
+from .models import BrowserCookie
 from .system import find_chrome_binary
 
 
-class BrowserSession:
-    """Manage a persistent Chrome session and expose authenticated cookies."""
+class AuthenticatedSession:
+    """Interface for a session provider that can back HTTP and yt-dlp access."""
+
+    driver = None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc, tb) -> bool:
+        return False
+
+    def ensure_access(self, url: str) -> None:
+        """Ensure the provided URL is reachable in the authenticated context."""
+
+    def requests_session(self) -> requests.Session:
+        """Return a requests session carrying the current authenticated cookies."""
+        raise NotImplementedError
+
+    def cookie_file(self) -> str:
+        """Return a Netscape-format cookie file path for downstream tools."""
+        raise NotImplementedError
+
+
+class BrowserSession(AuthenticatedSession):
+    """Manage the legacy Chrome fallback session and expose authenticated cookies."""
 
     def __init__(self, *, course_url: str | None = None) -> None:
         ensure_runtime_dirs()
@@ -118,3 +143,47 @@ class BrowserSession:
         if any(token in current_url for token in ("login", "sso", "auth")):
             return True
         return all(token in page for token in ("password", "username"))
+
+
+class CookieSession(AuthenticatedSession):
+    """Use pre-exported browser cookies without launching a local browser."""
+
+    def __init__(self, cookies: list[BrowserCookie]) -> None:
+        ensure_runtime_dirs()
+        self.cookies = list(cookies)
+
+    def requests_session(self) -> requests.Session:
+        """Build a requests session populated from exported browser cookies."""
+        session = requests.Session()
+        for cookie in self.cookies:
+            session.cookies.set(
+                cookie.name,
+                cookie.value,
+                domain=cookie.domain,
+                path=cookie.path,
+            )
+        return session
+
+    def cookie_file(self) -> str:
+        """Write exported cookies to a Netscape-format file for yt-dlp."""
+        temp = tempfile.NamedTemporaryFile(prefix="swinydl-cookies-", suffix=".txt", delete=False)
+        temp.close()
+        jar = MozillaCookieJar(temp.name)
+        for cookie in self.cookies:
+            payload = asdict(cookie)
+            jar.set_cookie(
+                requests.cookies.create_cookie(
+                    domain=payload["domain"],
+                    name=payload["name"],
+                    value=payload["value"],
+                    path=payload["path"],
+                    secure=payload["secure"],
+                    expires=payload["expiry"],
+                    rest={
+                        "HttpOnly": payload["http_only"],
+                        "SameSite": payload["same_site"] or "",
+                    },
+                )
+            )
+        jar.save(ignore_discard=True, ignore_expires=True)
+        return temp.name

@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SWinyDL</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <main class="app">
+      <header class="header">
+        <div>
+          <h1>SWinyDL</h1>
+          <p class="subtitle">Safari-first Echo360 selection and launch flow.</p>
+        </div>
+        <button id="refresh" class="secondary">Reload</button>
+      </header>
+
+      <section id="status" class="status">Loading course inventory…</section>
+
+      <section id="controls" class="controls hidden">
+        <label class="row">
+          <input id="select-all" type="checkbox" checked />
+          <span>Select all lessons</span>
+        </label>
+        <label class="setting">
+          <input id="delete-downloads" type="checkbox" checked />
+          <span>Delete downloaded media after transcription to conserve disk space</span>
+        </label>
+        <div class="actions">
+          <button id="transcribe">Transcribe</button>
+          <button id="download-transcribe" class="secondary">Download + Transcribe</button>
+        </div>
+      </section>
+
+      <section id="course" class="course hidden">
+        <h2 id="course-title"></h2>
+        <p id="course-meta"></p>
+      </section>
+
+      <section id="lesson-list" class="lesson-list"></section>
+
+      <section class="jobs">
+        <div class="jobs-header">
+          <h2>Recent Jobs</h2>
+          <button id="refresh-jobs" class="secondary">Refresh Jobs</button>
+        </div>
+        <div id="job-list" class="job-list"></div>
+      </section>
+    </main>
+    <script src="popup.js" type="module"></script>
+  </body>
+  </html>

@@ -64,3 +64,16 @@ class BootstrapTests(unittest.TestCase):
 
     def test_ensure_runtime_model_artifacts_skips_inspect(self):
         self.assertIsNone(ensure_runtime_model_artifacts("inspect"))
+
+    def test_bootstrap_models_skips_download_when_target_already_exists(self):
+        with tempfile.TemporaryDirectory() as temp_dir, patch(
+            "swinydl.bootstrap._target_is_present",
+            return_value=True,
+        ), patch(
+            "swinydl.bootstrap._snapshot_download"
+        ) as snapshot_download:
+            report = bootstrap_models(target="parakeet", vendor_root=Path(temp_dir))
+
+        self.assertEqual(report["results"][0]["target"], "parakeet")
+        self.assertTrue(report["results"][0]["skipped"])
+        snapshot_download.assert_not_called()

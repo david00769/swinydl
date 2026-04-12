@@ -1,0 +1,39 @@
+{
+  "manifest_version": 3,
+  "name": "SWinyDL Safari",
+  "version": "1.0.0",
+  "description": "Safari-first course selection and transcript launch flow for SWinyDL.",
+  "permissions": [
+    "activeTab",
+    "cookies",
+    "nativeMessaging",
+    "scripting",
+    "storage",
+    "tabs"
+  ],
+  "host_permissions": [
+    "*://*.instructure.com/*",
+    "*://*.echo360.org/*",
+    "*://*.echo360.net/*",
+    "*://*.streaming.sydney.edu.au/*"
+  ],
+  "action": {
+    "default_title": "SWinyDL",
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.instructure.com/*",
+        "*://*.echo360.org/*",
+        "*://*.echo360.net/*",
+        "*://*.streaming.sydney.edu.au/*"
+      ],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ]
+}

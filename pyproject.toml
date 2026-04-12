@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "swinydl"
-version = "4.0.0"
+dynamic = ["version"]
 description = "SWinyDL: transcript-first Echo360 tooling for macOS Apple Silicon"
 readme = "README.md"
 license = { text = "MIT" }
@@ -39,3 +39,6 @@ include-package-data = true
 
 [tool.setuptools.packages.find]
 include = ["swinydl*"]
+
+[tool.setuptools.dynamic]
+version = { attr = "swinydl.version.__version__" }

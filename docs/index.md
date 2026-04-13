@@ -26,9 +26,11 @@ For a first-time non-technical Mac user, the simplest setup path is:
 
 1. `xcode-select --install`
 2. install Homebrew if needed
-3. `brew install uv ffmpeg xcodegen`
-4. run `./install.sh`
-5. enable `SWinyDL Safari` in Safari Settings
+3. download the latest zip from [GitHub Releases](https://github.com/david00769/swinydl/releases)
+4. unzip it
+5. `brew install uv ffmpeg xcodegen`
+6. open Terminal in the unzipped folder and run `./install.sh`
+7. enable `SWinyDL Safari` in Safari Settings
 
 After that:
 
@@ -68,6 +70,8 @@ The old video-downloader implementation, PhantomJS, Firefox, and custom HLS code
 Dependency ranges live in `pyproject.toml`, the tested resolution lives in `uv.lock`, and `swinydl doctor` is only for runtime readiness checks.
 
 GitHub Releases are the update source of truth. The native wrapper can notify about newer releases, but updates are still guided local rebuilds via `./install.sh`, not binary self-patching.
+
+For non-technical users, the preferred update path is to download the newest release zip, unzip it, and run `./install.sh` again from that new folder. `git pull` remains a technical-user fallback only.
 
 If no GitHub release has been published yet, the wrapper app's update check will report that no releases were found. That is expected until the first published release tag exists.
 

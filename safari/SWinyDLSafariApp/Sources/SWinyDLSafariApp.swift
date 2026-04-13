@@ -31,46 +31,37 @@ private struct ContentView: View {
 
     var body: some View {
         ZStack {
-            Color(red: 0.94, green: 0.96, blue: 0.97)
+            Color(red: 0.95, green: 0.96, blue: 0.97)
                 .ignoresSafeArea()
-            LinearGradient(
-                colors: [
-                    Color.white.opacity(0.72),
-                    Color(red: 0.88, green: 0.93, blue: 0.92).opacity(0.82),
-                ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
-            )
-            .ignoresSafeArea()
-            Circle()
-                .fill(Color(red: 0.29, green: 0.56, blue: 0.52).opacity(0.08))
-                .frame(width: 420, height: 420)
-                .offset(x: 320, y: -210)
-            Circle()
-                .fill(Color(red: 0.16, green: 0.32, blue: 0.42).opacity(0.06))
-                .frame(width: 540, height: 540)
-                .offset(x: -260, y: 240)
 
             VStack(spacing: 0) {
-                heroHeader
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 20) {
-                        if !healthBanners.isEmpty {
-                            VStack(spacing: 12) {
-                                ForEach(healthBanners) { banner in
-                                    InlineMessage(icon: banner.icon, text: banner.text, tint: banner.tint)
+                workspaceHeader
+                HStack(alignment: .top, spacing: 18) {
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 16) {
+                            if !healthBanners.isEmpty {
+                                VStack(spacing: 10) {
+                                    ForEach(healthBanners) { banner in
+                                        InlineMessage(icon: banner.icon, text: banner.text, tint: banner.tint, compact: true)
+                                    }
                                 }
                             }
+                            if let runningStatus = activeRunningJob?.status {
+                                ActiveRunStrip(status: runningStatus)
+                            }
+                            if store.jobs.isEmpty {
+                                compactEmptyState
+                            } else {
+                                jobsSection
+                            }
                         }
-                        quickActions
-                        if store.jobs.isEmpty {
-                            emptyState
-                        } else {
-                            jobsSection
-                        }
+                        .padding(.horizontal, 22)
+                        .padding(.vertical, 18)
                     }
-                    .padding(.horizontal, 24)
-                    .padding(.vertical, 24)
+                    inspectorPanel
+                        .frame(width: 300)
+                        .padding(.trailing, 22)
+                        .padding(.top, 18)
                 }
             }
         }
@@ -100,139 +91,48 @@ private struct ContentView: View {
         }
     }
 
-    private var heroHeader: some View {
-        ZStack(alignment: .topLeading) {
-            RoundedRectangle(cornerRadius: 26, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            Color(red: 0.08, green: 0.23, blue: 0.31),
-                            Color(red: 0.17, green: 0.45, blue: 0.42),
-                            Color(red: 0.69, green: 0.84, blue: 0.80),
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-                .overlay(
-                    Circle()
-                        .fill(.white.opacity(0.12))
-                        .frame(width: 180, height: 180)
-                        .offset(x: 250, y: -60)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 26, style: .continuous)
-                        .stroke(.white.opacity(0.16), lineWidth: 1)
-                )
-
-            VStack(alignment: .leading, spacing: 14) {
-                HStack(alignment: .top, spacing: 14) {
-                    VStack(alignment: .leading, spacing: 10) {
-                        Label("SWinyDL Safari", systemImage: "sparkles.rectangle.stack")
-                            .font(.system(size: 26, weight: .bold, design: .rounded))
-                            .foregroundStyle(.white)
-                        Text("Transcript-first Echo360 workflow for Apple Silicon Macs.")
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.85))
-                        HStack(spacing: 10) {
-                            HeroPill(text: "\(store.jobs.count) tracked jobs", systemImage: "tray.full")
-                            HeroPill(text: "Version \(updates.currentVersion)", systemImage: "arrow.trianglehead.2.clockwise.rotate.90")
-                            HeroPill(
-                                text: store.modelReadiness.ready ? "Models ready" : "Models missing",
-                                systemImage: store.modelReadiness.ready ? "checkmark.circle" : "shippingbox"
-                            )
-                        }
-                    }
-                    Spacer()
-                    VStack(alignment: .trailing, spacing: 10) {
-                        PrimaryActionButton(title: updates.isChecking ? "Checking..." : "Check for Updates", systemImage: "arrow.down.circle") {
-                            Task {
-                                await updates.checkForUpdates(manual: true)
-                            }
-                        }
-                        .disabled(updates.isChecking)
-                        SecondaryActionButton(title: "Safari Extensions", systemImage: "puzzlepiece.extension") {
-                            SFSafariApplication.showPreferencesForExtension(withIdentifier: SWinyDLBridge.extensionBundleIdentifier) { _ in
-                            }
-                        }
-                    }
-                }
-
-                Text("Open a logged-in Canvas or Echo360 page in Safari, choose lessons from the extension popup, and monitor transcript generation here.")
-                    .font(.system(size: 13, weight: .medium))
-                    .foregroundStyle(.white.opacity(0.82))
-            }
-            .padding(22)
-        }
-        .frame(height: 172)
-        .padding(.horizontal, 24)
-        .padding(.top, 16)
-    }
-
-    private var quickActions: some View {
-        HStack(spacing: 12) {
-            CompactActionCard(
-                title: "Refresh Jobs",
-                systemImage: "arrow.clockwise",
-                tint: Color(red: 0.16, green: 0.42, blue: 0.42)
-            ) {
-                store.refresh()
-            }
-            CompactActionCard(
-                title: "Open Safari",
-                systemImage: "safari",
-                tint: Color(red: 0.31, green: 0.47, blue: 0.77)
-            ) {
-                NSWorkspace.shared.openApplication(at: URL(fileURLWithPath: "/Applications/Safari.app"), configuration: .init()) { _, _ in
-                }
-            }
-            CompactActionCard(
-                title: "Open Outputs",
-                systemImage: "folder",
-                tint: Color(red: 0.56, green: 0.42, blue: 0.17)
-            ) {
-                store.openOutput(path: jobOutputRoot)
-            }
-        }
-    }
-
-    private var emptyState: some View {
-        HStack(alignment: .top, spacing: 20) {
-            DashboardCard {
-                VStack(alignment: .leading, spacing: 16) {
-                    Label("No jobs yet", systemImage: "sparkles")
-                        .font(.title2.weight(.bold))
-                    Text("The wrapper app is ready. Launch the first transcript job from Safari to populate this dashboard.")
-                        .foregroundStyle(.secondary)
-                    VStack(alignment: .leading, spacing: 14) {
-                        EmptyStateStep(number: "1", title: "Enable the extension", detail: "Safari Settings > Extensions > SWinyDL Safari")
-                        EmptyStateStep(number: "2", title: "Open a course page", detail: "Use a logged-in Canvas or Echo360 lesson/course page")
-                        EmptyStateStep(number: "3", title: "Launch a transcript job", detail: "Use the popup to select lessons and queue the run")
-                    }
-                }
-            }
-
-            DashboardCard {
-                VStack(alignment: .leading, spacing: 16) {
-                    Label("What happens by default", systemImage: "gearshape.2")
-                        .font(.title3.weight(.semibold))
-                    InfoRow(title: "Transcripts written", value: ".txt, .srt, .json")
-                    InfoRow(title: "Primary output", value: ".txt")
-                    InfoRow(title: "Speaker separation", value: "On by default")
-                    InfoRow(title: "Media cleanup", value: "Downloaded media deleted after transcription")
-                    InfoRow(title: "Fallback path", value: "Chrome-guided launcher still available")
-                    Divider()
-                    Text("Successful jobs emphasize the TXT transcript, while timed SRT captions and structured JSON remain available as secondary outputs.")
+    private var workspaceHeader: some View {
+        VStack(spacing: 0) {
+            HStack(alignment: .center, spacing: 14) {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("SWinyDL Safari")
+                        .font(.system(size: 24, weight: .bold, design: .rounded))
+                        .foregroundStyle(Color(red: 0.10, green: 0.16, blue: 0.21))
+                    Text("Open a logged-in Canvas or Echo360 page in Safari, then launch jobs from the extension.")
                         .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                    Divider()
-                    Text("Model readiness")
-                        .font(.headline)
-                    InfoRow(title: "Parakeet ASR", value: store.modelReadiness.parakeetReady ? "Ready" : "Missing")
-                    InfoRow(title: "Speaker diarizer", value: store.modelReadiness.diarizerReady ? "Ready" : "Missing")
-                    Text(store.modelReadiness.summary)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(Color(red: 0.40, green: 0.47, blue: 0.53))
+                }
+                Spacer()
+                HStack(spacing: 8) {
+                    ToolbarPill(title: "\(store.jobs.count) jobs", systemImage: "tray.full")
+                    ToolbarPill(title: "v\(updates.currentVersion)", systemImage: "arrow.trianglehead.2.clockwise.rotate.90")
+                    ToolbarPill(
+                        title: store.modelReadiness.ready ? "Models ready" : "Models missing",
+                        systemImage: store.modelReadiness.ready ? "checkmark.circle.fill" : "shippingbox.fill",
+                        tint: store.modelReadiness.ready ? Color(red: 0.16, green: 0.56, blue: 0.31) : Color(red: 0.84, green: 0.51, blue: 0.12)
+                    )
+                }
+            }
+            .padding(.horizontal, 22)
+            .padding(.vertical, 16)
+
+            Divider()
+                .overlay(Color.black.opacity(0.06))
+        }
+    }
+
+    private var compactEmptyState: some View {
+        DashboardCard(padding: 18, cornerRadius: 18) {
+            VStack(alignment: .leading, spacing: 14) {
+                Label("No jobs yet", systemImage: "sparkles")
+                    .font(.title3.weight(.bold))
+                Text("The app is ready. Use Safari to queue the first transcript run, then progress will appear here.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                VStack(alignment: .leading, spacing: 12) {
+                    EmptyStateStep(number: "1", title: "Enable the extension", detail: "Safari Settings > Extensions > SWinyDL Safari")
+                    EmptyStateStep(number: "2", title: "Open your course page", detail: "Use a logged-in Canvas or Echo360 page")
+                    EmptyStateStep(number: "3", title: "Launch the run", detail: "Pick lessons in the popup and start transcription")
                 }
             }
         }
@@ -242,10 +142,10 @@ private struct ContentView: View {
         VStack(alignment: .leading, spacing: 16) {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Recent Jobs")
+                    Text("Activity")
                         .font(.title2.weight(.bold))
                         .foregroundStyle(Color(red: 0.12, green: 0.18, blue: 0.24))
-                    Text("Monitor lesson progress, open transcript files, and inspect retained media when enabled.")
+                    Text("Watch active runs, open transcripts, and inspect failures or retained media.")
                         .foregroundStyle(Color(red: 0.40, green: 0.47, blue: 0.53))
                 }
                 Spacer()
@@ -262,8 +162,78 @@ private struct ContentView: View {
         }
     }
 
+    private var inspectorPanel: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            DashboardCard(padding: 16, cornerRadius: 18) {
+                VStack(alignment: .leading, spacing: 12) {
+                    Text("Workspace")
+                        .font(.headline)
+                    InspectorActionRow(title: "Refresh Jobs", systemImage: "arrow.clockwise") {
+                        store.refresh()
+                    }
+                    InspectorActionRow(title: "Open Safari", systemImage: "safari") {
+                        NSWorkspace.shared.openApplication(at: URL(fileURLWithPath: "/Applications/Safari.app"), configuration: .init()) { _, _ in
+                        }
+                    }
+                    InspectorActionRow(title: "Open Outputs", systemImage: "folder") {
+                        store.openOutput(path: jobOutputRoot)
+                    }
+                    InspectorActionRow(title: updates.isChecking ? "Checking..." : "Check for Updates", systemImage: "arrow.down.circle") {
+                        Task {
+                            await updates.checkForUpdates(manual: true)
+                        }
+                    }
+                    InspectorActionRow(title: "Safari Extensions", systemImage: "puzzlepiece.extension") {
+                        SFSafariApplication.showPreferencesForExtension(withIdentifier: SWinyDLBridge.extensionBundleIdentifier) { _ in
+                        }
+                    }
+                }
+            }
+
+            DashboardCard(padding: 16, cornerRadius: 18) {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Readiness")
+                        .font(.headline)
+                    ReadinessRow(title: "Parakeet ASR", ready: store.modelReadiness.parakeetReady)
+                    ReadinessRow(title: "Speaker diarizer", ready: store.modelReadiness.diarizerReady)
+                    Text(store.modelReadiness.summary)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+
+            DashboardCard(padding: 16, cornerRadius: 18) {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("Defaults")
+                        .font(.headline)
+                    InfoRow(title: "Primary output", value: ".txt")
+                    InfoRow(title: "Also written", value: ".srt, .json")
+                    InfoRow(title: "Speaker separation", value: "On by default")
+                    InfoRow(title: "Media cleanup", value: "Delete after transcription")
+                }
+            }
+
+            DashboardCard(padding: 16, cornerRadius: 18) {
+                VStack(alignment: .leading, spacing: 10) {
+                    Text("How to start")
+                        .font(.headline)
+                    Text("1. Enable the SWinyDL Safari extension.")
+                    Text("2. Open a logged-in Canvas or Echo360 page.")
+                    Text("3. Select lessons in the popup and launch the run.")
+                }
+                .font(.subheadline)
+                .foregroundStyle(Color(red: 0.16, green: 0.22, blue: 0.28))
+            }
+            Spacer(minLength: 0)
+        }
+    }
+
     private var jobOutputRoot: String {
         store.jobs.compactMap { $0.status?.outputRoot }.first ?? FileManager.default.homeDirectoryForCurrentUser.path
+    }
+
+    private var activeRunningJob: JobEnvelope? {
+        store.jobs.first(where: { $0.status?.overallStatus == "running" || $0.status?.overallStatus == "launching" })
     }
 
     private var healthBanners: [AppBanner] {
@@ -1080,6 +1050,109 @@ private struct TranscriptPreviewSheet: View {
         }
         .padding(20)
         .frame(minWidth: 640, minHeight: 420)
+    }
+}
+
+private struct ActiveRunStrip: View {
+    let status: JobStatusPayload
+
+    var body: some View {
+        DashboardCard(padding: 16, cornerRadius: 18) {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Label("Now Processing", systemImage: "waveform.and.magnifyingglass")
+                        .font(.headline)
+                    Spacer()
+                    StatusBadge(status: status.overallStatus)
+                }
+                HStack(spacing: 10) {
+                    MetaPill(title: "Progress", value: "\(status.completedLessons)/\(max(status.totalLessons, 1))")
+                    if let elapsed = status.elapsedSeconds {
+                        MetaPill(title: "Elapsed", value: compactElapsed(elapsed))
+                    }
+                    if let lesson = status.activeLessonTitle, !lesson.isEmpty {
+                        MetaPill(title: "Lesson", value: lesson)
+                    }
+                }
+                ProgressView(value: Double(status.completedLessons), total: Double(max(status.totalLessons, 1)))
+                    .tint(Color(red: 0.84, green: 0.51, blue: 0.12))
+                if let detail = status.detail, !detail.isEmpty {
+                    Text(detail)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+
+    private func compactElapsed(_ elapsed: Double) -> String {
+        let totalSeconds = max(Int(elapsed.rounded()), 0)
+        let hours = totalSeconds / 3600
+        let minutes = (totalSeconds % 3600) / 60
+        if hours > 0 {
+            return "\(hours)h \(minutes)m"
+        }
+        return "\(minutes)m"
+    }
+}
+
+private struct ToolbarPill: View {
+    let title: String
+    let systemImage: String
+    var tint: Color = Color(red: 0.22, green: 0.31, blue: 0.37)
+
+    var body: some View {
+        Label(title, systemImage: systemImage)
+            .font(.caption.weight(.semibold))
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+            .background(Color.white, in: Capsule())
+            .foregroundStyle(tint)
+            .overlay(
+                Capsule()
+                    .stroke(Color.black.opacity(0.05), lineWidth: 1)
+            )
+    }
+}
+
+private struct InspectorActionRow: View {
+    let title: String
+    let systemImage: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                Image(systemName: systemImage)
+                    .frame(width: 18)
+                    .foregroundStyle(Color(red: 0.17, green: 0.45, blue: 0.42))
+                Text(title)
+                    .font(.subheadline.weight(.semibold))
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(.secondary)
+            }
+            .foregroundStyle(Color(red: 0.12, green: 0.19, blue: 0.25))
+            .padding(.vertical, 4)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct ReadinessRow: View {
+    let title: String
+    let ready: Bool
+
+    var body: some View {
+        HStack {
+            Text(title)
+                .foregroundStyle(Color(red: 0.16, green: 0.22, blue: 0.28))
+            Spacer()
+            Label(ready ? "Ready" : "Missing", systemImage: ready ? "checkmark.circle.fill" : "shippingbox.fill")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(ready ? Color(red: 0.16, green: 0.56, blue: 0.31) : Color(red: 0.84, green: 0.51, blue: 0.12))
+        }
     }
 }
 

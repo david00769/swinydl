@@ -1,5 +1,7 @@
 # SWinyDL
 
+I coded this up in one weekend to help my daughter get transcripts from her lectures she can upload to NotebookLLM
+
 SWinyDL downloads and transcribes Echo360 lecture recordings on Apple Silicon Macs.
 
 It is designed for:

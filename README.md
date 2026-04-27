@@ -48,7 +48,7 @@ brew install uv ffmpeg xcodegen
 
 For most people, the best path is:
 
-1. Download the latest zip from [GitHub Releases](https://github.com/david00769/swinydl/releases)
+1. Download the current zip from [GitHub](https://github.com/david00769/swinydl/archive/refs/heads/codex/swinydl-initial-publish.zip)
 2. Unzip it in Finder
 3. Open Terminal
 4. Type `cd ` and drag the unzipped SWinyDL folder into the Terminal window
@@ -101,7 +101,7 @@ By default, SWinyDL deletes downloaded audio or video after transcription to sav
 
 The simplest update path is:
 
-1. Download the newest zip from [GitHub Releases](https://github.com/david00769/swinydl/releases)
+1. Download the current zip from [GitHub](https://github.com/david00769/swinydl/archive/refs/heads/codex/swinydl-initial-publish.zip)
 2. Unzip it
 3. Open Terminal in the new folder
 4. Run:
@@ -110,7 +110,7 @@ The simplest update path is:
 ./install.sh
 ```
 
-The Mac app can also check GitHub Releases and tell you when a newer version exists.
+After the first GitHub Release is published, the Mac app can also check releases and tell you when a newer version exists.
 
 ## Troubleshooting
 

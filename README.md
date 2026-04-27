@@ -35,15 +35,15 @@ You need:
 - Safari
 - Xcode command line tools
 
+You do not need to install Homebrew, `uv`, `ffmpeg`, or `xcodegen` before starting. `./install.sh` checks for them and offers to install anything missing.
+
 If you have never installed Apple's command line tools before, run:
 
 ```bash
 xcode-select --install
 ```
 
-`./install.sh` can offer to install Homebrew and the required `uv`, `ffmpeg`, and `xcodegen` tools for you.
-
-If you prefer to install those tools yourself before running SWinyDL, run:
+If you prefer to install Homebrew and the required tools yourself before running SWinyDL, run:
 
 ```bash
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
@@ -66,6 +66,8 @@ For most people, the best path is:
 ```bash
 ./install.sh
 ```
+
+If Homebrew, `uv`, `ffmpeg`, or `xcodegen` are missing, approve the installer prompts.
 
 `./install.sh` does the setup for you:
 - offers to install Homebrew if it is missing

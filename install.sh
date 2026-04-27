@@ -24,7 +24,9 @@ show_install_plan() {
 SWinyDL installer
 
 This script will:
-- verify uv, ffmpeg, xcodegen, xcode-select, and Xcode first-launch readiness
+- install Homebrew if it is missing and you approve
+- install uv, ffmpeg, and xcodegen with Homebrew if they are missing and you approve
+- verify xcode-select and Xcode first-launch readiness
 - run uv sync
 - bootstrap the staged CoreML model bundles if needed
 - regenerate the Safari Xcode project
@@ -47,6 +49,82 @@ require_command() {
   command -v "$1" >/dev/null 2>&1 || error_exit "$2 Current PATH: $PATH"
 }
 
+load_homebrew_shellenv() {
+  if command -v brew >/dev/null 2>&1; then
+    eval "$(brew shellenv)"
+    return 0
+  fi
+
+  if [ -x /opt/homebrew/bin/brew ]; then
+    eval "$(/opt/homebrew/bin/brew shellenv)"
+    return 0
+  fi
+
+  if [ -x /usr/local/bin/brew ]; then
+    eval "$(/usr/local/bin/brew shellenv)"
+    return 0
+  fi
+
+  return 1
+}
+
+confirm_yes() {
+  prompt="$1"
+  default_yes="$2"
+
+  if [ ! -t 0 ]; then
+    return 1
+  fi
+
+  printf '%s ' "$prompt"
+  read -r answer
+  case "$answer" in
+    [Yy]|[Yy][Ee][Ss])
+      return 0
+      ;;
+    "")
+      [ "$default_yes" = "yes" ]
+      return
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+ensure_homebrew() {
+  load_homebrew_shellenv && return 0
+
+  if ! confirm_yes "Homebrew is required but was not found. Install Homebrew now? [y/N]" "no"; then
+    error_exit "Homebrew is required. Install it with: /bin/bash -c \"\$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\""
+  fi
+
+  note "Installing Homebrew..."
+  /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+  load_homebrew_shellenv || error_exit "Homebrew installation finished, but brew was still not found on PATH."
+}
+
+ensure_homebrew_tools() {
+  missing_tools=""
+
+  for tool in uv ffmpeg xcodegen; do
+    if ! command -v "$tool" >/dev/null 2>&1; then
+      missing_tools="$missing_tools $tool"
+    fi
+  done
+
+  [ -z "$missing_tools" ] && return 0
+
+  ensure_homebrew
+
+  if ! confirm_yes "Install missing required tools with Homebrew:$missing_tools? [Y/n]" "yes"; then
+    error_exit "Missing required tools:$missing_tools. Install them with: brew install uv ffmpeg xcodegen"
+  fi
+
+  note "Installing missing required tools with Homebrew:$missing_tools"
+  brew install $missing_tools
+}
+
 ensure_xcode_ready() {
   require_command xcode-select "Xcode command line tools are required. Install Xcode or run xcode-select --install first."
   require_command xcodebuild "xcodebuild is required. Install Xcode or the Xcode command line tools first."
@@ -60,11 +138,12 @@ ensure_xcode_ready() {
   fi
 }
 
+confirm_continue
+ensure_homebrew_tools
 require_command uv "uv is required. Install uv first with 'brew install uv' or Astral's installer, then re-run this script."
 require_command ffmpeg "ffmpeg is required. Install ffmpeg and ensure it is on PATH."
 require_command xcodegen "xcodegen is required. Install xcodegen and ensure it is on PATH."
 ensure_xcode_ready
-confirm_continue
 
 cd "$REPO_ROOT"
 

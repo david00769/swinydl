@@ -34,13 +34,18 @@ You need:
 - an Apple Silicon Mac
 - Safari
 - Xcode command line tools
-- Homebrew
-- `uv`, `ffmpeg`, and `xcodegen`
 
-If you have never set this up before, run:
+If you have never installed Apple's command line tools before, run:
 
 ```bash
 xcode-select --install
+```
+
+`./install.sh` can offer to install Homebrew and the required `uv`, `ffmpeg`, and `xcodegen` tools for you.
+
+If you prefer to install those tools yourself before running SWinyDL, run:
+
+```bash
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> ~/.zprofile
 eval "$(/opt/homebrew/bin/brew shellenv)"
@@ -56,14 +61,15 @@ For most people, the best path is:
 3. Open Terminal
 4. Type `cd ` and drag the unzipped SWinyDL folder into the Terminal window
 5. Press `Enter`
-6. If you have not installed Homebrew and the required tools yet, run the commands in `Before You Start`
-7. Run:
+6. Run:
 
 ```bash
 ./install.sh
 ```
 
 `./install.sh` does the setup for you:
+- offers to install Homebrew if it is missing
+- offers to install `uv`, `ffmpeg`, and `xcodegen` if they are missing
 - creates the Python environment
 - downloads the required local speech models if they are missing
 - builds the Mac app and Safari extension wrapper

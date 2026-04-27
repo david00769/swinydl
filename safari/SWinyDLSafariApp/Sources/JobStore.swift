@@ -249,15 +249,13 @@ struct ModelReadiness {
     }
 
     static func detect(bundle: Bundle) -> ModelReadiness {
-        guard let repoRoot = bundle.object(forInfoDictionaryKey: "SWINYDLRepoRoot") as? String,
-              !repoRoot.isEmpty
+        guard let repoRootURL = SWinyDLRuntime.installRoot(bundle: bundle)
         else {
             return ModelReadiness(parakeetReady: false, diarizerReady: false, repoRootPath: nil)
         }
 
-        let rootURL = URL(fileURLWithPath: repoRoot, isDirectory: true)
-        let parakeetDir = rootURL.appendingPathComponent("vendor/parakeet-tdt-0.6b-v3-coreml", isDirectory: true)
-        let diarizerDir = rootURL.appendingPathComponent("vendor/speaker-diarization-coreml", isDirectory: true)
+        let parakeetDir = repoRootURL.appendingPathComponent("vendor/parakeet-tdt-0.6b-v3-coreml", isDirectory: true)
+        let diarizerDir = repoRootURL.appendingPathComponent("vendor/speaker-diarization-coreml", isDirectory: true)
 
         let parakeetRequired = [
             "MelSpectrogram.mlmodelc",
@@ -277,7 +275,7 @@ struct ModelReadiness {
         return ModelReadiness(
             parakeetReady: hasRequiredFiles(in: parakeetDir, required: parakeetRequired),
             diarizerReady: hasRequiredFiles(in: diarizerDir, required: diarizerRequired),
-            repoRootPath: repoRoot
+            repoRootPath: repoRootURL.path
         )
     }
 
@@ -291,17 +289,15 @@ struct ModelReadiness {
 private struct BackendLauncher {
     func launch(manifestURL: URL) -> Bool {
         let process = Process()
-        let repoRoot = Bundle.main.object(forInfoDictionaryKey: "SWINYDLRepoRoot") as? String
-        let defaultPython = Bundle.main.object(forInfoDictionaryKey: "SWINYDLDefaultPython") as? String
         let envPython = ProcessInfo.processInfo.environment["SWINYDL_PYTHON"]
-        let pythonBinary = envPython ?? defaultPython ?? "/usr/bin/python3"
+        let pythonBinary = envPython ?? SWinyDLRuntime.pythonPath(bundle: .main)
 
         process.executableURL = URL(fileURLWithPath: pythonBinary)
         process.arguments = ["-m", "swinydl.main", "process-manifest", manifestURL.path]
-        if let repoRoot, !repoRoot.isEmpty {
-            process.currentDirectoryURL = URL(fileURLWithPath: repoRoot, isDirectory: true)
+        if let repoRoot = SWinyDLRuntime.installRoot(bundle: .main) {
+            process.currentDirectoryURL = repoRoot
             process.environment = (process.environment ?? ProcessInfo.processInfo.environment).merging(
-                ["PYTHONPATH": repoRoot],
+                ["PYTHONPATH": repoRoot.path],
                 uniquingKeysWith: { _, new in new }
             )
         }
@@ -311,5 +307,50 @@ private struct BackendLauncher {
         } catch {
             return false
         }
+    }
+}
+
+private enum SWinyDLRuntime {
+    static func installRoot(bundle: Bundle) -> URL? {
+        let candidates = installRootCandidates(bundle: bundle)
+        return candidates.first { isInstallRoot($0) }
+    }
+
+    static func pythonPath(bundle: Bundle) -> String {
+        if let root = installRoot(bundle: bundle) {
+            let venvPython = root.appendingPathComponent(".venv/bin/python")
+            if FileManager.default.isExecutableFile(atPath: venvPython.path) {
+                return venvPython.path
+            }
+        }
+
+        if let defaultPython = bundle.object(forInfoDictionaryKey: "SWINYDLDefaultPython") as? String,
+           !defaultPython.isEmpty,
+           FileManager.default.isExecutableFile(atPath: defaultPython) {
+            return defaultPython
+        }
+
+        return "/usr/bin/python3"
+    }
+
+    private static func installRootCandidates(bundle: Bundle) -> [URL] {
+        var candidates: [URL] = []
+        if let configured = bundle.object(forInfoDictionaryKey: "SWINYDLRepoRoot") as? String,
+           !configured.isEmpty {
+            candidates.append(URL(fileURLWithPath: configured, isDirectory: true))
+        }
+
+        let appParent = bundle.bundleURL.deletingLastPathComponent()
+        candidates.append(appParent)
+        candidates.append(appParent.deletingLastPathComponent())
+        return candidates
+    }
+
+    private static func isInstallRoot(_ url: URL) -> Bool {
+        let fileManager = FileManager.default
+        let pyproject = url.appendingPathComponent("pyproject.toml").path
+        let packageDir = url.appendingPathComponent("swinydl", isDirectory: true).path
+        return fileManager.fileExists(atPath: pyproject)
+            && fileManager.fileExists(atPath: packageDir)
     }
 }

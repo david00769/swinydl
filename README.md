@@ -33,15 +33,8 @@ It also writes:
 You need:
 - an Apple Silicon Mac
 - Safari
-- Xcode command line tools
 
 You do not need to install Homebrew, `uv`, `ffmpeg`, or `xcodegen` before starting. `./install.sh` checks for them and offers to install anything missing.
-
-If you have never installed Apple's command line tools before, run:
-
-```bash
-xcode-select --install
-```
 
 If you prefer to install Homebrew and the required tools yourself before running SWinyDL, run:
 
@@ -49,17 +42,17 @@ If you prefer to install Homebrew and the required tools yourself before running
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> ~/.zprofile
 eval "$(/opt/homebrew/bin/brew shellenv)"
-brew install uv ffmpeg xcodegen
+brew install uv ffmpeg
 ```
 
 ## Easiest Install
 
 For most people, the best path is:
 
-1. Download the current zip from [GitHub](https://github.com/david00769/swinydl/archive/refs/heads/codex/swinydl-initial-publish.zip)
-2. Unzip it in Finder
+1. Download the latest `SWinyDL-v...dmg` from [GitHub Releases](https://github.com/david00769/swinydl/releases)
+2. Open the DMG and copy the `SWinyDL` folder wherever you want to keep it
 3. Open Terminal
-4. Type `cd ` and drag the unzipped SWinyDL folder into the Terminal window
+4. Type `cd ` and drag the copied `SWinyDL` folder into the Terminal window
 5. Press `Enter`
 6. Run:
 
@@ -67,17 +60,37 @@ For most people, the best path is:
 ./install.sh
 ```
 
-If Homebrew, `uv`, `ffmpeg`, or `xcodegen` are missing, approve the installer prompts.
+If Homebrew, `uv`, or `ffmpeg` are missing, approve the installer prompts.
 
 `./install.sh` does the setup for you:
 - offers to install Homebrew if it is missing
-- offers to install `uv`, `ffmpeg`, and `xcodegen` if they are missing
+- offers to install `uv` and `ffmpeg` if they are missing
 - creates the Python environment
 - downloads the required local speech models if they are missing
-- builds the Mac app and Safari extension wrapper
+- uses the prebuilt Mac app and Safari extension from the DMG
 - opens the app and Safari when setup is finished
 
 You do not need to download the Parakeet model manually.
+
+## Developer Install
+
+If you want to build SWinyDL from source instead of using the DMG:
+
+1. Download the source zip from [GitHub](https://github.com/david00769/swinydl/archive/refs/heads/codex/swinydl-initial-publish.zip)
+2. Unzip it
+3. Install Apple's command line tools if needed:
+
+```bash
+xcode-select --install
+```
+
+4. Run:
+
+```bash
+./install.sh --build-from-source
+```
+
+The source build path can install `xcodegen` and uses `xcodebuild` locally.
 
 ## First Run
 
@@ -113,16 +126,18 @@ By default, SWinyDL deletes downloaded audio or video after transcription to sav
 
 The simplest update path is:
 
-1. Download the current zip from [GitHub](https://github.com/david00769/swinydl/archive/refs/heads/codex/swinydl-initial-publish.zip)
-2. Unzip it
-3. Open Terminal in the new folder
-4. Run:
+1. In the app, choose `Check for Updates`
+2. If a newer release is available, click `Download DMG`
+3. Open the downloaded DMG from Downloads
+4. Quit SWinyDL
+5. Replace the older `SWinyDL` folder with the newer one
+6. Run:
 
 ```bash
 ./install.sh
 ```
 
-After the first GitHub Release is published, the Mac app can also check releases and tell you when a newer version exists.
+You can also download the latest DMG manually from [GitHub Releases](https://github.com/david00769/swinydl/releases).
 
 ## Troubleshooting
 

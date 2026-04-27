@@ -20,16 +20,15 @@ For day-to-day use, the simplest entrypoint is:
 ./install.sh
 ```
 
-`install.sh` is the primary supported setup path. It validates the local Xcode prerequisites, runs `uv sync`, bootstraps the CoreML bundles, regenerates the Safari project, builds `SWinyDLSafariApp.app`, and opens the built app plus Safari.
+`install.sh` is the primary supported setup path. In a GitHub DMG release it uses the prebuilt `SWinyDLSafariApp.app`, runs `uv sync`, bootstraps the CoreML bundles, runs `swinydl doctor`, and opens the app plus Safari. In a source checkout, `./install.sh --build-from-source` regenerates the Safari project and builds the app locally.
 
 For a first-time non-technical Mac user, the simplest setup path is:
 
-1. `xcode-select --install`
-2. download the current zip from [GitHub](https://github.com/david00769/swinydl/archive/refs/heads/codex/swinydl-initial-publish.zip)
-3. unzip it
-4. open Terminal in the unzipped folder and run `./install.sh`
-5. approve the Homebrew and `uv`/`ffmpeg`/`xcodegen` install prompts if those tools are missing
-6. enable `SWinyDL Safari` in Safari Settings
+1. download the latest `SWinyDL-v...dmg` from [GitHub Releases](https://github.com/david00769/swinydl/releases)
+2. open the DMG and copy the `SWinyDL` folder wherever you want to keep it
+3. open Terminal in the copied folder and run `./install.sh`
+4. approve the Homebrew and `uv`/`ffmpeg` install prompts if those tools are missing
+5. enable `SWinyDL Safari` in Safari Settings
 
 After that:
 
@@ -58,21 +57,20 @@ Supported scope:
 
 - macOS Apple Silicon
 - Safari-first, Chrome fallback
-- local repo install, not signed or notarized distribution
+- unsigned GitHub DMG distribution first; signed and notarized distribution is future work
 - Python `>=3.11`
-- Swift toolchain available on `PATH`
-- xcodegen available on `PATH`
+- Swift toolchain and xcodegen only for `./install.sh --build-from-source`
 - package install via `pip` or `uv`
 
 The old video-downloader implementation, PhantomJS, Firefox, and custom HLS code are intentionally removed from the supported path.
 
 Dependency ranges live in `pyproject.toml`, the tested resolution lives in `uv.lock`, and `swinydl doctor` is only for runtime readiness checks.
 
-GitHub's current branch zip is the temporary download path until the first release is published. After that, GitHub Releases should become the update source of truth. The native wrapper can notify about newer releases, but updates are still guided local rebuilds via `./install.sh`, not binary self-patching.
+GitHub Releases are the update source of truth. Each tagged release should include an unsigned `SWinyDL-v...dmg` built by `.github/workflows/release-dmg.yaml`.
 
-For non-technical users, the preferred update path is to download the current zip, unzip it, and run `./install.sh` again from that new folder. Once releases exist, use the newest release zip instead. `git pull` remains a technical-user fallback only.
+For non-technical users, the preferred update path is to use the app's update check, download the newer DMG, replace the older `SWinyDL` folder, and run `./install.sh` again from that folder. `git pull` remains a technical-user fallback only.
 
-If no GitHub release has been published yet, the wrapper app's update check will report that no releases were found. That is expected until the first published release tag exists.
+If no GitHub release has been published yet, or if the latest release has no DMG asset, the wrapper app will report that clearly.
 
 There is no separate `requirements.txt` or `MANIFEST.in` workflow in v4.
 

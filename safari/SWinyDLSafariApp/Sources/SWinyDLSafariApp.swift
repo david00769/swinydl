@@ -295,6 +295,19 @@ private struct UpdateSheet: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .textSelection(.enabled)
+            if let asset = release.dmgAsset {
+                Text("DMG: \(asset.name)")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+            } else {
+                InlineMessage(
+                    icon: "exclamationmark.triangle",
+                    text: "This release does not include a downloadable DMG asset.",
+                    tint: Color(red: 0.84, green: 0.51, blue: 0.12),
+                    compact: true
+                )
+            }
             ScrollView {
                 Text(release.releaseNotesPreview)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -306,12 +319,15 @@ private struct UpdateSheet: View {
                     updates.dismissAvailableRelease()
                 }
                 Spacer()
-                Button("Open Update Instructions") {
-                    updates.openUpdateInstructions()
-                }
                 Button("Open Release Page") {
                     updates.openReleasePage()
                 }
+                Button(updates.isDownloading ? "Downloading..." : "Download DMG") {
+                    Task {
+                        await updates.downloadAvailableDMG()
+                    }
+                }
+                .disabled(updates.isDownloading || release.dmgAsset == nil)
                 .keyboardShortcut(.defaultAction)
             }
         }

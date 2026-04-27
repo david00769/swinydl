@@ -6,6 +6,7 @@ final class UpdateController: ObservableObject {
     @Published var availableRelease: GitHubRelease?
     @Published var infoMessage: String?
     @Published private(set) var isChecking = false
+    @Published private(set) var isDownloading = false
 
     let currentVersion: String
 
@@ -53,6 +54,27 @@ final class UpdateController: ObservableObject {
 
     func dismissAvailableRelease() {
         availableRelease = nil
+    }
+
+    func downloadAvailableDMG() async {
+        guard !isDownloading else { return }
+        guard let release = availableRelease else { return }
+        guard let asset = release.dmgAsset else {
+            infoMessage = "The latest GitHub release does not include a SWinyDL DMG. Open the release page and download the available files manually."
+            return
+        }
+
+        isDownloading = true
+        defer { isDownloading = false }
+
+        do {
+            let destination = try await GitHubReleaseService.download(asset: asset)
+            NSWorkspace.shared.open(destination)
+            infoMessage = "Downloaded \(asset.name) to Downloads and opened it. Quit SWinyDL, then replace the older app or folder with the newer DMG contents."
+            availableRelease = nil
+        } catch {
+            infoMessage = error.localizedDescription
+        }
     }
 
     func openReleasePage() {
@@ -128,6 +150,7 @@ struct GitHubRelease: Decodable, Identifiable {
     let htmlURL: URL
     let body: String?
     let publishedAt: Date?
+    let assets: [GitHubReleaseAsset]
 
     var id: String { tagName }
 
@@ -143,11 +166,32 @@ struct GitHubRelease: Decodable, Identifiable {
         return notes
     }
 
+    var dmgAsset: GitHubReleaseAsset? {
+        assets.first { asset in
+            asset.name.lowercased().hasSuffix(".dmg")
+        }
+    }
+
     private enum CodingKeys: String, CodingKey {
         case tagName = "tag_name"
         case htmlURL = "html_url"
         case body
         case publishedAt = "published_at"
+        case assets
+    }
+}
+
+struct GitHubReleaseAsset: Decodable, Identifiable {
+    let id: Int
+    let name: String
+    let browserDownloadURL: URL
+    let size: Int?
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case name
+        case browserDownloadURL = "browser_download_url"
+        case size
     }
 }
 
@@ -183,6 +227,25 @@ private enum GitHubReleaseService {
             throw GitHubReleaseError.decodeFailed
         }
     }
+
+    static func download(asset: GitHubReleaseAsset) async throws -> URL {
+        let downloadsURL = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first
+            ?? URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Downloads", isDirectory: true)
+        try FileManager.default.createDirectory(at: downloadsURL, withIntermediateDirectories: true, attributes: nil)
+
+        let destination = downloadsURL.appendingPathComponent(asset.name)
+        let (temporaryURL, response) = try await URLSession.shared.download(from: asset.browserDownloadURL)
+        if let httpResponse = response as? HTTPURLResponse,
+           !(200..<300).contains(httpResponse.statusCode) {
+            throw GitHubReleaseError.downloadFailed(httpResponse.statusCode)
+        }
+
+        if FileManager.default.fileExists(atPath: destination.path) {
+            try FileManager.default.removeItem(at: destination)
+        }
+        try FileManager.default.moveItem(at: temporaryURL, to: destination)
+        return destination
+    }
 }
 
 private enum GitHubReleaseError: LocalizedError {
@@ -190,6 +253,7 @@ private enum GitHubReleaseError: LocalizedError {
     case invalidResponse
     case noReleases
     case httpStatus(Int)
+    case downloadFailed(Int)
     case decodeFailed
 
     var errorDescription: String? {
@@ -202,6 +266,8 @@ private enum GitHubReleaseError: LocalizedError {
             return "No GitHub releases were found for david00769/swinydl."
         case let .httpStatus(code):
             return "GitHub release check failed with HTTP \(code)."
+        case let .downloadFailed(code):
+            return "GitHub DMG download failed with HTTP \(code)."
         case .decodeFailed:
             return "GitHub returned release data that SWinyDL could not parse."
         }

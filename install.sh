@@ -6,7 +6,39 @@ REPO_ROOT="$(cd "$(dirname "$0")" && pwd)"
 BUILD_ROOT="$REPO_ROOT/safari/.build"
 BUILD_OUTPUT_DIR="$BUILD_ROOT/Debug"
 DERIVED_DATA_DIR="$BUILD_ROOT/DerivedData"
-APP_PATH="$BUILD_OUTPUT_DIR/SWinyDLSafariApp.app"
+BUILD_APP_PATH="$BUILD_OUTPUT_DIR/SWinyDLSafariApp.app"
+PREBUILT_APP_PATH="$REPO_ROOT/SWinyDLSafariApp.app"
+BUILD_FROM_SOURCE=0
+
+for arg in "$@"; do
+  case "$arg" in
+    --build-from-source)
+      BUILD_FROM_SOURCE=1
+      ;;
+    -h|--help)
+      cat <<EOF
+Usage: ./install.sh [--build-from-source]
+
+Without --build-from-source, this installer uses a prebuilt SWinyDLSafariApp.app
+when one is present in the install folder. Source checkouts without a prebuilt
+app still build the app locally.
+EOF
+      exit 0
+      ;;
+    *)
+      printf 'Error: Unknown option: %s\n' "$arg" >&2
+      exit 1
+      ;;
+  esac
+done
+
+if [ "$BUILD_FROM_SOURCE" -eq 0 ] && [ -d "$PREBUILT_APP_PATH" ]; then
+  USE_PREBUILT_APP=1
+  APP_PATH="$PREBUILT_APP_PATH"
+else
+  USE_PREBUILT_APP=0
+  APP_PATH="$BUILD_APP_PATH"
+fi
 
 # Finder and other GUI launch paths often omit Homebrew and user-local tool paths.
 export PATH="$HOME/.local/bin:$HOME/.cargo/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/local/sbin:$PATH"
@@ -25,15 +57,29 @@ SWinyDL installer
 
 This script will:
 - install Homebrew if it is missing and you approve
-- install uv, ffmpeg, and xcodegen with Homebrew if they are missing and you approve
-- verify xcode-select and Xcode first-launch readiness
+- install uv and ffmpeg with Homebrew if they are missing and you approve
 - run uv sync
 - bootstrap the staged CoreML model bundles if needed
-- regenerate the Safari Xcode project
-- build SWinyDLSafariApp.app into $BUILD_OUTPUT_DIR
 - run 'swinydl doctor'
 - open the built app and Safari so you can enable the unsigned Safari extension
 
+EOF
+  if [ "$USE_PREBUILT_APP" -eq 1 ]; then
+    cat <<EOF
+This install includes a prebuilt app, so it will not compile SWinyDL locally.
+
+EOF
+  else
+    cat <<EOF
+This install will also:
+- install xcodegen with Homebrew if it is missing and you approve
+- verify xcode-select and Xcode first-launch readiness
+- regenerate the Safari Xcode project
+- build SWinyDLSafariApp.app into $BUILD_OUTPUT_DIR
+
+EOF
+  fi
+  cat <<EOF
 Press Enter to continue, or Ctrl-C to cancel.
 EOF
 }
@@ -107,7 +153,7 @@ ensure_homebrew() {
 ensure_homebrew_tools() {
   missing_tools=""
 
-  for tool in uv ffmpeg xcodegen; do
+  for tool in "$@"; do
     if ! command -v "$tool" >/dev/null 2>&1; then
       missing_tools="$missing_tools $tool"
     fi
@@ -118,7 +164,7 @@ ensure_homebrew_tools() {
   ensure_homebrew
 
   if ! confirm_yes "Install missing required tools with Homebrew:$missing_tools? [Y/n]" "yes"; then
-    error_exit "Missing required tools:$missing_tools. Install them with: brew install uv ffmpeg xcodegen"
+    error_exit "Missing required tools:$missing_tools. Install them with: brew install$missing_tools"
   fi
 
   note "Installing missing required tools with Homebrew:$missing_tools"
@@ -139,11 +185,17 @@ ensure_xcode_ready() {
 }
 
 confirm_continue
-ensure_homebrew_tools
+if [ "$USE_PREBUILT_APP" -eq 1 ]; then
+  ensure_homebrew_tools uv ffmpeg
+else
+  ensure_homebrew_tools uv ffmpeg xcodegen
+fi
 require_command uv "uv is required. Install uv first with 'brew install uv' or Astral's installer, then re-run this script."
 require_command ffmpeg "ffmpeg is required. Install ffmpeg and ensure it is on PATH."
-require_command xcodegen "xcodegen is required. Install xcodegen and ensure it is on PATH."
-ensure_xcode_ready
+if [ "$USE_PREBUILT_APP" -eq 0 ]; then
+  require_command xcodegen "xcodegen is required. Install xcodegen and ensure it is on PATH."
+  ensure_xcode_ready
+fi
 
 cd "$REPO_ROOT"
 
@@ -160,19 +212,23 @@ PY
 note "Bootstrapping local CoreML model bundles..."
 "$VENV_PYTHON" -m swinydl.main bootstrap-models
 
-note "Generating the Safari Xcode project..."
-xcodegen generate --spec safari/project.yml
+if [ "$USE_PREBUILT_APP" -eq 1 ]; then
+  note "Using prebuilt SWinyDLSafariApp at $APP_PATH ..."
+else
+  note "Generating the Safari Xcode project..."
+  xcodegen generate --spec safari/project.yml
 
-note "Building SWinyDLSafariApp into $BUILD_OUTPUT_DIR ..."
-mkdir -p "$BUILD_OUTPUT_DIR" "$DERIVED_DATA_DIR"
-xcodebuild \
-  -project safari/SWinyDLSafari.xcodeproj \
-  -scheme SWinyDLSafariApp \
-  -configuration Debug \
-  -derivedDataPath "$DERIVED_DATA_DIR" \
-  CONFIGURATION_BUILD_DIR="$BUILD_OUTPUT_DIR" \
-  CODE_SIGNING_ALLOWED=NO \
-  build
+  note "Building SWinyDLSafariApp into $BUILD_OUTPUT_DIR ..."
+  mkdir -p "$BUILD_OUTPUT_DIR" "$DERIVED_DATA_DIR"
+  xcodebuild \
+    -project safari/SWinyDLSafari.xcodeproj \
+    -scheme SWinyDLSafariApp \
+    -configuration Debug \
+    -derivedDataPath "$DERIVED_DATA_DIR" \
+    CONFIGURATION_BUILD_DIR="$BUILD_OUTPUT_DIR" \
+    CODE_SIGNING_ALLOWED=NO \
+    build
+fi
 
 [ -d "$APP_PATH" ] || error_exit "Build completed without producing $APP_PATH."
 [ -d "$APP_PATH/Contents/PlugIns/SWinyDLSafariExtension.appex" ] || error_exit "The built app is missing the embedded Safari extension bundle."
@@ -196,10 +252,13 @@ Next steps:
 4. Open a logged-in Canvas or Echo360 page in Safari.
 5. Use the SWinyDL extension popup to load the course and launch jobs.
 
-The built app is at:
+The app is at:
   $APP_PATH
 
-If you later update the repo from GitHub Releases, rebuild with:
+If you later update from GitHub Releases, download the newer DMG and run:
   ./install.sh
+
+To rebuild locally from source, run:
+  ./install.sh --build-from-source
 
 EOF

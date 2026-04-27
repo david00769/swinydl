@@ -41,6 +41,9 @@ If you have never set this up before, run:
 
 ```bash
 xcode-select --install
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> ~/.zprofile
+eval "$(/opt/homebrew/bin/brew shellenv)"
 brew install uv ffmpeg xcodegen
 ```
 
@@ -53,7 +56,8 @@ For most people, the best path is:
 3. Open Terminal
 4. Type `cd ` and drag the unzipped SWinyDL folder into the Terminal window
 5. Press `Enter`
-6. Run:
+6. If you have not installed Homebrew and the required tools yet, run the commands in `Before You Start`
+7. Run:
 
 ```bash
 ./install.sh

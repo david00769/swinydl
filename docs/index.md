@@ -25,12 +25,13 @@ For day-to-day use, the simplest entrypoint is:
 For a first-time non-technical Mac user, the simplest setup path is:
 
 1. `xcode-select --install`
-2. install Homebrew if needed
+2. install Homebrew if needed: `/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"`
 3. download the current zip from [GitHub](https://github.com/david00769/swinydl/archive/refs/heads/codex/swinydl-initial-publish.zip)
 4. unzip it
-5. `brew install uv ffmpeg xcodegen`
-6. open Terminal in the unzipped folder and run `./install.sh`
-7. enable `SWinyDL Safari` in Safari Settings
+5. add Homebrew to PATH with the commands printed by the installer, or on Apple Silicon: `echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> ~/.zprofile` and `eval "$(/opt/homebrew/bin/brew shellenv)"`
+6. `brew install uv ffmpeg xcodegen`
+7. open Terminal in the unzipped folder and run `./install.sh`
+8. enable `SWinyDL Safari` in Safari Settings
 
 After that:
 

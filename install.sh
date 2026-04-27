@@ -7,6 +7,9 @@ BUILD_ROOT="$REPO_ROOT/safari/.build"
 BUILD_OUTPUT_DIR="$BUILD_ROOT/Debug"
 DERIVED_DATA_DIR="$BUILD_ROOT/DerivedData"
 APP_PATH="$BUILD_OUTPUT_DIR/SWinyDLSafariApp.app"
+
+# Finder and other GUI launch paths often omit Homebrew and user-local tool paths.
+export PATH="$HOME/.local/bin:$HOME/.cargo/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/bin:/usr/local/sbin:$PATH"
 note() {
   printf '%s\n' "$1"
 }
@@ -41,7 +44,7 @@ confirm_continue() {
 }
 
 require_command() {
-  command -v "$1" >/dev/null 2>&1 || error_exit "$2"
+  command -v "$1" >/dev/null 2>&1 || error_exit "$2 Current PATH: $PATH"
 }
 
 ensure_xcode_ready() {
@@ -57,7 +60,7 @@ ensure_xcode_ready() {
   fi
 }
 
-require_command uv "uv is required. Install uv first."
+require_command uv "uv is required. Install uv first with 'brew install uv' or Astral's installer, then re-run this script."
 require_command ffmpeg "ffmpeg is required. Install ffmpeg and ensure it is on PATH."
 require_command xcodegen "xcodegen is required. Install xcodegen and ensure it is on PATH."
 ensure_xcode_ready

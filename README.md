@@ -33,8 +33,12 @@ It also writes:
 You need:
 - an Apple Silicon Mac
 - Safari
+- internet access during setup
+- Terminal, only to run the installer
 
-You do not need to install Homebrew, `uv`, `ffmpeg`, or `xcodegen` before starting. `./install.sh` checks for them and offers to install anything missing.
+You do not need Xcode or Apple's command line tools for the normal DMG install.
+
+You do not need to install Homebrew, `uv`, or `ffmpeg` before starting. `./install.sh` checks for them and offers to install anything missing.
 
 If you prefer to install Homebrew and the required tools yourself before running SWinyDL, run:
 
@@ -70,6 +74,8 @@ If Homebrew, `uv`, or `ffmpeg` are missing, approve the installer prompts.
 - uses the prebuilt Mac app and Safari extension from the DMG
 - opens the app and Safari when setup is finished
 
+For the normal DMG install, `./install.sh` is still required. It prepares the local Python environment, checks `ffmpeg`, verifies the app can run, and opens Safari so you can enable the extension.
+
 You do not need to download the Parakeet model manually.
 
 ## Developer Install
@@ -91,6 +97,8 @@ xcode-select --install
 ```
 
 The source build path can install `xcodegen` and uses `xcodebuild` locally.
+
+Xcode command line tools are only needed for this developer source-build path.
 
 ## First Run
 

@@ -61,7 +61,7 @@ This script will:
 - run uv sync
 - bootstrap the staged CoreML model bundles if needed
 - run 'swinydl doctor'
-- open the built app and Safari so you can enable the unsigned Safari extension
+- open the app and Safari so you can enable the unsigned Safari extension
 
 EOF
   if [ "$USE_PREBUILT_APP" -eq 1 ]; then
@@ -236,7 +236,7 @@ fi
 note "Running SWinyDL doctor..."
 "$VENV_PYTHON" -m swinydl.main doctor
 
-note "Opening the built SWinyDL Safari app..."
+note "Opening the SWinyDL Safari app..."
 open "$APP_PATH"
 note "Opening Safari..."
 open -a Safari

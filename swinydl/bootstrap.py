@@ -3,10 +3,13 @@ from __future__ import annotations
 """Download staged CoreML model bundles from their public Hugging Face repos."""
 
 from dataclasses import dataclass
+from contextlib import contextmanager
+import fcntl
 import os
 from pathlib import Path
 import shutil
 
+from .app_paths import cache_dir
 from .echo_exceptions import DependencyMissingError
 from .system import configure_runtime_ssl
 from .transcription import (
@@ -60,7 +63,6 @@ DIARIZER_TARGET = BootstrapTarget(
 def bootstrap_models(*, target: str = "all", force: bool = False, vendor_root: Path | None = None) -> dict[str, object]:
     """Download one or both staged CoreML bundles into the repo-local vendor directory."""
     configure_runtime_ssl()
-    snapshot_download = _snapshot_download()
     root = (vendor_root or Path.cwd() / "vendor").resolve()
     root.mkdir(parents=True, exist_ok=True)
 
@@ -68,6 +70,20 @@ def bootstrap_models(*, target: str = "all", force: bool = False, vendor_root: P
     for item in _select_targets(target):
         local_dir = root / item.local_dirname
         local_dir.mkdir(parents=True, exist_ok=True)
+        if not force and _target_is_present(item, local_dir):
+            results.append(
+                {
+                    "target": item.name,
+                    "repo_id": item.repo_id,
+                    "local_dir": str(local_dir),
+                    "downloaded_to": str(local_dir),
+                    "force": force,
+                    "skipped": True,
+                }
+            )
+            continue
+
+        snapshot_download = _snapshot_download()
         downloaded_to = snapshot_download(
             repo_id=item.repo_id,
             local_dir=str(local_dir),
@@ -81,6 +97,7 @@ def bootstrap_models(*, target: str = "all", force: bool = False, vendor_root: P
                 "local_dir": str(local_dir),
                 "downloaded_to": str(downloaded_to),
                 "force": force,
+                "skipped": False,
             }
         )
 
@@ -95,19 +112,20 @@ def ensure_runtime_model_artifacts(command: str) -> dict[str, object] | None:
     if command not in {"process", "transcribe", "doctor"}:
         return None
 
-    normalization = normalize_local_model_layout()
-    target = _missing_default_targets()
-    if target is None:
-        return {"bootstrapped": False, "normalized": normalization}
+    with _bootstrap_lock():
+        normalization = normalize_local_model_layout()
+        target = _missing_default_targets()
+        if target is None:
+            return {"bootstrapped": False, "normalized": normalization}
 
-    bootstrap_report = bootstrap_models(target=target)
-    normalization = normalize_local_model_layout()
-    return {
-        "bootstrapped": True,
-        "target": target,
-        "bootstrap": bootstrap_report,
-        "normalized": normalization,
-    }
+        bootstrap_report = bootstrap_models(target=target)
+        normalization = normalize_local_model_layout()
+        return {
+            "bootstrapped": True,
+            "target": target,
+            "bootstrap": bootstrap_report,
+            "normalized": normalization,
+        }
 
 
 def normalize_local_model_layout(vendor_root: Path | None = None) -> dict[str, object]:
@@ -132,10 +150,13 @@ def normalize_local_model_layout(vendor_root: Path | None = None) -> dict[str, o
     for path in obsolete_paths:
         if not path.exists():
             continue
-        if path.is_dir():
-            shutil.rmtree(path)
-        else:
-            path.unlink()
+        try:
+            if path.is_dir():
+                shutil.rmtree(path)
+            else:
+                path.unlink()
+        except FileNotFoundError:
+            continue
         actions.append(f"removed {path}")
 
     return {
@@ -173,6 +194,15 @@ def _missing_default_targets() -> str | None:
     return None
 
 
+def _target_is_present(target: BootstrapTarget, local_dir: Path) -> bool:
+    """Return whether the staged local directory already satisfies the target bundle."""
+    if target.name == "parakeet":
+        return _parakeet_coreml_models_exist(local_dir)
+    if target.name == "diarizer":
+        return _diarizer_coreml_models_exist(local_dir)
+    return False
+
+
 def _snapshot_download():
     """Import huggingface_hub lazily so non-bootstrap runtime paths stay lean."""
     try:
@@ -182,3 +212,17 @@ def _snapshot_download():
             "huggingface_hub is required for model bootstrap. Reinstall the package or run `uv sync`."
         ) from exc
     return snapshot_download
+
+
+@contextmanager
+def _bootstrap_lock():
+    """Serialize model-layout normalization and auto-bootstrap across processes."""
+    lock_dir = cache_dir() / "locks"
+    lock_dir.mkdir(parents=True, exist_ok=True)
+    lock_path = lock_dir / "bootstrap.lock"
+    with lock_path.open("w", encoding="utf-8") as handle:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)

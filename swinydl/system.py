@@ -19,6 +19,46 @@ COMMON_CHROME_PATHS = (
 _TRUSTSTORE_CONFIGURED = False
 
 
+def find_xcodebuild_binary() -> str | None:
+    """Return the `xcodebuild` executable on PATH, if present."""
+    return shutil.which("xcodebuild")
+
+
+def xcode_select_path() -> str | None:
+    """Return the active Xcode developer directory, if configured."""
+    xcode_select = shutil.which("xcode-select")
+    if xcode_select is None:
+        return None
+    try:
+        completed = subprocess.run(
+            [xcode_select, "-p"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+    except Exception:  # pragma: no cover - depends on local Xcode tooling
+        return None
+    path = completed.stdout.strip()
+    return path or None
+
+
+def xcode_first_launch_ready() -> bool | None:
+    """Return whether Xcode first-launch tasks and license acceptance are complete."""
+    xcodebuild = find_xcodebuild_binary()
+    if xcodebuild is None:
+        return None
+    try:
+        completed = subprocess.run(
+            [xcodebuild, "-checkFirstLaunchStatus"],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+    except Exception:  # pragma: no cover - depends on local Xcode tooling
+        return None
+    return completed.returncode == 0
+
+
 def find_chrome_binary() -> str | None:
     """Return the preferred local Chrome or Chromium binary, if available."""
     for candidate in COMMON_CHROME_PATHS:
@@ -34,6 +74,11 @@ def find_chrome_binary() -> str | None:
 def find_swift_binary() -> str | None:
     """Return the `swift` executable on PATH, if present."""
     return shutil.which("swift")
+
+
+def find_xcodegen_binary() -> str | None:
+    """Return the `xcodegen` executable on PATH, if present."""
+    return shutil.which("xcodegen")
 
 
 def swift_version() -> str | None:
@@ -52,6 +97,29 @@ def swift_version() -> str | None:
         return None
     first_line = completed.stdout.splitlines()[0] if completed.stdout else ""
     return first_line.strip() or None
+
+
+def safari_project_path(base_dir: Path | None = None) -> Path:
+    """Return the generated Safari Xcode project path."""
+    root = (base_dir or Path.cwd()).resolve()
+    return root / "safari" / "SWinyDLSafari.xcodeproj"
+
+
+def safari_project_spec_path(base_dir: Path | None = None) -> Path:
+    """Return the Safari XcodeGen project spec path."""
+    root = (base_dir or Path.cwd()).resolve()
+    return root / "safari" / "project.yml"
+
+
+def safari_built_app_path(base_dir: Path | None = None) -> Path:
+    """Return the deterministic local build output path for the Safari wrapper app."""
+    root = (base_dir or Path.cwd()).resolve()
+    return root / "safari" / ".build" / "Debug" / "SWinyDLSafariApp.app"
+
+
+def safari_extension_bundle_path(base_dir: Path | None = None) -> Path:
+    """Return the embedded Safari extension bundle path inside the built app."""
+    return safari_built_app_path(base_dir) / "Contents" / "PlugIns" / "SWinyDLSafariExtension.appex"
 
 
 def chrome_version() -> str | None:

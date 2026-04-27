@@ -2,13 +2,14 @@ from __future__ import annotations
 
 """Top-level orchestration for inspect, download, process, and transcribe flows."""
 
+from datetime import datetime
 from pathlib import Path
 import json
 import shutil
 import uuid
 
-from .app_paths import cache_dir, ensure_runtime_dirs
-from .auth import BrowserSession
+from .app_paths import cache_dir, default_output_root, ensure_runtime_dirs
+from .auth import AuthenticatedSession, BrowserSession, CookieSession
 from .captions import (
     load_native_caption_segments,
     parse_srt,
@@ -17,7 +18,8 @@ from .captions import (
     segments_to_text,
 )
 from .discovery import filter_lessons, inspect_course as discover_course, resolve_lesson_assets
-from .echo_exceptions import NativeCaptionError
+from .echo_exceptions import DiscoveryError, NativeCaptionError
+from .manifest import build_job_status, load_process_manifest, status_path_for_manifest, write_job_status
 from .media import download_lesson_media, select_caption_asset
 from .models import (
     CourseManifest,
@@ -25,6 +27,7 @@ from .models import (
     DownloadSummary,
     InspectOptions,
     LessonManifest,
+    ProcessManifest,
     ProcessOptions,
     RunSummary,
     TranscriptArtifacts,
@@ -51,26 +54,43 @@ def inspect_course(url: str, options: InspectOptions | None = None) -> CourseMan
 def process_course(url: str, options: ProcessOptions) -> RunSummary:
     """Run the transcript-first workflow for every selected lesson in a course."""
     ensure_runtime_dirs()
-    output_root = ensure_dir(options.output_root)
-    run_id = uuid.uuid4().hex[:12]
-    created_at = now_utc().isoformat() + "Z"
-
     with BrowserSession(course_url=url) as browser:
         course = filter_lessons(discover_course(url, browser), options)
-        results = [
-            _process_lesson(browser, course, lesson, options)
-            for lesson in course.lessons
-        ]
+        return _process_course_with_session(
+            session=browser,
+            source_page_url=url,
+            course=course,
+            options=options,
+            command="process",
+            status_path=None,
+        )
 
-    summary = RunSummary(
-        run_id=run_id,
-        created_at=created_at,
-        command="process",
-        course=course,
-        results=results,
+
+def process_manifest(path: Path | str) -> RunSummary:
+    """Run a manifest-launched Safari or native-wrapper job without Selenium."""
+    ensure_runtime_dirs()
+    manifest = load_process_manifest(path)
+    options = ProcessOptions(
+        output_root=Path(manifest.output_root or default_output_root()),
+        lesson_ids=manifest.selected_lesson_ids,
+        transcript_source=manifest.transcript_source,
+        asr_backend=manifest.asr_backend,
+        diarization_mode=manifest.diarization_mode,
+        requested_action=manifest.requested_action,
+        delete_downloaded_media=manifest.delete_downloaded_media,
+        keep_audio=manifest.keep_audio,
+        keep_video=manifest.keep_video,
     )
-    _write_run_manifest(output_root, course, run_id, summary)
-    return summary
+    session = CookieSession(manifest.cookies)
+    course = _course_from_manifest(session, manifest, options)
+    return _process_course_with_session(
+        session=session,
+        source_page_url=manifest.source_page_url,
+        course=course,
+        options=options,
+        command="process-manifest",
+        status_path=status_path_for_manifest(manifest.manifest_path or path),
+    )
 
 
 def download_course(url: str, options: DownloadOptions) -> DownloadSummary:
@@ -85,7 +105,7 @@ def download_course(url: str, options: DownloadOptions) -> DownloadSummary:
         course = filter_lessons(discover_course(url, browser), options)
         course_dir = ensure_dir(output_root / slugify(course.course_title))
         for lesson in course.lessons:
-            lesson = resolve_lesson_assets(browser, lesson)
+            lesson = _resolve_assets_if_possible(browser, lesson)
             key = lesson_key(lesson.date, lesson.lesson_id, lesson.index, lesson.title)
             artifacts = download_lesson_media(
                 browser,
@@ -137,11 +157,146 @@ def transcribe_file(path: Path | str, options: TranscribeOptions) -> TranscriptR
     return _process_local_media(course, lesson, source, options)
 
 
-def _process_lesson(
-    browser: BrowserSession,
+def _process_course_with_session(
+    *,
+    session: AuthenticatedSession,
+    source_page_url: str,
     course: CourseManifest,
-    lesson: LessonManifest,
     options: ProcessOptions,
+    command: str,
+    status_path: Path | None,
+) -> RunSummary:
+    """Process a normalized course through the transcript workflow."""
+    output_root = ensure_dir(options.output_root)
+    run_id = uuid.uuid4().hex[:12]
+    created_at = now_utc().isoformat() + "Z"
+    started_at = created_at
+    results: list[TranscriptResult] = []
+    lesson_states = {
+        lesson.lesson_id: {
+            "lesson_id": lesson.lesson_id,
+            "title": lesson.title,
+            "status": "queued",
+            "stage": "queued",
+            "detail": "Queued and waiting to start.",
+            "error": None,
+            "transcript_files": [],
+            "transcript_folder": None,
+            "retained_media_files": [],
+        }
+        for lesson in course.lessons
+    }
+    events: list[tuple[str, str, str]] = [
+        (created_at, "info", f"Queued {len(course.lessons)} lessons from {course.course_title}.")
+    ]
+    _write_status_snapshot(
+        status_path,
+        run_id=run_id,
+        command=command,
+        course=course,
+        source_page_url=source_page_url,
+        output_root=output_root,
+        started_at=started_at,
+        options=options,
+        lesson_states=lesson_states,
+        events=events,
+    )
+
+    for lesson in course.lessons:
+        def status_callback(*, lesson_id, title, status, stage, detail, error=None):
+            _record_status_update(
+                lesson_states=lesson_states,
+                events=events,
+                lesson_id=lesson_id,
+                title=title,
+                status=status,
+                stage=stage,
+                detail=detail,
+                error=error,
+            )
+            _write_status_snapshot(
+                status_path,
+                run_id=run_id,
+                command=command,
+                course=course,
+                source_page_url=source_page_url,
+                output_root=output_root,
+                started_at=started_at,
+                options=options,
+                lesson_states=lesson_states,
+                events=events,
+                active_lesson_id=lesson_id,
+                active_lesson_title=title,
+            )
+
+        result = _process_lesson(
+            session,
+            course,
+            lesson,
+            options,
+            status_callback=status_callback,
+        )
+        results.append(result)
+        _record_result_state(lesson_states, events, result)
+        _write_status_snapshot(
+            status_path,
+            run_id=run_id,
+            command=command,
+            course=course,
+            source_page_url=source_page_url,
+            output_root=output_root,
+            started_at=started_at,
+            options=options,
+            lesson_states=lesson_states,
+            events=events,
+            active_lesson_id=None,
+            active_lesson_title=None,
+        )
+
+    summary = RunSummary(
+        run_id=run_id,
+        created_at=created_at,
+        command=command,
+        course=course,
+        results=results,
+    )
+    _write_run_manifest(output_root, course, run_id, summary)
+    _write_status_snapshot(
+        status_path,
+        run_id=run_id,
+        command=command,
+        course=course,
+        source_page_url=source_page_url,
+        output_root=output_root,
+        started_at=started_at,
+        options=options,
+        lesson_states=lesson_states,
+        events=events,
+        summary_path=(output_root / slugify(course.course_title) / "_runs" / f"{run_id}.json"),
+    )
+    return summary
+
+
+def _course_from_manifest(
+    session: AuthenticatedSession,
+    manifest: ProcessManifest,
+    options: ProcessOptions,
+) -> CourseManifest:
+    """Choose the manifest-provided course or discover one from the authenticated session."""
+    if manifest.course is not None:
+        return filter_lessons(manifest.course, options)
+    discovered = filter_lessons(discover_course(manifest.course_url, session), options)
+    if all(lesson.assets for lesson in discovered.lessons):
+        return discovered
+    raise DiscoveryError("Manifest-driven processing needs pre-resolved lesson assets when no browser is available.")
+
+
+def _process_lesson(
+    session: AuthenticatedSession,
+    course: CourseManifest,
+    lesson,
+    options: ProcessOptions,
+    status_callback=None,
 ) -> TranscriptResult:
     """Process one Echo360 lesson into transcript artifacts and structured JSON."""
     output_root = ensure_dir(options.output_root / slugify(course.course_title))
@@ -170,26 +325,43 @@ def _process_lesson(
         except Exception:
             pass
 
-    lesson = resolve_lesson_assets(browser, lesson)
-    session = browser.requests_session()
+    lesson = _resolve_assets_if_possible(session, lesson)
     transcript_source = _resolve_transcript_source(options, lesson)
 
     try:
         if transcript_source == "native":
+            if status_callback is not None:
+                status_callback(
+                    lesson_id=lesson.lesson_id,
+                    title=lesson.title,
+                    status="running",
+                    stage="downloading",
+                    detail="Loading native captions from Echo360.",
+                )
             caption_asset = select_caption_asset(lesson)
             if caption_asset is None:
                 raise NativeCaptionError("Native captions were requested but none were found.")
-            segments = load_native_caption_segments(session, caption_asset.url)
+            segments = load_native_caption_segments(session.requests_session(), caption_asset.url)
             words = []
             language = "en"
             model_name = None
             asr_backend = None
             audio_path = None
+            video_paths: list[Path] = []
+            downloaded_media_paths: list[Path] = []
             diarized = False
         else:
-            temp_dir = ensure_dir(cache_dir() / "runs" / key)
+            temp_dir = ensure_dir(cache_dir() / "runs" / f"{key}-{uuid.uuid4().hex[:8]}")
+            if status_callback is not None:
+                status_callback(
+                    lesson_id=lesson.lesson_id,
+                    title=lesson.title,
+                    status="running",
+                    stage="downloading",
+                    detail="Downloading lesson audio for transcription.",
+                )
             downloaded = download_lesson_media(
-                browser,
+                session,
                 lesson,
                 temp_dir,
                 media="audio",
@@ -198,22 +370,65 @@ def _process_lesson(
             if not downloaded:
                 raise RuntimeError("yt-dlp produced no downloaded media file.")
             normalized_audio = temp_dir / f"{key}.wav"
+            if status_callback is not None:
+                status_callback(
+                    lesson_id=lesson.lesson_id,
+                    title=lesson.title,
+                    status="running",
+                    stage="extracting_audio",
+                    detail="Normalizing audio to mono 16 kHz WAV.",
+                )
             normalize_media_to_wav(downloaded[0], normalized_audio)
             segments, words, language, diarized, asr_backend, model_name = transcribe_audio(
                 normalized_audio,
                 asr_backend=options.asr_backend,
                 diarization_mode=options.diarization_mode,
+                progress_callback=(
+                    None
+                    if status_callback is None
+                    else lambda stage, detail: status_callback(
+                        lesson_id=lesson.lesson_id,
+                        title=lesson.title,
+                        status="running",
+                        stage=stage,
+                        detail=detail,
+                    )
+                ),
             )
             audio_path = output_root / f"{key}.wav" if options.keep_audio else None
             if audio_path is not None:
                 shutil.copy2(normalized_audio, audio_path)
+            video_paths = []
+            downloaded_media_paths: list[Path] = []
+            if options.requested_action == "download_and_transcribe":
+                if not options.delete_downloaded_media:
+                    stored_paths = download_lesson_media(
+                        session,
+                        lesson,
+                        output_root,
+                        media="both",
+                        file_stem=key,
+                    )
+                    downloaded_media_paths = stored_paths
+                    if options.keep_video:
+                        video_paths = [path for path in stored_paths if path.suffix.lower() == ".mp4"]
             shutil.rmtree(temp_dir, ignore_errors=True)
 
+        if status_callback is not None:
+            status_callback(
+                lesson_id=lesson.lesson_id,
+                title=lesson.title,
+                status="running",
+                stage="writing_files",
+                detail="Writing transcript artifacts to disk.",
+            )
         artifacts = TranscriptArtifacts(
             txt_path=txt_path,
             srt_path=srt_path,
             json_path=json_path,
             audio_path=audio_path,
+            video_paths=video_paths,
+            downloaded_media_paths=downloaded_media_paths if transcript_source == "asr" else [],
         )
         result = TranscriptResult(
             status="success",
@@ -252,7 +467,7 @@ def _process_lesson(
 
 def _process_local_media(
     course: CourseManifest,
-    lesson: LessonManifest,
+    lesson,
     source: Path,
     options: TranscribeOptions,
 ) -> TranscriptResult:
@@ -275,7 +490,7 @@ def _process_local_media(
             audio_path = None
             diarized = False
         else:
-            temp_dir = ensure_dir(cache_dir() / "runs" / key)
+            temp_dir = ensure_dir(cache_dir() / "runs" / f"{key}-{uuid.uuid4().hex[:8]}")
             normalized_audio = temp_dir / f"{key}.wav"
             normalize_media_to_wav(source, normalized_audio)
             segments, words, language, diarized, asr_backend, model_name = transcribe_audio(
@@ -331,7 +546,7 @@ def _process_local_media(
         return failed
 
 
-def _resolve_transcript_source(options: ProcessOptions, lesson: LessonManifest) -> str:
+def _resolve_transcript_source(options: ProcessOptions, lesson) -> str:
     """Choose between native captions and ASR for one lesson."""
     diarization_ready, _ = diarization_runtime_status(require_token=False)
     if options.diarization_mode == "on":
@@ -343,6 +558,13 @@ def _resolve_transcript_source(options: ProcessOptions, lesson: LessonManifest) 
     if options.transcript_source == "native":
         return "native"
     return "native" if select_caption_asset(lesson) is not None else "asr"
+
+
+def _resolve_assets_if_possible(session: AuthenticatedSession, lesson):
+    """Resolve page-level assets only when the session exposes a browser driver."""
+    if getattr(session, "driver", None) is None:
+        return lesson
+    return resolve_lesson_assets(session, lesson)
 
 
 def _write_transcript_artifacts(result: TranscriptResult) -> None:
@@ -371,3 +593,179 @@ def _write_run_manifest(
         json_dumps(export_dataclass(summary)),
         encoding="utf-8",
     )
+
+
+def _write_status_snapshot(
+    status_path: Path | None,
+    *,
+    run_id: str,
+    command: str,
+    course: CourseManifest,
+    source_page_url: str,
+    output_root: Path,
+    started_at: str,
+    options: ProcessOptions,
+    lesson_states: dict[str, dict[str, object]],
+    events: list[tuple[str, str, str]],
+    active_lesson_id: str | None = None,
+    active_lesson_title: str | None = None,
+    summary_path: Path | None = None,
+) -> None:
+    """Write a manifest-sidecar job status file when requested."""
+    if status_path is None:
+        return
+    updated_at = now_utc().isoformat() + "Z"
+    completed = sum(
+        1
+        for state in lesson_states.values()
+        if str(state["status"]) in {"success", "failed", "skipped"}
+    )
+    lesson_snapshots = [
+        (
+            str(lesson_states[lesson.lesson_id]["lesson_id"]),
+            str(lesson_states[lesson.lesson_id]["title"]),
+            str(lesson_states[lesson.lesson_id]["status"]),
+            str(lesson_states[lesson.lesson_id]["stage"]),
+            str(lesson_states[lesson.lesson_id]["detail"]) if lesson_states[lesson.lesson_id]["detail"] is not None else None,
+            str(lesson_states[lesson.lesson_id]["error"]) if lesson_states[lesson.lesson_id]["error"] is not None else None,
+        )
+        for lesson in course.lessons
+    ]
+    lesson_artifacts = [
+        (
+            [str(path) for path in lesson_states[lesson.lesson_id]["transcript_files"]],
+            str(lesson_states[lesson.lesson_id]["transcript_folder"])
+            if lesson_states[lesson.lesson_id]["transcript_folder"] is not None
+            else None,
+            [str(path) for path in lesson_states[lesson.lesson_id]["retained_media_files"]],
+        )
+        for lesson in course.lessons
+    ]
+    overall_status = "running"
+    error = None
+    if completed == len(course.lessons):
+        if any(str(state["status"]) == "failed" for state in lesson_states.values()):
+            overall_status = "failed"
+            error = "One or more lessons failed."
+        else:
+            overall_status = "success"
+    if active_lesson_id is None:
+        for lesson in course.lessons:
+            state = lesson_states[lesson.lesson_id]
+            if str(state["status"]) == "running":
+                active_lesson_id = lesson.lesson_id
+                active_lesson_title = lesson.title
+                break
+    started = datetime.fromisoformat(started_at.removesuffix("Z"))
+    elapsed_seconds = max(0.0, (now_utc() - started).total_seconds())
+    status = build_job_status(
+        job_id=run_id,
+        command=command,
+        overall_status=overall_status,
+        course_title=course.course_title,
+        source_page_url=source_page_url,
+        output_root=output_root,
+        total_lessons=len(course.lessons),
+        completed_lessons=completed,
+        started_at=started_at,
+        updated_at=updated_at,
+        elapsed_seconds=elapsed_seconds,
+        lesson_snapshots=lesson_snapshots,
+        lesson_artifacts=lesson_artifacts,
+        active_lesson_id=active_lesson_id,
+        active_lesson_title=active_lesson_title,
+        detail=(
+            f"Processing {active_lesson_title}."
+            if active_lesson_title and overall_status == "running"
+            else ("All selected lessons completed." if overall_status == "success" else None)
+        ),
+        requested_action=options.requested_action,
+        diarization_mode=options.diarization_mode,
+        delete_downloaded_media=options.delete_downloaded_media,
+        events=events[-12:],
+        summary_path=summary_path,
+        error=error,
+    )
+    write_job_status(status_path, status)
+
+
+def _record_status_update(
+    *,
+    lesson_states: dict[str, dict[str, object]],
+    events: list[tuple[str, str, str]],
+    lesson_id: str,
+    title: str,
+    status: str,
+    stage: str,
+    detail: str,
+    error: str | None = None,
+) -> None:
+    """Update one lesson snapshot and append a lightweight activity event."""
+    state = lesson_states[lesson_id]
+    state["title"] = title
+    previous_stage = str(state["stage"])
+    previous_detail = str(state["detail"]) if state["detail"] is not None else None
+    state["status"] = status
+    state["stage"] = stage
+    state["detail"] = detail
+    if error is not None:
+        state["error"] = error
+    timestamp = now_utc().isoformat() + "Z"
+    if stage != previous_stage or detail != previous_detail:
+        events.append((timestamp, "info", f"{title}: {detail}"))
+
+
+def _record_result_state(
+    lesson_states: dict[str, dict[str, object]],
+    events: list[tuple[str, str, str]],
+    result: TranscriptResult,
+) -> None:
+    """Persist the final lesson outcome into the status snapshot state."""
+    state = lesson_states[result.lesson.lesson_id]
+    timestamp = now_utc().isoformat() + "Z"
+    if result.status == "success":
+        state["status"] = "success"
+        state["stage"] = "done"
+        state["detail"] = "TXT transcript ready. Timed captions and structured JSON are also available."
+        state["error"] = None
+        state["transcript_files"] = [
+            str(result.artifacts.txt_path),
+            str(result.artifacts.srt_path),
+            str(result.artifacts.json_path),
+        ]
+        state["transcript_folder"] = str(result.artifacts.txt_path.parent)
+        state["retained_media_files"] = [str(path) for path in result.artifacts.downloaded_media_paths]
+        events.append((timestamp, "success", f"{result.lesson.title}: transcription complete."))
+        return
+    if result.status == "skipped":
+        state["status"] = "skipped"
+        state["stage"] = "done"
+        state["detail"] = "Existing TXT transcript reused."
+        state["error"] = None
+        state["transcript_files"] = [
+            str(result.artifacts.txt_path),
+            str(result.artifacts.srt_path),
+            str(result.artifacts.json_path),
+        ]
+        state["transcript_folder"] = str(result.artifacts.txt_path.parent)
+        events.append((timestamp, "info", f"{result.lesson.title}: reused existing transcript artifacts."))
+        return
+    state["status"] = "failed"
+    state["stage"] = "failed"
+    state["detail"] = _categorize_failure_detail(result.error)
+    state["error"] = result.error
+    events.append((timestamp, "error", f"{result.lesson.title}: {result.error or 'failed'}"))
+
+
+def _categorize_failure_detail(error: str | None) -> str:
+    """Turn raw backend errors into shorter run-state hints."""
+    message = (error or "").lower()
+    if "assets were not found" in message or "bootstrap-models" in message:
+        return "Required model artifacts are missing. Run bootstrap-models and retry."
+    if "ffmpeg" in message:
+        return "Audio conversion failed. Check the ffmpeg installation and retry."
+    if "unable to launch" in message or "python backend" in message:
+        return "The native app could not launch the Python backend."
+    if "cookie" in message or "login" in message or "caption" in message:
+        return "The authenticated lesson assets could not be loaded."
+    return "Transcription failed. Open the error details and retry."

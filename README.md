@@ -1,387 +1,208 @@
-# SWinyDL v4
+# SWinyDL
 
-SWinyDL: transcript-first Echo360 tooling for macOS Apple Silicon.
+I coded this up in one weekend to help my daughter get transcripts from her lectures she can upload to NotebookLLM
 
-This repository is designed specifically for Apple Silicon Macs. It is not intended as a general cross-platform package.
+SWinyDL downloads and transcribes Echo360 lecture recordings on Apple Silicon Macs.
 
-Tested platform:
+It is designed for:
+- macOS on Apple Silicon
+- Safari as the main browser flow
+- lecture-style content with one main speaker and occasional audience questions
+
+Tested on:
 - macOS 26.4 (`25E246`) on Apple Silicon
 
-`swinydl` keeps the Echo360-specific browser login and lesson discovery flow, but replaces the old custom HLS downloader with `yt-dlp` and makes transcription the default product path.
+## What It Does
 
-For day-to-day use, the simplest launch path is:
+SWinyDL lets you:
+- open a Canvas or Echo360 page in Safari
+- choose which lessons you want
+- transcribe them with speaker labels
+- watch progress in a small Mac app
+- open the finished transcript files directly
 
-```bash
-uv run app.py
-```
+The main output is:
+- `.txt` for reading
 
-If you launch it with no arguments, the app:
+It also writes:
+- `.srt` for timed captions
+- `.json` for structured transcript data
 
-1. asks you to press enter to launch Chrome
-2. lets you log in and navigate to the target page
-3. captures the browser URL when you press enter again
-4. runs the default `process` workflow against that captured URL
+## Before You Start
 
-On first real use, if the default local CoreML model bundles are missing, the app automatically downloads them from the documented Hugging Face sources before continuing.
+You need:
+- an Apple Silicon Mac
+- Safari
+- internet access during setup
+- Terminal, only to run the installer
 
-## What v4 Does
+You do not need Xcode or Apple's command line tools for the normal DMG install.
 
-- inspects Echo360 courses and lists lessons
-- prefers speaker-aware ASR by default so transcripts include speaker labels
-- can reuse native Echo360 captions when you explicitly turn diarization off
-- runs a local `Parakeet` CoreML backend on Apple Silicon
-- keeps diarization as a separate local CoreML speaker pipeline
-- writes `.txt`, `.srt`, and structured `.json` outputs
-- deletes temporary media after successful transcription unless you opt in to keep it
-- supports explicit media download as a separate subcommand
-- is tuned for lecture-style content with one dominant speaker and occasional audience participation
+You do not need to install Homebrew, `uv`, or `ffmpeg` before starting. `./install.sh` checks for them and offers to install anything missing.
 
-## Scope
-
-- macOS Apple Silicon only
-- tested on macOS `26.4` (`25E246`)
-- Chrome or Chromium only
-- Python `>=3.11`
-- package distribution via `pip` or `uv`
-- Swift toolchain via Xcode command line tools
-- no Windows support
-- no Firefox support
-- no PhantomJS support
-
-## Install
-
-### `uv`
+If you prefer to install Homebrew and the required tools yourself before running SWinyDL, run:
 
 ```bash
-uv sync
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> ~/.zprofile
+eval "$(/opt/homebrew/bin/brew shellenv)"
+brew install uv ffmpeg
 ```
 
-### `pip`
+## Easiest Install
+
+For most people, the best path is:
+
+1. Download the latest `SWinyDL-v...dmg` from [GitHub Releases](https://github.com/david00769/swinydl/releases)
+2. Open the DMG and copy the `SWinyDL` folder wherever you want to keep it
+3. Open Terminal
+4. Type `cd ` and drag the copied `SWinyDL` folder into the Terminal window
+5. Press `Enter`
+6. Run:
 
 ```bash
-python3 -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
-python -m pip install -e .
+./install.sh
 ```
 
-## Dependency Management
+If Homebrew, `uv`, or `ffmpeg` are missing, approve the installer prompts.
 
-- [pyproject.toml](pyproject.toml) defines the allowed dependency ranges for the package.
-- [uv.lock](uv.lock) records the currently tested resolution.
-- `swinydl doctor` checks runtime readiness only. It does not manage package versions.
-- There is no separate `requirements.txt` or `MANIFEST.in` to maintain in v4. Packaging and dependency policy live in `pyproject.toml`.
-- Third-party model and dependency provenance is documented in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+`./install.sh` does the setup for you:
+- offers to install Homebrew if it is missing
+- offers to install `uv` and `ffmpeg` if they are missing
+- creates the Python environment
+- downloads the required local speech models if they are missing
+- uses the prebuilt Mac app and Safari extension from the DMG
+- opens the app and Safari when setup is finished
 
-Upgrade to newer compatible dependency versions with:
+For the normal DMG install, `./install.sh` is still required. It prepares the local Python environment, checks `ffmpeg`, verifies the app can run, and opens Safari so you can enable the extension.
+
+You do not need to download the Parakeet model manually.
+
+## Developer Install
+
+If you want to build SWinyDL from source instead of using the DMG:
+
+1. Download the source zip from [GitHub](https://github.com/david00769/swinydl/archive/refs/heads/codex/swinydl-initial-publish.zip)
+2. Unzip it
+3. Install Apple's command line tools if needed:
 
 ```bash
-uv lock --upgrade
-uv sync
+xcode-select --install
 ```
 
-## Requirements
-
-- Google Chrome or Chromium installed
-- Swift installed via Xcode command line tools
-- `ffmpeg` on `PATH`
-- an interactive Echo360 login in the Chrome profile on first use
-- local Parakeet CoreML assets staged at `./vendor/parakeet-tdt-0.6b-v3-coreml` or exposed through `ECHO360_PARAKEET_COREML_DIR`
-- local speaker diarizer CoreML assets staged at `./vendor/speaker-diarization-coreml` or exposed through `ECHO360_DIARIZER_COREML_DIR`
-
-## Quickstart
-
-For a new machine, the shortest supported path is:
-
-1. `uv sync`
-2. `swinydl bootstrap-models`
-3. Run `swinydl doctor`
-4. Run `uv run app.py`, press enter to launch Chrome, then log in and navigate to the target page before pressing enter again
-5. Or bypass the browser-guided flow and run `swinydl transcribe /path/to/local/file.mp4` for a local file
-
-`uv sync` installs the Python dependencies declared in [pyproject.toml](pyproject.toml), including the Hugging Face client used by model bootstrap. The first time the CoreML runners are built, Swift Package Manager also resolves the Swift-side dependency declared in [Package.swift](swift/ParakeetCoreMLRunner/Package.swift).
-
-If you skip step 2, `swinydl process`, `swinydl transcribe`, `swinydl doctor`, and `uv run app.py` will auto-bootstrap the default repo-local model bundles when they are missing.
-
-## Bootstrap Models
-
-The repo ignores downloaded model bundles under `vendor/` because they can be recreated from public Hugging Face sources.
-
-Those staged bundles are third-party assets and are not covered by this repository's MIT license. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
-
-`bootstrap-models` downloads every staged model artifact the runtime expects:
-
-- Parakeet ASR CoreML bundles:
-  - `Preprocessor.mlmodelc/**`
-  - `Encoder.mlmodelc/**`
-  - `Decoder.mlmodelc/**`
-  - `JointDecision.mlmodelc/**`
-  - `parakeet_vocab.json`
-- Speaker diarizer CoreML bundles:
-  - `Segmentation.mlmodelc/**`
-  - `FBank.mlmodelc/**`
-  - `Embedding.mlmodelc/**`
-  - `PldaRho.mlmodelc/**`
-  - `plda-parameters.json`
-  - `xvector-transform.json`
-
-Use the built-in bootstrap command:
+4. Run:
 
 ```bash
-swinydl bootstrap-models
+./install.sh --build-from-source
 ```
 
-Fetch only one bundle if needed:
+The source build path can install `xcodegen` and uses `xcodebuild` locally.
+
+Xcode command line tools are only needed for this developer source-build path.
+
+## First Run
+
+After the installer finishes:
+
+1. Open Safari `Settings > Extensions`
+2. Enable `SWinyDL Safari`
+3. If the extension does not appear, enable Safari's Develop menu and turn on `Allow Unsigned Extensions`
+4. Open your Canvas or Echo360 page in Safari
+5. Open the `SWinyDL Safari` extension
+6. Choose the lessons you want
+7. Start the job
+
+The Mac app will show:
+- whether the models are ready
+- which lessons are queued or running
+- percent progress and current stage
+- when each transcript is complete
+- links to open the transcript or the transcript folder
+
+## What You Get
+
+For each completed lesson, SWinyDL writes:
+- `.txt` transcript
+- `.srt` subtitle file
+- `.json` structured transcript
+
+In the app, `.txt` is treated as the main transcript file.
+
+By default, SWinyDL deletes downloaded audio or video after transcription to save disk space. You can turn that off in the Safari popup before launching a job.
+
+## Updating
+
+The simplest update path is:
+
+1. In the app, choose `Check for Updates`
+2. If a newer release is available, click `Download DMG`
+3. Open the downloaded DMG from Downloads
+4. Quit SWinyDL
+5. Replace the older `SWinyDL` folder with the newer one
+6. Run:
 
 ```bash
-swinydl bootstrap-models --target parakeet
-swinydl bootstrap-models --target diarizer
+./install.sh
 ```
 
-Re-download staged files:
+You can also download the latest DMG manually from [GitHub Releases](https://github.com/david00769/swinydl/releases).
 
-```bash
-swinydl bootstrap-models --force
-```
+## Troubleshooting
 
-### Stage a Local Parakeet CoreML Bundle
+### The Safari extension does not appear
 
-`swinydl` expects a staged CoreML model directory with this layout:
+1. Run `./install.sh` again
+2. Open Safari `Settings > Extensions`
+3. If needed, enable Safari's Develop menu and turn on `Allow Unsigned Extensions`
 
-```text
-vendor/parakeet-tdt-0.6b-v3-coreml/
-  Preprocessor.mlmodelc/
-  Encoder.mlmodelc/
-  Decoder.mlmodelc/
-  JointDecision.mlmodelc/
-  parakeet_vocab.json
-```
-
-The runtime uses that directory offline through the Swift/CoreML runner. Pull the staged bundle directly from the upstream CoreML repo with:
-
-```bash
-swinydl bootstrap-models --target parakeet
-```
-
-### Model Provenance And Update Sources
-
-The repo consumes staged local CoreML bundles, but those bundles come from public upstream model repos.
-
-For ASR, the current update chain is:
-
-- preferred public CoreML pull source: [FluidInference/parakeet-tdt-0.6b-v3-coreml](https://huggingface.co/FluidInference/parakeet-tdt-0.6b-v3-coreml)
-- canonical base model: [nvidia/parakeet-tdt-0.6b-v3](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3)
-
-The local staged directory names map to the CoreML conversion artifacts:
-
-- `Preprocessor.mlmodelc`
-- `Encoder.mlmodelc`
-- `Decoder.mlmodelc`
-- `JointDecision.mlmodelc`
-- `parakeet_vocab.json`
-
-For speaker diarization, the current update chain is:
-
-- preferred public CoreML pull source: [FluidInference/speaker-diarization-coreml](https://huggingface.co/FluidInference/speaker-diarization-coreml)
-- canonical base pipeline: [pyannote/speaker-diarization-community-1](https://huggingface.co/pyannote/speaker-diarization-community-1)
-
-The local diarizer bundle is a CoreML packaging of the same conceptual pipeline pieces used by the pyannote `community-1` stack:
-
-- segmentation: [pyannote/segmentation-3.0](https://huggingface.co/pyannote/segmentation-3.0)
-- speaker embedding: [pyannote/wespeaker-voxceleb-resnet34-LM](https://huggingface.co/pyannote/wespeaker-voxceleb-resnet34-LM)
-- clustering family: VBx, documented in the `community-1` model card citations
-
-When updating this repo, prefer the public CoreML repos first. Use the canonical upstream Hugging Face model cards to understand architecture changes, licenses, and benchmark shifts. Treat local `vendor/` contents as staged runtime artifacts, not as the authoritative source of model lineage.
-
-## Commands
-
-### Inspect a course
-
-```bash
-swinydl inspect "https://echo360.org.au/section/UUID/home"
-```
-
-### Default transcript workflow
-
-```bash
-swinydl process "https://echo360.org.au/section/UUID/home"
-```
-
-`process` is the normal product path: inspect lessons, fetch the best audio path, transcribe it, and label speaker turns by default.
-
-The equivalent friendly launcher is:
-
-```bash
-uv run app.py
-```
-
-That launcher:
-
-1. asks you to press Enter to launch Chrome
-2. opens Chrome with the app's persistent profile
-3. lets you log in and navigate to the right Canvas or Echo360 page
-4. captures the current browser URL when you press Enter again
-5. runs the default `process` workflow against that captured page
-
-### Force the local Parakeet CoreML backend
-
-```bash
-swinydl process "https://echo360.org.au/section/UUID/home" --asr-backend parakeet
-```
-
-### Keep normalized audio
-
-```bash
-swinydl process "https://echo360.org.au/section/UUID/home" --keep-audio
-```
-
-### Download media explicitly
-
-```bash
-swinydl download "https://echo360.org.au/section/UUID/home" --media both
-```
-
-Use `download` when you explicitly want Echo360 media artifacts on disk. Use `process` for the normal inspect -> fetch audio -> transcribe flow.
-
-### Transcribe a local file
-
-```bash
-swinydl transcribe ~/Downloads/lecture.mp4
-```
-
-### Control speaker separation explicitly
-
-```bash
-swinydl transcribe ~/Downloads/lecture.mp4 --diarization on
-```
-
-Disable speaker separation only when you want raw caption reuse or the fastest possible transcript path:
-
-```bash
-swinydl transcribe ~/Downloads/lecture.mp4 --diarization off
-```
-
-### Environment check
+You can also check app health in Terminal:
 
 ```bash
 swinydl doctor
 ```
 
-`doctor` is a runtime health check. It validates the local environment for Swift, Chrome, ffmpeg, the local Parakeet CoreML backend, and the local CoreML speaker diarizer. It does not install dependencies or decide package versions.
+### The app says models are missing
 
-JSON output is also available:
-
-```bash
-swinydl doctor --json
-```
-
-## Verification Status
-
-What has been verified locally:
-
-- the CLI boots and the test suite passes
-- the local Parakeet CoreML transcription path runs end to end
-- the local CoreML diarization path runs end to end
-- transcript artifacts are emitted as `.txt`, `.srt`, and `.json`
-
-What is still being tuned:
-
-- diarization quality for short back-and-forth dialogue is not good enough yet
-- the current pipeline can collapse two-speaker conversations into one dominant label
-- the intended target remains lecture-style audio with one primary speaker and occasional questions or interruptions
-
-So the current state is:
-
-- transcription: working
-- speaker separation execution: working
-- speaker separation quality: still under active tuning
-
-## Defaults
-
-- default command: `process`
-- default output root: `./swinydl-output`
-- default transcript source: `auto`
-- default ASR backend: `auto`
-- default diarization mode: `on`
-- default outputs: `.txt`, `.srt`, `.json`
-- default media policy: delete temporary media after success
-- default browser/session policy: persistent Chrome profile in `~/Library/Application Support/swinydl/browser-profile/`
-
-Output layout:
-
-```text
-./swinydl-output/<course-slug>/<lesson-key>.txt
-./swinydl-output/<course-slug>/<lesson-key>.srt
-./swinydl-output/<course-slug>/<lesson-key>.json
-./swinydl-output/<course-slug>/_runs/<run-id>.json
-```
-
-`lesson-key` format:
-
-```text
-<date-or-undated>__<lesson-id-or-index>__<slug>
-```
-
-## Migration From The Old CLI
-
-- the old interactive picker is gone
-- the old custom downloader stack is gone
-- Firefox, PhantomJS, and bundled driver downloaders are gone
-- video download is now explicit via `swinydl download`
-- the legacy `swinydl-downloader` alias is no longer part of the main supported surface; use `swinydl process` or `swinydl download`
-- the CLI now targets a local Parakeet CoreML backend
-- packaging is driven by `pyproject.toml` and `uv.lock`; there is no separate `requirements.txt` workflow
-
-## Backend Notes
-
-- `--asr-backend auto` resolves to the local Parakeet CoreML backend.
-- The default model directory is `./vendor/parakeet-tdt-0.6b-v3-coreml`.
-- Set `ECHO360_PARAKEET_COREML_DIR` to point at a different staged CoreML repo directory.
-- Set `ECHO360_PARAKEET_COREML_VERSION=v2` if you stage the English-only v2 CoreML bundle instead.
-- The Python CLI does not run Parakeet directly. It shells into a small Swift helper that loads the CoreML bundles, runs transcription on Apple Silicon, and returns token timings as JSON.
-- Token timings are reconstructed into words and transcript segments in Python, then written to `.txt`, `.srt`, and `.json`.
-- Speaker diarization is also local. Python shells into a second Swift helper that loads the staged CoreML diarizer bundles and returns speaker segments as JSON.
-- The default diarizer model directory is `./vendor/speaker-diarization-coreml`.
-- Set `ECHO360_DIARIZER_COREML_DIR` to point at a different staged diarizer model directory.
-- The current diarization defaults are chosen for lecture-style media, not highly conversational two-speaker content.
-- The repo-local `vendor` model directory is ignored by git because the staged CoreML bundle is large and machine-local.
-
-### Stage a Local Speaker Diarizer CoreML Bundle
-
-`swinydl` expects a staged diarizer directory with this layout:
-
-```text
-vendor/speaker-diarization-coreml/
-  Segmentation.mlmodelc/
-  FBank.mlmodelc/
-  Embedding.mlmodelc/
-  PldaRho.mlmodelc/
-  plda-parameters.json
-  xvector-transform.json
-```
-
-The diarization runner loads those offline CoreML assets directly through Swift/CoreML. Pull the staged bundle directly from the upstream CoreML repo with:
+Run:
 
 ```bash
-swinydl bootstrap-models --target diarizer
+./install.sh
 ```
 
-The repo currently expects these local filenames, even though upstream bundles may use different names internally:
-
-- `Segmentation.mlmodelc`
-- `FBank.mlmodelc`
-- `Embedding.mlmodelc`
-- `PldaRho.mlmodelc`
-- `plda-parameters.json`
-- `xvector-transform.json`
-
-If an upstream CoreML release changes file names but not the underlying model roles, keep the repo-local staged names stable and adapt the staging step.
-
-## Development
-
-Create a local environment and install the package in editable mode:
+or:
 
 ```bash
-uv sync --group dev
-./.venv/bin/python -m unittest discover -s tests -v
+swinydl bootstrap-models
 ```
+
+### A run looks slow
+
+Large lectures can sit in one stage for a while during local transcription or diarization. The app should still show the current stage, elapsed time, and recent activity.
+
+If something looks wrong, run:
+
+```bash
+swinydl doctor
+```
+
+## Technical Fallbacks
+
+If you are comfortable with the command line, you can still:
+
+```bash
+swinydl process COURSE_URL
+swinydl process-manifest /path/to/job.json
+swinydl transcribe /path/to/local/file.mp4
+```
+
+The older Chrome-guided launcher still exists as a fallback:
+
+```bash
+uv run app.py
+```
+
+## More Detail
+
+If you want the lower-level technical notes, commands, and model details, see:
+- [docs/index.md](docs/index.md)
+- [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)

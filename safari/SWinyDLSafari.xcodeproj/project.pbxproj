@@ -1,0 +1,451 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		2A15187F76C0054E73EBB5FB /* SWinyDLSafariExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 135487716CA077B0A9F46107 /* SWinyDLSafariExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		371CF939E270934E2C3EBC45 /* BridgeSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C5C35403EF2E5BFA3FEF646 /* BridgeSupport.swift */; };
+		4DB7DA5E013AF70A262FDD80 /* JobStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94509BF92A671ABBDFF2B99E /* JobStore.swift */; };
+		6D6428BF743B988BA8AF189C /* SWinyDLSafariApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B364AA0404A4C7AB3A12F87 /* SWinyDLSafariApp.swift */; };
+		83A1FED23B50FEA985B6A2B3 /* SafariWebExtensionHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98A65EE820695155FA7C2F93 /* SafariWebExtensionHandler.swift */; };
+		8F2951C1856E23F1512A0BC9 /* BridgeSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C5C35403EF2E5BFA3FEF646 /* BridgeSupport.swift */; };
+		9F6F4BF7FA728E4241F44D33 /* UpdateController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 238D6622CFD09A978A99E8C5 /* UpdateController.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		F6B2B70F0E16D30D91150F04 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = C313C884881F8E24AB72A0A6 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = D4178DBCB8C03379358195FD;
+			remoteInfo = SWinyDLSafariExtension;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		0F3652C2BE59651D6FBEDC31 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				2A15187F76C0054E73EBB5FB /* SWinyDLSafariExtension.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
+/* Begin PBXFileReference section */
+		135487716CA077B0A9F46107 /* SWinyDLSafariExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = SWinyDLSafariExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		238D6622CFD09A978A99E8C5 /* UpdateController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UpdateController.swift; sourceTree = "<group>"; };
+		3050693C784AB00040FAE1B3 /* SWinyDLSafariApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SWinyDLSafariApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		3C5C35403EF2E5BFA3FEF646 /* BridgeSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BridgeSupport.swift; sourceTree = "<group>"; };
+		4B364AA0404A4C7AB3A12F87 /* SWinyDLSafariApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SWinyDLSafariApp.swift; sourceTree = "<group>"; };
+		94509BF92A671ABBDFF2B99E /* JobStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JobStore.swift; sourceTree = "<group>"; };
+		98A65EE820695155FA7C2F93 /* SafariWebExtensionHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafariWebExtensionHandler.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		1F439D435E7F6777DAC616D5 = {
+			isa = PBXGroup;
+			children = (
+				DA89359A65A289F2C70F36DC /* Shared */,
+				828E4A74C3735A49026FBE7E /* SWinyDLSafariApp */,
+				B85C173A4A6E625135D049CE /* SWinyDLSafariExtension */,
+				6A0E3ABA7ED1A933055824B7 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		493E9F71C83033A1E9BD97A8 /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				3C5C35403EF2E5BFA3FEF646 /* BridgeSupport.swift */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+		6A0E3ABA7ED1A933055824B7 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				3050693C784AB00040FAE1B3 /* SWinyDLSafariApp.app */,
+				135487716CA077B0A9F46107 /* SWinyDLSafariExtension.appex */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		75FC222B678E3E217CF8FACB /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				94509BF92A671ABBDFF2B99E /* JobStore.swift */,
+				4B364AA0404A4C7AB3A12F87 /* SWinyDLSafariApp.swift */,
+				238D6622CFD09A978A99E8C5 /* UpdateController.swift */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+		828E4A74C3735A49026FBE7E /* SWinyDLSafariApp */ = {
+			isa = PBXGroup;
+			children = (
+				75FC222B678E3E217CF8FACB /* Sources */,
+			);
+			path = SWinyDLSafariApp;
+			sourceTree = "<group>";
+		};
+		B85C173A4A6E625135D049CE /* SWinyDLSafariExtension */ = {
+			isa = PBXGroup;
+			children = (
+				CC6E5D72DB84380EAD9284FF /* Sources */,
+			);
+			path = SWinyDLSafariExtension;
+			sourceTree = "<group>";
+		};
+		CC6E5D72DB84380EAD9284FF /* Sources */ = {
+			isa = PBXGroup;
+			children = (
+				98A65EE820695155FA7C2F93 /* SafariWebExtensionHandler.swift */,
+			);
+			path = Sources;
+			sourceTree = "<group>";
+		};
+		DA89359A65A289F2C70F36DC /* Shared */ = {
+			isa = PBXGroup;
+			children = (
+				493E9F71C83033A1E9BD97A8 /* Sources */,
+			);
+			path = Shared;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		66057C253165A0373EA2F1A8 /* SWinyDLSafariApp */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = F3A511B0169DCFC678A42D0E /* Build configuration list for PBXNativeTarget "SWinyDLSafariApp" */;
+			buildPhases = (
+				965A415F2A2641257395887D /* Sources */,
+				0F3652C2BE59651D6FBEDC31 /* Embed Foundation Extensions */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				0FF44D81B83534A42FF0C549 /* PBXTargetDependency */,
+			);
+			name = SWinyDLSafariApp;
+			packageProductDependencies = (
+			);
+			productName = SWinyDLSafariApp;
+			productReference = 3050693C784AB00040FAE1B3 /* SWinyDLSafariApp.app */;
+			productType = "com.apple.product-type.application";
+		};
+		D4178DBCB8C03379358195FD /* SWinyDLSafariExtension */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 5808CD2B6E29786739C4C6CD /* Build configuration list for PBXNativeTarget "SWinyDLSafariExtension" */;
+			buildPhases = (
+				BF063445C6B66D7EA6EF3A31 /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = SWinyDLSafariExtension;
+			packageProductDependencies = (
+			);
+			productName = SWinyDLSafariExtension;
+			productReference = 135487716CA077B0A9F46107 /* SWinyDLSafariExtension.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		C313C884881F8E24AB72A0A6 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+				};
+			};
+			buildConfigurationList = 0C43AB72E9A984581F580E0C /* Build configuration list for PBXProject "SWinyDLSafari" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = 1F439D435E7F6777DAC616D5;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 6A0E3ABA7ED1A933055824B7 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				66057C253165A0373EA2F1A8 /* SWinyDLSafariApp */,
+				D4178DBCB8C03379358195FD /* SWinyDLSafariExtension */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXSourcesBuildPhase section */
+		965A415F2A2641257395887D /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				371CF939E270934E2C3EBC45 /* BridgeSupport.swift in Sources */,
+				4DB7DA5E013AF70A262FDD80 /* JobStore.swift in Sources */,
+				6D6428BF743B988BA8AF189C /* SWinyDLSafariApp.swift in Sources */,
+				9F6F4BF7FA728E4241F44D33 /* UpdateController.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BF063445C6B66D7EA6EF3A31 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				8F2951C1856E23F1512A0BC9 /* BridgeSupport.swift in Sources */,
+				83A1FED23B50FEA985B6A2B3 /* SafariWebExtensionHandler.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		0FF44D81B83534A42FF0C549 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = D4178DBCB8C03379358195FD /* SWinyDLSafariExtension */;
+			targetProxy = F6B2B70F0E16D30D91150F04 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		1519237A7DB5B34EAF8526B9 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = SWinyDLSafariExtension/SWinyDLSafariExtension.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				INFOPLIST_FILE = SWinyDLSafariExtension/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				OTHER_LDFLAGS = "-framework SafariServices -framework WebKit";
+				PRODUCT_BUNDLE_IDENTIFIER = com.davidsiroky.swinydl.SafariApp.Extension;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		690A0A61FC69DFA11240E722 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = SWinyDLSafariApp/SWinyDLSafariApp.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
+				ENABLE_USER_SELECTED_FILES = readonly;
+				INFOPLIST_FILE = SWinyDLSafariApp/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "SWinyDL Safari";
+				INFOPLIST_KEY_SWINYDLDefaultPython = "$(PROJECT_DIR)/../.venv/bin/python";
+				INFOPLIST_KEY_SWINYDLRepoRoot = "$(PROJECT_DIR)/..";
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				OTHER_LDFLAGS = "-framework SafariServices -framework WebKit";
+				PRODUCT_BUNDLE_IDENTIFIER = com.davidsiroky.swinydl.SafariApp;
+				SDKROOT = macosx;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		B7040C3440ABBD18CE32CB2F /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+		B7A31A2A80A9A3399655B48F /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_ENTITLEMENTS = SWinyDLSafariExtension/SWinyDLSafariExtension.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				INFOPLIST_FILE = SWinyDLSafariExtension/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				OTHER_LDFLAGS = "-framework SafariServices -framework WebKit";
+				PRODUCT_BUNDLE_IDENTIFIER = com.davidsiroky.swinydl.SafariApp.Extension;
+				SDKROOT = macosx;
+				SKIP_INSTALL = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		DC2C0A1A5E73EFD6506FB483 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		F3EE89454459909D65B8D0DF /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = SWinyDLSafariApp/SWinyDLSafariApp.entitlements;
+				COMBINE_HIDPI_IMAGES = YES;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
+				ENABLE_USER_SELECTED_FILES = readonly;
+				INFOPLIST_FILE = SWinyDLSafariApp/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "SWinyDL Safari";
+				INFOPLIST_KEY_SWINYDLDefaultPython = "$(PROJECT_DIR)/../.venv/bin/python";
+				INFOPLIST_KEY_SWINYDLRepoRoot = "$(PROJECT_DIR)/..";
+				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				OTHER_LDFLAGS = "-framework SafariServices -framework WebKit";
+				PRODUCT_BUNDLE_IDENTIFIER = com.davidsiroky.swinydl.SafariApp;
+				SDKROOT = macosx;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		0C43AB72E9A984581F580E0C /* Build configuration list for PBXProject "SWinyDLSafari" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				DC2C0A1A5E73EFD6506FB483 /* Debug */,
+				B7040C3440ABBD18CE32CB2F /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		5808CD2B6E29786739C4C6CD /* Build configuration list for PBXNativeTarget "SWinyDLSafariExtension" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B7A31A2A80A9A3399655B48F /* Debug */,
+				1519237A7DB5B34EAF8526B9 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		F3A511B0169DCFC678A42D0E /* Build configuration list for PBXNativeTarget "SWinyDLSafariApp" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				690A0A61FC69DFA11240E722 /* Debug */,
+				F3EE89454459909D65B8D0DF /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = C313C884881F8E24AB72A0A6 /* Project object */;
+}

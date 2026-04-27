@@ -6,6 +6,8 @@ from dataclasses import dataclass, replace
 import json
 from pathlib import Path
 from typing import Any
+from contextlib import contextmanager
+import fcntl
 import os
 import platform
 import shutil
@@ -13,6 +15,7 @@ import subprocess
 
 from .echo_exceptions import DependencyMissingError, TranscriptionError
 from .models import TranscriptSegment, TranscriptWord
+from .app_paths import cache_dir
 from .system import configure_runtime_ssl, find_swift_binary
 
 VIDEO_EXTENSIONS = {".mp4", ".mov", ".m4v", ".mkv", ".avi", ".webm"}
@@ -71,6 +74,7 @@ def transcribe_audio(
     *,
     asr_backend: str,
     diarization_mode: str,
+    progress_callback=None,
 ) -> tuple[list[TranscriptSegment], list[TranscriptWord], str | None, bool, str, str]:
     """Transcribe one normalized audio file and optionally label speaker turns."""
     resolved_backend = resolve_asr_backend(asr_backend)
@@ -84,12 +88,16 @@ def transcribe_audio(
     elif diarization_mode == "auto":
         effective_diarization = diarization_ready
 
+    if progress_callback is not None:
+        progress_callback("transcribing", "Running local Parakeet speech recognition.")
     if resolved_backend == "parakeet":
         segments, words, language, model_name = transcribe_with_parakeet(audio_path)
     else:  # pragma: no cover - resolve_asr_backend should prevent this
         raise DependencyMissingError(f"Unknown ASR backend: {resolved_backend}")
 
     if effective_diarization:
+        if progress_callback is not None:
+            progress_callback("diarizing", "Separating dominant speaker and audience turns.")
         segments, words = diarize_transcript(audio_path, segments, words)
 
     return segments, words, language, effective_diarization, resolved_backend, model_name
@@ -207,22 +215,23 @@ def diarize_transcript(
 def _run_parakeet_coreml(audio_path: Path) -> dict[str, Any]:
     """Execute the Swift Parakeet runner and parse its JSON payload."""
     configure_runtime_ssl()
-    runner = _ensure_parakeet_coreml_runner()
-    model_dir = _parakeet_coreml_model_dir()
-    version = os.environ.get("ECHO360_PARAKEET_COREML_VERSION", DEFAULT_PARAKEET_COREML_VERSION)
-    completed = subprocess.run(
-        [
-            str(runner),
-            "--audio",
-            str(audio_path),
-            "--model-dir",
-            str(model_dir),
-            "--version",
-            version,
-        ],
-        capture_output=True,
-        text=True,
-    )
+    with _coreml_runner_lock():
+        runner = _ensure_parakeet_coreml_runner()
+        model_dir = _parakeet_coreml_model_dir()
+        version = os.environ.get("ECHO360_PARAKEET_COREML_VERSION", DEFAULT_PARAKEET_COREML_VERSION)
+        completed = subprocess.run(
+            [
+                str(runner),
+                "--audio",
+                str(audio_path),
+                "--model-dir",
+                str(model_dir),
+                "--version",
+                version,
+            ],
+            capture_output=True,
+            text=True,
+        )
     if completed.returncode != 0:
         message = completed.stderr.strip() or completed.stdout.strip() or "Parakeet CoreML runner failed."
         raise TranscriptionError(message)
@@ -243,19 +252,20 @@ def _ensure_parakeet_coreml_runner() -> Path:
 def _run_diarizer_coreml(audio_path: Path) -> dict[str, Any]:
     """Execute the Swift speaker diarizer runner and parse its JSON payload."""
     configure_runtime_ssl()
-    runner = _ensure_diarizer_coreml_runner()
-    model_dir = _diarizer_coreml_model_dir()
-    completed = subprocess.run(
-        [
-            str(runner),
-            "--audio",
-            str(audio_path),
-            "--model-dir",
-            str(model_dir),
-        ],
-        capture_output=True,
-        text=True,
-    )
+    with _coreml_runner_lock():
+        runner = _ensure_diarizer_coreml_runner()
+        model_dir = _diarizer_coreml_model_dir()
+        completed = subprocess.run(
+            [
+                str(runner),
+                "--audio",
+                str(audio_path),
+                "--model-dir",
+                str(model_dir),
+            ],
+            capture_output=True,
+            text=True,
+        )
     if completed.returncode != 0:
         message = completed.stderr.strip() or completed.stdout.strip() or "Speaker diarizer CoreML runner failed."
         raise TranscriptionError(message)
@@ -306,6 +316,26 @@ def _ensure_swift_runner(product_name: str) -> Path:
     if not runner.exists():
         raise TranscriptionError(f"{product_name} was not built at {runner}.")
     return runner
+
+
+@contextmanager
+def _coreml_runner_lock():
+    """Serialize local CoreML runner access across processes.
+
+    FluidAudio/CoreML initialization can fail intermittently when multiple
+    wrapper jobs launch model runners at the same time. A coarse file lock is
+    acceptable here because this app is transcript-first and reliability is
+    more important than parallel inference throughput.
+    """
+    lock_dir = cache_dir() / "locks"
+    lock_dir.mkdir(parents=True, exist_ok=True)
+    lock_path = lock_dir / "coreml-runner.lock"
+    with lock_path.open("w", encoding="utf-8") as handle:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX)
+        try:
+            yield
+        finally:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
 
 
 def _parakeet_runner_package_dir() -> Path:

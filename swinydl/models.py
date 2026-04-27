@@ -9,6 +9,20 @@ from typing import Any
 
 
 @dataclass
+class BrowserCookie:
+    """A browser cookie exported by an interactive browser session."""
+
+    name: str
+    value: str
+    domain: str
+    path: str = "/"
+    secure: bool = False
+    http_only: bool = False
+    expiry: int | None = None
+    same_site: str | None = None
+
+
+@dataclass
 class LessonAsset:
     """A discovered caption or media asset associated with a lesson."""
 
@@ -73,7 +87,10 @@ class ProcessOptions(SelectionOptions):
     transcript_source: str = "auto"
     asr_backend: str = "auto"
     diarization_mode: str = "on"
+    requested_action: str = "transcribe"
+    delete_downloaded_media: bool = True
     keep_audio: bool = False
+    keep_video: bool = False
     force: bool = False
 
 
@@ -98,6 +115,78 @@ class TranscribeOptions:
     keep_audio: bool = False
     force: bool = False
     transcript_source: str = "asr"
+
+
+@dataclass
+class ProcessManifest:
+    """A Safari- or app-originated job request for manifest-driven processing."""
+
+    source_page_url: str
+    course_url: str
+    host: str
+    selected_lesson_ids: tuple[str, ...] = ()
+    requested_action: str = "transcribe"
+    delete_downloaded_media: bool = True
+    cookies: list[BrowserCookie] = field(default_factory=list)
+    course: CourseManifest | None = None
+    output_root: Path | None = None
+    keep_audio: bool = False
+    keep_video: bool = False
+    transcript_source: str = "auto"
+    asr_backend: str = "auto"
+    diarization_mode: str = "on"
+    manifest_path: Path | None = None
+
+
+@dataclass
+class JobStatusEvent:
+    """A timestamped run event rendered by the native wrapper app."""
+
+    timestamp: str
+    level: str
+    message: str
+
+
+@dataclass
+class JobStatusLesson:
+    """A lesson-level status snapshot for wrapper app progress views."""
+
+    lesson_id: str
+    title: str
+    status: str
+    stage: str = "queued"
+    detail: str | None = None
+    error: str | None = None
+    transcript_files: list[str] = field(default_factory=list)
+    transcript_folder: str | None = None
+    retained_media_files: list[str] = field(default_factory=list)
+
+
+@dataclass
+class JobStatus:
+    """Structured status written next to a manifest while a job is running."""
+
+    job_id: str
+    command: str
+    overall_status: str
+    course_title: str
+    source_page_url: str
+    output_root: Path
+    total_lessons: int
+    completed_lessons: int
+    started_at: str
+    updated_at: str
+    elapsed_seconds: float
+    active_lesson_id: str | None = None
+    active_lesson_title: str | None = None
+    detail: str | None = None
+    requested_action: str = "transcribe"
+    diarization_mode: str = "on"
+    delete_downloaded_media: bool = True
+    lessons: list[JobStatusLesson] = field(default_factory=list)
+    events: list[JobStatusEvent] = field(default_factory=list)
+    summary_path: Path | None = None
+    error: str | None = None
 
 
 @dataclass
@@ -129,6 +218,7 @@ class TranscriptArtifacts:
     json_path: Path
     audio_path: Path | None = None
     video_paths: list[Path] = field(default_factory=list)
+    downloaded_media_paths: list[Path] = field(default_factory=list)
 
 
 @dataclass

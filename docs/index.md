@@ -64,6 +64,35 @@ Supported scope:
 - Swift toolchain and xcodegen only for `./install.sh --build-from-source`
 - package install via `pip` or `uv`
 
+## Building From Source
+
+The normal user path is the GitHub DMG. Source builds are for developers who want to modify or inspect the Safari wrapper, backend, or release packaging.
+
+Source-build prerequisites:
+
+- Apple Silicon Mac
+- Safari
+- internet access
+- Apple's command line tools, installed with `xcode-select --install` if needed
+- Homebrew, `uv`, `ffmpeg`, and `xcodegen`; `./install.sh --build-from-source` can offer to install these with Homebrew
+
+Clone the repo:
+
+```bash
+git clone https://github.com/david00769/swinydl.git
+cd swinydl
+```
+
+Then build and install from source:
+
+```bash
+./install.sh --build-from-source
+```
+
+That command runs `uv sync`, bootstraps the CoreML model bundles, regenerates `safari/SWinyDLSafari.xcodeproj` from `safari/project.yml`, builds `SWinyDLSafariApp.app` with `xcodebuild`, runs `swinydl doctor`, then opens the app and Safari.
+
+If you downloaded a source zip instead of cloning, unzip it, open Terminal in the unzipped folder, and run the same `./install.sh --build-from-source` command.
+
 The old video-downloader implementation, PhantomJS, Firefox, and custom HLS code are intentionally removed from the supported path.
 
 Dependency ranges live in `pyproject.toml`, the tested resolution lives in `uv.lock`, and `swinydl doctor` is only for runtime readiness checks.

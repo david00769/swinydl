@@ -86,23 +86,40 @@ Do not double-click `SWinyDLSafariApp.app` before running `./install.sh`. This f
 
 If you want to build SWinyDL from source instead of using the DMG:
 
-1. Download the source zip from [GitHub](https://github.com/david00769/swinydl/archive/refs/heads/master.zip)
-2. Unzip it
-3. Install Apple's command line tools if needed:
+1. Install Apple's command line tools if needed:
 
 ```bash
 xcode-select --install
 ```
 
-4. Run:
+2. Get the source code with either option:
+
+```bash
+git clone https://github.com/david00769/swinydl.git
+cd swinydl
+```
+
+or download and unzip the [source zip](https://github.com/david00769/swinydl/archive/refs/heads/master.zip), then open Terminal in the unzipped folder.
+
+3. Run:
 
 ```bash
 ./install.sh --build-from-source
 ```
 
-The source build path can install `xcodegen` and uses `xcodebuild` locally.
+The source build path:
+- offers to install Homebrew if it is missing
+- offers to install `uv`, `ffmpeg`, and `xcodegen` if they are missing
+- runs `uv sync`
+- downloads the required local speech models if they are missing
+- regenerates the Safari Xcode project
+- builds `SWinyDLSafariApp.app` locally with `xcodebuild`
+- runs `swinydl doctor`
+- opens the newly built app and Safari
 
-Xcode command line tools are only needed for this developer source-build path.
+Xcode command line tools, `xcodegen`, and local compilation are only needed for this developer source-build path. Normal DMG users do not need them.
+
+If you already have a prebuilt `SWinyDLSafariApp.app` in the folder but still want to force a local rebuild, use `./install.sh --build-from-source`.
 
 ## First Run
 

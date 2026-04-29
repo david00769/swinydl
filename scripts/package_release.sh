@@ -21,28 +21,21 @@ case "$VERSION" in
 esac
 
 BUILD_ROOT="$REPO_ROOT/dist/build"
-BUILD_OUTPUT_DIR="$BUILD_ROOT/Release"
-DERIVED_DATA_DIR="$BUILD_ROOT/DerivedData"
 STAGE_PARENT="$REPO_ROOT/dist/release/$VERSION"
 STAGE_ROOT="$STAGE_PARENT/SWinyDL"
 DMG_PATH="$REPO_ROOT/dist/SWinyDL-$VERSION.dmg"
 
 rm -rf "$STAGE_PARENT" "$DMG_PATH"
-mkdir -p "$BUILD_OUTPUT_DIR" "$DERIVED_DATA_DIR" "$STAGE_ROOT"
+mkdir -p "$STAGE_ROOT"
 
 cd "$REPO_ROOT"
 
-xcodegen generate --spec safari/project.yml
-xcodebuild \
-  -project safari/SWinyDLSafari.xcodeproj \
-  -scheme SWinyDLSafariApp \
-  -configuration Release \
-  -derivedDataPath "$DERIVED_DATA_DIR" \
-  CONFIGURATION_BUILD_DIR="$BUILD_OUTPUT_DIR" \
-  CODE_SIGNING_ALLOWED=NO \
-  build
+APP_PATH="$STAGE_ROOT/SWinyDLSafariApp.app"
+"$REPO_ROOT/scripts/build_app.sh" \
+  --configuration Release \
+  --build-root "$BUILD_ROOT" \
+  --output "$APP_PATH"
 
-APP_PATH="$BUILD_OUTPUT_DIR/SWinyDLSafariApp.app"
 [ -d "$APP_PATH" ] || {
   printf 'Expected built app at %s\n' "$APP_PATH" >&2
   exit 1
@@ -51,11 +44,6 @@ APP_PATH="$BUILD_OUTPUT_DIR/SWinyDLSafariApp.app"
   printf 'Built app is missing the embedded Safari extension.\n' >&2
   exit 1
 }
-
-/usr/bin/codesign --force --deep --sign - "$APP_PATH"
-/usr/bin/codesign --verify --deep --strict "$APP_PATH"
-
-ditto "$APP_PATH" "$STAGE_ROOT/SWinyDLSafariApp.app"
 
 for path in \
   install.sh \

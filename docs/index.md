@@ -20,7 +20,7 @@ For day-to-day use, the simplest entrypoint is:
 ./install.sh
 ```
 
-`install.sh` is the primary supported setup path. In a GitHub DMG release it uses the prebuilt `SWinyDLSafariApp.app`, runs `uv sync`, bootstraps the CoreML bundles, locally ad-hoc signs and verifies the app bundle, runs `swinydl doctor`, and opens the app plus Safari. In a source checkout, `./install.sh --build-from-source` regenerates the Safari project and builds the app locally.
+`install.sh` is the primary supported setup path. In a GitHub DMG release it uses the prebuilt `SWinyDLSafariApp.app`, runs `uv sync`, bootstraps the CoreML bundles, locally ad-hoc signs and verifies the app bundle, runs `swinydl doctor`, and opens the app plus Safari. In a source checkout, `./install.sh` does not compile the Safari wrapper by default; use `./scripts/build_app.sh` first, or use `./install.sh --build-from-source` as a compatibility shortcut.
 For unsigned DMG installs, it also clears downloaded-file quarantine from the bundled app before opening it.
 
 For a first-time non-technical Mac user, the simplest setup path is:
@@ -83,15 +83,27 @@ git clone https://github.com/david00769/swinydl.git
 cd swinydl
 ```
 
-Then build and install from source:
+Then build the Safari app wrapper:
+
+```bash
+./scripts/build_app.sh
+```
+
+Then run the installer:
+
+```bash
+./install.sh
+```
+
+`scripts/build_app.sh` regenerates `safari/SWinyDLSafari.xcodeproj` from `safari/project.yml`, builds `SWinyDLSafariApp.app` with `xcodebuild`, and locally ad-hoc signs and verifies the app bundle. `install.sh` then runs `uv sync`, bootstraps the CoreML model bundles, verifies the app bundle, runs `swinydl doctor`, then opens the app and Safari.
+
+As a shortcut, developers can run:
 
 ```bash
 ./install.sh --build-from-source
 ```
 
-That command runs `uv sync`, bootstraps the CoreML model bundles, regenerates `safari/SWinyDLSafari.xcodeproj` from `safari/project.yml`, builds `SWinyDLSafariApp.app` with `xcodebuild`, locally ad-hoc signs and verifies the app bundle, runs `swinydl doctor`, then opens the app and Safari.
-
-If you downloaded a source zip instead of cloning, unzip it, open Terminal in the unzipped folder, and run the same `./install.sh --build-from-source` command.
+If you downloaded a source zip instead of cloning, unzip it, open Terminal in the unzipped folder, and run the same build/install commands.
 
 The old video-downloader implementation, PhantomJS, Firefox, and custom HLS code are intentionally removed from the supported path.
 

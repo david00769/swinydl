@@ -102,7 +102,19 @@ cd swinydl
 
 or download and unzip the [source zip](https://github.com/david00769/swinydl/archive/refs/heads/master.zip), then open Terminal in the unzipped folder.
 
-3. Run:
+3. Build the Safari app wrapper:
+
+```bash
+./scripts/build_app.sh
+```
+
+4. Run the installer:
+
+```bash
+./install.sh
+```
+
+You can also run this shortcut, which builds first and then continues the install:
 
 ```bash
 ./install.sh --build-from-source
@@ -113,7 +125,8 @@ The source build path:
 - offers to install `uv`, `ffmpeg`, and `xcodegen` if they are missing
 - runs `uv sync`
 - downloads the required local speech models if they are missing
-- regenerates the Safari Xcode project
+- runs `scripts/build_app.sh`
+- regenerates the Safari Xcode project from `safari/project.yml`
 - builds `SWinyDLSafariApp.app` locally with `xcodebuild`
 - ad-hoc signs and verifies the locally built app bundle
 - runs `swinydl doctor`
@@ -121,7 +134,7 @@ The source build path:
 
 Xcode command line tools, `xcodegen`, and local compilation are only needed for this developer source-build path. Normal DMG users do not need them.
 
-If you already have a prebuilt `SWinyDLSafariApp.app` in the folder but still want to force a local rebuild, use `./install.sh --build-from-source`.
+If you already have a prebuilt `SWinyDLSafariApp.app` in the folder but still want to force a local rebuild, use `./scripts/build_app.sh` or `./install.sh --build-from-source`.
 
 ## First Run
 

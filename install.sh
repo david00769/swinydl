@@ -3,10 +3,7 @@
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")" && pwd)"
-BUILD_ROOT="$REPO_ROOT/safari/.build"
-BUILD_OUTPUT_DIR="$BUILD_ROOT/Debug"
-DERIVED_DATA_DIR="$BUILD_ROOT/DerivedData"
-BUILD_APP_PATH="$BUILD_OUTPUT_DIR/SWinyDLSafariApp.app"
+BUILD_SCRIPT="$REPO_ROOT/scripts/build_app.sh"
 PREBUILT_APP_PATH="$REPO_ROOT/SWinyDLSafariApp.app"
 BUILD_FROM_SOURCE=0
 
@@ -19,9 +16,9 @@ for arg in "$@"; do
       cat <<EOF
 Usage: ./install.sh [--build-from-source]
 
-Without --build-from-source, this installer uses a prebuilt SWinyDLSafariApp.app
-when one is present in the install folder. Source checkouts without a prebuilt
-app still build the app locally.
+Without --build-from-source, this installer requires a prebuilt
+SWinyDLSafariApp.app in the install folder. To compile the Safari app wrapper,
+run ./scripts/build_app.sh first, or use ./install.sh --build-from-source.
 EOF
       exit 0
       ;;
@@ -37,7 +34,7 @@ if [ "$BUILD_FROM_SOURCE" -eq 0 ] && [ -d "$PREBUILT_APP_PATH" ]; then
   APP_PATH="$PREBUILT_APP_PATH"
 else
   USE_PREBUILT_APP=0
-  APP_PATH="$BUILD_APP_PATH"
+  APP_PATH="$PREBUILT_APP_PATH"
 fi
 
 # Finder and other GUI launch paths often omit Homebrew and user-local tool paths.
@@ -75,8 +72,8 @@ EOF
 This install will also:
 - install xcodegen with Homebrew if it is missing and you approve
 - verify xcode-select and Xcode first-launch readiness
-- regenerate the Safari Xcode project
-- build SWinyDLSafariApp.app into $BUILD_OUTPUT_DIR
+- run ./scripts/build_app.sh to regenerate the Safari Xcode project
+- build SWinyDLSafariApp.app into this install folder
 
 EOF
   fi
@@ -192,6 +189,25 @@ clear_app_quarantine() {
   fi
 }
 
+require_prebuilt_or_explicit_build() {
+  if [ "$BUILD_FROM_SOURCE" -eq 1 ] || [ -d "$PREBUILT_APP_PATH" ]; then
+    return 0
+  fi
+
+  cat >&2 <<EOF
+Error: This folder does not contain a prebuilt SWinyDLSafariApp.app.
+
+Normal install:
+  Download SWinyDL-v4.0.0.dmg from GitHub Releases, open it, drag the SWinyDL
+  folder out of the DMG, then run ./install.sh from that copied folder.
+
+Developer source build:
+  Run ./scripts/build_app.sh first, then run ./install.sh.
+  You can also use ./install.sh --build-from-source as a shortcut.
+EOF
+  exit 1
+}
+
 sign_app_bundle() {
   if [ ! -x /usr/bin/codesign ]; then
     note "codesign was not found; skipping local ad-hoc app signing."
@@ -206,6 +222,7 @@ sign_app_bundle() {
   /usr/bin/codesign --verify --deep --strict "$APP_PATH" || error_exit "The SWinyDL app bundle did not pass signature verification."
 }
 
+require_prebuilt_or_explicit_build
 confirm_continue
 if [ "$USE_PREBUILT_APP" -eq 1 ]; then
   ensure_homebrew_tools uv ffmpeg
@@ -237,19 +254,8 @@ note "Bootstrapping local CoreML model bundles..."
 if [ "$USE_PREBUILT_APP" -eq 1 ]; then
   note "Using prebuilt SWinyDLSafariApp at $APP_PATH ..."
 else
-  note "Generating the Safari Xcode project..."
-  xcodegen generate --spec safari/project.yml
-
-  note "Building SWinyDLSafariApp into $BUILD_OUTPUT_DIR ..."
-  mkdir -p "$BUILD_OUTPUT_DIR" "$DERIVED_DATA_DIR"
-  xcodebuild \
-    -project safari/SWinyDLSafari.xcodeproj \
-    -scheme SWinyDLSafariApp \
-    -configuration Debug \
-    -derivedDataPath "$DERIVED_DATA_DIR" \
-    CONFIGURATION_BUILD_DIR="$BUILD_OUTPUT_DIR" \
-    CODE_SIGNING_ALLOWED=NO \
-    build
+  note "Building SWinyDLSafariApp from source..."
+  "$BUILD_SCRIPT"
 fi
 
 [ -d "$APP_PATH" ] || error_exit "Build completed without producing $APP_PATH."

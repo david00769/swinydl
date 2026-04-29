@@ -29,14 +29,14 @@ class ReleaseDistributionTests(unittest.TestCase):
         script = (REPO_ROOT / "scripts" / "package_release.sh").read_text(encoding="utf-8")
 
         self.assertIn("SWinyDLSafariApp.app", script)
+        self.assertIn("scripts/build_app.sh", script)
+        self.assertIn("--configuration Release", script)
+        self.assertIn("--output \"$APP_PATH\"", script)
         self.assertIn("pyproject.toml", script)
         self.assertIn("uv.lock", script)
         self.assertIn("install.sh", script)
         self.assertIn("hdiutil create", script)
         self.assertIn('-srcfolder "$STAGE_PARENT"', script)
-        self.assertIn("CODE_SIGNING_ALLOWED=NO", script)
-        self.assertIn("/usr/bin/codesign --force --deep --sign -", script)
-        self.assertIn("/usr/bin/codesign --verify --deep --strict", script)
         self.assertIn("/usr/bin/xattr -cr", script)
 
 

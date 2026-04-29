@@ -54,11 +54,13 @@ brew install uv ffmpeg
 For most people, the best path is:
 
 1. Download the latest `SWinyDL-v...dmg` from [GitHub Releases](https://github.com/david00769/swinydl/releases)
-2. Open the DMG and copy the `SWinyDL` folder wherever you want to keep it
-3. Open Terminal
-4. Type `cd ` and drag the copied `SWinyDL` folder into the Terminal window
-5. Press `Enter`
-6. Run:
+2. Open the DMG
+3. Drag the `SWinyDL` folder out of the DMG and put it somewhere you want to keep it, such as `Documents` or `Applications`
+4. Do not run the installer from inside the mounted DMG
+5. Open Terminal
+6. Type `cd ` and drag the copied `SWinyDL` folder into the Terminal window
+7. Press `Enter`
+8. Run:
 
 ```bash
 ./install.sh
@@ -82,7 +84,7 @@ You do not need to download the Parakeet model manually.
 
 If you want to build SWinyDL from source instead of using the DMG:
 
-1. Download the source zip from [GitHub](https://github.com/david00769/swinydl/archive/refs/heads/codex/swinydl-initial-publish.zip)
+1. Download the source zip from [GitHub](https://github.com/david00769/swinydl/archive/refs/heads/master.zip)
 2. Unzip it
 3. Install Apple's command line tools if needed:
 
@@ -138,8 +140,10 @@ The simplest update path is:
 2. If a newer release is available, click `Download DMG`
 3. Open the downloaded DMG from Downloads
 4. Quit SWinyDL
-5. Replace the older `SWinyDL` folder with the newer one
-6. Run:
+5. Drag the new `SWinyDL` folder out of the DMG
+6. Replace the older `SWinyDL` folder with the newer one
+7. Open Terminal in the new copied folder
+8. Run:
 
 ```bash
 ./install.sh

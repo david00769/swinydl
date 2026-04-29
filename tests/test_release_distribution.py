@@ -33,6 +33,7 @@ class ReleaseDistributionTests(unittest.TestCase):
         self.assertIn("uv.lock", script)
         self.assertIn("install.sh", script)
         self.assertIn("hdiutil create", script)
+        self.assertIn('-srcfolder "$STAGE_PARENT"', script)
         self.assertIn("CODE_SIGNING_ALLOWED=NO", script)
 
 

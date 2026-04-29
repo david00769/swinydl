@@ -82,7 +82,7 @@ done
 
 hdiutil create \
   -volname "SWinyDL $VERSION" \
-  -srcfolder "$STAGE_ROOT" \
+  -srcfolder "$STAGE_PARENT" \
   -ov \
   -format UDZO \
   "$DMG_PATH"

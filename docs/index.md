@@ -25,10 +25,11 @@ For day-to-day use, the simplest entrypoint is:
 For a first-time non-technical Mac user, the simplest setup path is:
 
 1. download the latest `SWinyDL-v...dmg` from [GitHub Releases](https://github.com/david00769/swinydl/releases)
-2. open the DMG and copy the `SWinyDL` folder wherever you want to keep it
-3. open Terminal in the copied folder and run `./install.sh`
-4. approve the Homebrew and `uv`/`ffmpeg` install prompts if those tools are missing
-5. enable `SWinyDL Safari` in Safari Settings
+2. open the DMG
+3. drag the `SWinyDL` folder out of the DMG and put it somewhere writable, such as `Documents` or `Applications`
+4. open Terminal in the copied folder and run `./install.sh`
+5. approve the Homebrew and `uv`/`ffmpeg` install prompts if those tools are missing
+6. enable `SWinyDL Safari` in Safari Settings
 
 After that:
 
@@ -68,7 +69,7 @@ Dependency ranges live in `pyproject.toml`, the tested resolution lives in `uv.l
 
 GitHub Releases are the update source of truth. Each tagged release should include an unsigned `SWinyDL-v...dmg` built by `.github/workflows/release-dmg.yaml`.
 
-For non-technical users, the preferred update path is to use the app's update check, download the newer DMG, replace the older `SWinyDL` folder, and run `./install.sh` again from that folder. `git pull` remains a technical-user fallback only.
+For non-technical users, the preferred update path is to use the app's update check, download the newer DMG, drag the new `SWinyDL` folder out of the DMG, replace the older `SWinyDL` folder, and run `./install.sh` again from the copied folder. `git pull` remains a technical-user fallback only.
 
 If no GitHub release has been published yet, or if the latest release has no DMG asset, the wrapper app will report that clearly.
 

@@ -20,7 +20,7 @@ For day-to-day use, the simplest entrypoint is:
 ./install.sh
 ```
 
-`install.sh` is the primary supported setup path. In a GitHub DMG release it uses the prebuilt `SWinyDLSafariApp.app`, runs `uv sync`, bootstraps the CoreML bundles, runs `swinydl doctor`, and opens the app plus Safari. In a source checkout, `./install.sh --build-from-source` regenerates the Safari project and builds the app locally.
+`install.sh` is the primary supported setup path. In a GitHub DMG release it uses the prebuilt `SWinyDLSafariApp.app`, runs `uv sync`, bootstraps the CoreML bundles, locally ad-hoc signs and verifies the app bundle, runs `swinydl doctor`, and opens the app plus Safari. In a source checkout, `./install.sh --build-from-source` regenerates the Safari project and builds the app locally.
 For unsigned DMG installs, it also clears downloaded-file quarantine from the bundled app before opening it.
 
 For a first-time non-technical Mac user, the simplest setup path is:
@@ -89,7 +89,7 @@ Then build and install from source:
 ./install.sh --build-from-source
 ```
 
-That command runs `uv sync`, bootstraps the CoreML model bundles, regenerates `safari/SWinyDLSafari.xcodeproj` from `safari/project.yml`, builds `SWinyDLSafariApp.app` with `xcodebuild`, runs `swinydl doctor`, then opens the app and Safari.
+That command runs `uv sync`, bootstraps the CoreML model bundles, regenerates `safari/SWinyDLSafari.xcodeproj` from `safari/project.yml`, builds `SWinyDLSafariApp.app` with `xcodebuild`, locally ad-hoc signs and verifies the app bundle, runs `swinydl doctor`, then opens the app and Safari.
 
 If you downloaded a source zip instead of cloning, unzip it, open Terminal in the unzipped folder, and run the same `./install.sh --build-from-source` command.
 

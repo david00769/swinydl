@@ -74,9 +74,10 @@ If Homebrew, `uv`, or `ffmpeg` are missing, approve the installer prompts.
 - creates the Python environment
 - downloads the required local speech models if they are missing
 - uses the prebuilt Mac app and Safari extension from the DMG
+- ad-hoc signs and verifies the app bundle locally
 - opens the app and Safari when setup is finished
 
-For the normal DMG install, `./install.sh` is still required. It prepares the local Python environment, checks `ffmpeg`, verifies the app can run, and opens Safari so you can enable the extension.
+For the normal DMG install, `./install.sh` is still required. It prepares the local Python environment, checks `ffmpeg`, signs and verifies the app bundle, verifies the app can run, and opens Safari so you can enable the extension.
 
 You do not need to download the Parakeet model manually.
 
@@ -114,6 +115,7 @@ The source build path:
 - downloads the required local speech models if they are missing
 - regenerates the Safari Xcode project
 - builds `SWinyDLSafariApp.app` locally with `xcodebuild`
+- ad-hoc signs and verifies the locally built app bundle
 - runs `swinydl doctor`
 - opens the newly built app and Safari
 
@@ -192,7 +194,7 @@ Make sure you copied the `SWinyDL` folder out of the DMG, then run:
 ./install.sh
 ```
 
-The installer clears the downloaded-file quarantine from the bundled app before opening it. Do not run the app directly from inside the mounted DMG.
+The installer locally signs the bundled app, clears downloaded-file quarantine, then opens it. Do not run the app directly from inside the mounted DMG.
 
 ### The app says models are missing
 

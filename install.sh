@@ -61,6 +61,7 @@ This script will:
 - run uv sync
 - bootstrap the staged CoreML model bundles if needed
 - run 'swinydl doctor'
+- ad-hoc sign and verify the Safari app bundle
 - open the app and Safari so you can enable the unsigned Safari extension
 
 EOF
@@ -191,6 +192,20 @@ clear_app_quarantine() {
   fi
 }
 
+sign_app_bundle() {
+  if [ ! -x /usr/bin/codesign ]; then
+    note "codesign was not found; skipping local ad-hoc app signing."
+    return 0
+  fi
+
+  note "Ad-hoc signing the SWinyDL app bundle..."
+  if ! /usr/bin/codesign --force --deep --sign - "$APP_PATH"; then
+    error_exit "Unable to sign $APP_PATH. If you are installing from the DMG, drag the SWinyDL folder out of the DMG first and run ./install.sh from the copied folder."
+  fi
+
+  /usr/bin/codesign --verify --deep --strict "$APP_PATH" || error_exit "The SWinyDL app bundle did not pass signature verification."
+}
+
 confirm_continue
 if [ "$USE_PREBUILT_APP" -eq 1 ]; then
   ensure_homebrew_tools uv ffmpeg
@@ -239,6 +254,7 @@ fi
 
 [ -d "$APP_PATH" ] || error_exit "Build completed without producing $APP_PATH."
 [ -d "$APP_PATH/Contents/PlugIns/SWinyDLSafariExtension.appex" ] || error_exit "The built app is missing the embedded Safari extension bundle."
+sign_app_bundle
 clear_app_quarantine
 
 note "Running SWinyDL doctor..."

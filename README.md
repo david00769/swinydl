@@ -80,6 +80,8 @@ For the normal DMG install, `./install.sh` is still required. It prepares the lo
 
 You do not need to download the Parakeet model manually.
 
+Do not double-click `SWinyDLSafariApp.app` before running `./install.sh`. This first release is unsigned, and macOS may say the app is damaged if you open it directly from a downloaded DMG. Running `./install.sh` from the copied `SWinyDL` folder clears the downloaded-file quarantine before opening the app.
+
 ## Developer Install
 
 If you want to build SWinyDL from source instead of using the DMG:
@@ -164,6 +166,16 @@ You can also check app health in Terminal:
 ```bash
 swinydl doctor
 ```
+
+### macOS says the app is damaged
+
+Make sure you copied the `SWinyDL` folder out of the DMG, then run:
+
+```bash
+./install.sh
+```
+
+The installer clears the downloaded-file quarantine from the bundled app before opening it. Do not run the app directly from inside the mounted DMG.
 
 ### The app says models are missing
 

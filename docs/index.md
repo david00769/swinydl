@@ -21,6 +21,7 @@ For day-to-day use, the simplest entrypoint is:
 ```
 
 `install.sh` is the primary supported setup path. In a GitHub DMG release it uses the prebuilt `SWinyDLSafariApp.app`, runs `uv sync`, bootstraps the CoreML bundles, runs `swinydl doctor`, and opens the app plus Safari. In a source checkout, `./install.sh --build-from-source` regenerates the Safari project and builds the app locally.
+For unsigned DMG installs, it also clears downloaded-file quarantine from the bundled app before opening it.
 
 For a first-time non-technical Mac user, the simplest setup path is:
 

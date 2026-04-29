@@ -52,6 +52,9 @@ APP_PATH="$BUILD_OUTPUT_DIR/SWinyDLSafariApp.app"
   exit 1
 }
 
+/usr/bin/codesign --force --deep --sign - "$APP_PATH"
+/usr/bin/codesign --verify --deep --strict "$APP_PATH"
+
 ditto "$APP_PATH" "$STAGE_ROOT/SWinyDLSafariApp.app"
 
 for path in \
@@ -79,6 +82,8 @@ for dir in docs safari swift swinydl vendor; do
     --exclude 'safari/.build/' \
     "$dir" "$STAGE_ROOT/"
 done
+
+/usr/bin/xattr -cr "$STAGE_ROOT" 2>/dev/null || true
 
 hdiutil create \
   -volname "SWinyDL $VERSION" \

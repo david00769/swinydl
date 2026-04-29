@@ -22,6 +22,8 @@ class InstallScriptTests(unittest.TestCase):
         self.assertIn("--build-from-source", contents)
         self.assertIn("USE_PREBUILT_APP", contents)
         self.assertIn("Using prebuilt SWinyDLSafariApp", contents)
+        self.assertIn("clear_app_quarantine", contents)
+        self.assertIn("com.apple.quarantine", contents)
         self.assertIn("xcodegen generate --spec safari/project.yml", contents)
         self.assertIn("xcodebuild -checkFirstLaunchStatus", contents)
         self.assertIn("Allow Unsigned Extensions", contents)

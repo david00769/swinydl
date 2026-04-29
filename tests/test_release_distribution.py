@@ -35,6 +35,9 @@ class ReleaseDistributionTests(unittest.TestCase):
         self.assertIn("hdiutil create", script)
         self.assertIn('-srcfolder "$STAGE_PARENT"', script)
         self.assertIn("CODE_SIGNING_ALLOWED=NO", script)
+        self.assertIn("/usr/bin/codesign --force --deep --sign -", script)
+        self.assertIn("/usr/bin/codesign --verify --deep --strict", script)
+        self.assertIn("/usr/bin/xattr -cr", script)
 
 
 if __name__ == "__main__":

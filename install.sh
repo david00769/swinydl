@@ -184,6 +184,13 @@ ensure_xcode_ready() {
   fi
 }
 
+clear_app_quarantine() {
+  if command -v xattr >/dev/null 2>&1; then
+    note "Clearing downloaded-file quarantine from the SWinyDL app if present..."
+    xattr -dr com.apple.quarantine "$APP_PATH" 2>/dev/null || true
+  fi
+}
+
 confirm_continue
 if [ "$USE_PREBUILT_APP" -eq 1 ]; then
   ensure_homebrew_tools uv ffmpeg
@@ -232,6 +239,7 @@ fi
 
 [ -d "$APP_PATH" ] || error_exit "Build completed without producing $APP_PATH."
 [ -d "$APP_PATH/Contents/PlugIns/SWinyDLSafariExtension.appex" ] || error_exit "The built app is missing the embedded Safari extension bundle."
+clear_app_quarantine
 
 note "Running SWinyDL doctor..."
 "$VENV_PYTHON" -m swinydl.main doctor

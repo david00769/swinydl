@@ -61,7 +61,7 @@ Use this file in this repository to connect it to Buildshop's Codex-native skill
 - Use `./install.sh` for first-run setup and packaging bootstrap.
 - Use `./run.sh` or `uv run app.py` only when you intentionally need the older fallback flow.
 - Safari extension and Apple-platform shell live under `safari/` and `swift/`; keep the transcript-first macOS workflow aligned with the CLI/runtime path.
-- Primary docs live in `README.md`, `docs/`, and `TODO-macos-apple-silicon-modernization.md`.
+- Primary docs live in `README.md` and `docs/`.
 
 ## Reference
 - Master rules: `/Users/davidsiroky/Documents/memory-system/shared-agent-library/codex-rules.md`

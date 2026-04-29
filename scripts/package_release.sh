@@ -63,8 +63,7 @@ for path in \
   uv.lock \
   README.md \
   LICENSE \
-  THIRD_PARTY_NOTICES.md \
-  TODO-macos-apple-silicon-modernization.md
+  THIRD_PARTY_NOTICES.md
 do
   [ -e "$path" ] && ditto "$path" "$STAGE_ROOT/$path"
 done

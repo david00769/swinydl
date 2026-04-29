@@ -146,12 +146,31 @@ After the installer finishes:
 
 1. Open Safari `Settings > Extensions`
 2. Enable `SWinyDL Safari`
-3. If the extension does not appear, enable Safari's Develop menu and turn on `Allow Unsigned Extensions`
-4. If it still does not appear, quit and reopen the `SWinyDLSafariApp.app` in your copied `SWinyDL` folder, then check Safari `Settings > Extensions` again
-5. Open your Canvas or Echo360 page in Safari
-6. Open the `SWinyDL Safari` extension
-7. Choose the lessons you want
-8. Start the job
+3. If the extension does not appear, open Safari `Settings > Advanced` and turn on `Show features for web developers`
+4. Open Safari `Settings > Developer` and turn on `Allow unsigned extensions`
+5. Go back to Safari `Settings > Extensions` and enable `SWinyDL Safari`
+6. If it still does not appear, use the temporary extension fallback below
+7. Open your Canvas or Echo360 page in Safari
+8. Open the `SWinyDL Safari` extension
+9. Choose the lessons you want
+10. Start the job
+
+Because this first release is unsigned, Safari may require developer-mode extension loading. Apple's unsigned-extension setting resets every time Safari quits, so you may need to turn on `Allow unsigned extensions` again after restarting Safari.
+
+Temporary extension fallback:
+
+1. Open Safari `Settings > Developer`
+2. Turn on `Allow unsigned extensions`
+3. Click `Add Temporary Extension...`
+4. Select this folder inside your copied `SWinyDL` folder:
+
+```text
+safari/SWinyDLSafariExtension/Resources/WebExtension
+```
+
+5. Enable the temporary `SWinyDL Safari` extension in Safari `Settings > Extensions`
+
+Safari removes temporary extensions after 24 hours or when you quit Safari. If you use this fallback, repeat the `Add Temporary Extension...` step after every Safari restart.
 
 The Mac app will show:
 - whether the models are ready
@@ -196,10 +215,14 @@ You can also download the latest DMG manually from [GitHub Releases](https://git
 
 1. Run `./install.sh` again
 2. Open Safari `Settings > Extensions`
-3. If needed, enable Safari's Develop menu and turn on `Allow Unsigned Extensions`
-4. Quit and reopen `SWinyDLSafariApp.app` from the copied `SWinyDL` folder, or run `./install.sh` again so it re-registers the extension
+3. If needed, open Safari `Settings > Advanced` and turn on `Show features for web developers`
+4. Open Safari `Settings > Developer` and turn on `Allow unsigned extensions`
+5. Quit and reopen `SWinyDLSafariApp.app` from the copied `SWinyDL` folder, or run `./install.sh` again so it re-registers the extension
+6. If the extension still does not appear, use Safari `Settings > Developer > Add Temporary Extension...` and select `safari/SWinyDLSafariExtension/Resources/WebExtension` from your copied `SWinyDL` folder
 
 Do not double-click `SWinyDLSafariExtension.appex`; macOS may warn that it is unsigned, and Safari will not install it directly. The app bundle contains the extension and registers it with Safari when the app opens.
+
+Temporary extensions are not permanent. Safari removes them after 24 hours or when Safari quits, so repeat `Add Temporary Extension...` after each Safari restart until SWinyDL ships as a signed/notarized app.
 
 You can also check app health in Terminal:
 

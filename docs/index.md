@@ -35,13 +35,17 @@ For a first-time non-technical Mac user, the simplest setup path is:
 After that:
 
 1. Enable the bundled Safari extension in Safari Settings
-2. If it does not appear, enable Safari's Develop menu and turn on `Allow Unsigned Extensions`
-3. If it still does not appear, quit and reopen `SWinyDLSafariApp.app` from the copied `SWinyDL` folder
-4. If you want to verify the extension is registered, run `pluginkit -mAvvv -p com.apple.Safari.web-extension | rg SWinyDL`
-5. Open a logged-in Canvas or Echo360 page in Safari
-6. Use the extension popup to load the course, choose whether downloaded media should be deleted after transcription, and launch a manifest-driven backend job into the native wrapper app window
+2. If it does not appear, open Safari `Settings > Advanced` and turn on `Show features for web developers`
+3. Open Safari `Settings > Developer` and turn on `Allow unsigned extensions`
+4. If it still does not appear, quit and reopen `SWinyDLSafariApp.app` from the copied `SWinyDL` folder
+5. If needed, use Safari `Settings > Developer > Add Temporary Extension...` and select `safari/SWinyDLSafariExtension/Resources/WebExtension` from the copied `SWinyDL` folder
+6. If you want to verify the extension is registered, run `pluginkit -mAvvv -p com.apple.Safari.web-extension | rg SWinyDL`
+7. Open a logged-in Canvas or Echo360 page in Safari
+8. Use the extension popup to load the course, choose whether downloaded media should be deleted after transcription, and launch a manifest-driven backend job into the native wrapper app window
 
 Do not double-click `SWinyDLSafariExtension.appex`. Safari discovers the extension through the containing `SWinyDLSafariApp.app`; `./install.sh` also re-registers that containing app and extension with macOS.
+
+The temporary extension fallback is not permanent. Safari removes temporary extensions after 24 hours or when Safari quits, and Safari's `Allow unsigned extensions` setting also resets when Safari quits. If you rely on `Add Temporary Extension...`, repeat that step after each Safari restart until SWinyDL ships as a signed/notarized app.
 
 The native wrapper window shows per-lesson transcript files and can open the transcription folder directly.
 It also shows whether the Parakeet ASR model bundle and speaker diarizer bundle are ready.

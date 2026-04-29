@@ -10,7 +10,7 @@ It is designed for:
 - lecture-style content with one main speaker and occasional audience questions
 
 Tested on:
-- macOS 26.4 (`25E246`) on Apple Silicon
+- macOS 26.4.1 (`25E253`) on Apple Silicon
 
 ## What It Does
 

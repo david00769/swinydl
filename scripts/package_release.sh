@@ -59,7 +59,7 @@ do
   [ -e "$path" ] && ditto "$path" "$STAGE_ROOT/$path"
 done
 
-for dir in docs safari swift swinydl vendor; do
+for dir in docs safari scripts swift swinydl vendor; do
   [ -d "$dir" ] && rsync -a \
     --exclude '.build/' \
     --exclude '.cache/' \

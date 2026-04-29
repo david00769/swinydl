@@ -32,6 +32,7 @@ class ReleaseDistributionTests(unittest.TestCase):
         self.assertIn("scripts/build_app.sh", script)
         self.assertIn("--configuration Release", script)
         self.assertIn("--output \"$APP_PATH\"", script)
+        self.assertIn("for dir in docs safari scripts swift swinydl vendor", script)
         self.assertIn("pyproject.toml", script)
         self.assertIn("uv.lock", script)
         self.assertIn("install.sh", script)

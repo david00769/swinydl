@@ -74,7 +74,9 @@ If Homebrew, `uv`, or `ffmpeg` are missing, approve the installer prompts.
 - creates the Python environment
 - downloads the required local speech models if they are missing
 - uses the prebuilt Mac app and Safari extension from the DMG
+- verifies the Safari extension includes its required `manifest.json`
 - ad-hoc signs and verifies the app bundle locally
+- registers the containing app and extension with macOS so Safari can list it
 - opens the app and Safari when setup is finished
 
 For the normal DMG install, `./install.sh` is still required. It prepares the local Python environment, checks `ffmpeg`, signs and verifies the app bundle, verifies the app can run, and opens Safari so you can enable the extension.
@@ -82,6 +84,8 @@ For the normal DMG install, `./install.sh` is still required. It prepares the lo
 You do not need to download the Parakeet model manually.
 
 Do not double-click `SWinyDLSafariApp.app` before running `./install.sh`. This first release is unsigned, and macOS may say the app is damaged if you open it directly from a downloaded DMG. Running `./install.sh` from the copied `SWinyDL` folder clears the downloaded-file quarantine before opening the app.
+
+Do not double-click the embedded `.appex` extension bundle. Safari does not install Safari Web Extensions that way; it discovers the extension through the containing `SWinyDLSafariApp.app`.
 
 ## Developer Install
 
@@ -143,10 +147,11 @@ After the installer finishes:
 1. Open Safari `Settings > Extensions`
 2. Enable `SWinyDL Safari`
 3. If the extension does not appear, enable Safari's Develop menu and turn on `Allow Unsigned Extensions`
-4. Open your Canvas or Echo360 page in Safari
-5. Open the `SWinyDL Safari` extension
-6. Choose the lessons you want
-7. Start the job
+4. If it still does not appear, quit and reopen the `SWinyDLSafariApp.app` in your copied `SWinyDL` folder, then check Safari `Settings > Extensions` again
+5. Open your Canvas or Echo360 page in Safari
+6. Open the `SWinyDL Safari` extension
+7. Choose the lessons you want
+8. Start the job
 
 The Mac app will show:
 - whether the models are ready
@@ -192,6 +197,9 @@ You can also download the latest DMG manually from [GitHub Releases](https://git
 1. Run `./install.sh` again
 2. Open Safari `Settings > Extensions`
 3. If needed, enable Safari's Develop menu and turn on `Allow Unsigned Extensions`
+4. Quit and reopen `SWinyDLSafariApp.app` from the copied `SWinyDL` folder, or run `./install.sh` again so it re-registers the extension
+
+Do not double-click `SWinyDLSafariExtension.appex`; macOS may warn that it is unsigned, and Safari will not install it directly. The app bundle contains the extension and registers it with Safari when the app opens.
 
 You can also check app health in Terminal:
 

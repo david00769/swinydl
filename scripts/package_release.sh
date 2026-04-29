@@ -44,6 +44,10 @@ APP_PATH="$STAGE_ROOT/SWinyDLSafariApp.app"
   printf 'Built app is missing the embedded Safari extension.\n' >&2
   exit 1
 }
+[ -f "$APP_PATH/Contents/PlugIns/SWinyDLSafariExtension.appex/Contents/Resources/manifest.json" ] || {
+  printf 'Built app is missing the Safari WebExtension manifest.\n' >&2
+  exit 1
+}
 
 for path in \
   install.sh \

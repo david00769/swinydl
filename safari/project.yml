@@ -38,8 +38,8 @@ targets:
     sources:
       - path: Shared/Sources
       - path: SWinyDLSafariExtension/Sources
-    resources:
       - path: SWinyDLSafariExtension/Resources
+        buildPhase: resources
     settings:
       base:
         INFOPLIST_FILE: SWinyDLSafariExtension/Info.plist

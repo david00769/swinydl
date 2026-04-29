@@ -8,12 +8,18 @@
 
 /* Begin PBXBuildFile section */
 		2A15187F76C0054E73EBB5FB /* SWinyDLSafariExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 135487716CA077B0A9F46107 /* SWinyDLSafariExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		3654FDEC1588C741C84689B5 /* popup.css in Resources */ = {isa = PBXBuildFile; fileRef = F9C9520B16B85893FE2DE3B5 /* popup.css */; };
 		371CF939E270934E2C3EBC45 /* BridgeSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C5C35403EF2E5BFA3FEF646 /* BridgeSupport.swift */; };
 		4DB7DA5E013AF70A262FDD80 /* JobStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 94509BF92A671ABBDFF2B99E /* JobStore.swift */; };
 		6D6428BF743B988BA8AF189C /* SWinyDLSafariApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B364AA0404A4C7AB3A12F87 /* SWinyDLSafariApp.swift */; };
 		83A1FED23B50FEA985B6A2B3 /* SafariWebExtensionHandler.swift in Sources */ = {isa = PBXBuildFile; fileRef = 98A65EE820695155FA7C2F93 /* SafariWebExtensionHandler.swift */; };
 		8F2951C1856E23F1512A0BC9 /* BridgeSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C5C35403EF2E5BFA3FEF646 /* BridgeSupport.swift */; };
+		98115CFF70F161C3A3A4FC56 /* popup.js in Resources */ = {isa = PBXBuildFile; fileRef = 806DC66AED13C755C7471E75 /* popup.js */; };
 		9F6F4BF7FA728E4241F44D33 /* UpdateController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 238D6622CFD09A978A99E8C5 /* UpdateController.swift */; };
+		C2630742BCA67A91ED4AC95B /* popup.html in Resources */ = {isa = PBXBuildFile; fileRef = 7AD53519C4751446624ABA0D /* popup.html */; };
+		C497A2A70779C02FB5111B0A /* background.js in Resources */ = {isa = PBXBuildFile; fileRef = 7180092C261E68A56A5D1857 /* background.js */; };
+		D21BEF8E9CED7B0B1D212F61 /* content.js in Resources */ = {isa = PBXBuildFile; fileRef = C188A9A536F81D9116B2DA75 /* content.js */; };
+		ED4875F009868477A689B21C /* manifest.json in Resources */ = {isa = PBXBuildFile; fileRef = D0EBA5229B96E1125D87C9B6 /* manifest.json */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -46,11 +52,30 @@
 		3050693C784AB00040FAE1B3 /* SWinyDLSafariApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SWinyDLSafariApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		3C5C35403EF2E5BFA3FEF646 /* BridgeSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BridgeSupport.swift; sourceTree = "<group>"; };
 		4B364AA0404A4C7AB3A12F87 /* SWinyDLSafariApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SWinyDLSafariApp.swift; sourceTree = "<group>"; };
+		7180092C261E68A56A5D1857 /* background.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = background.js; sourceTree = "<group>"; };
+		7AD53519C4751446624ABA0D /* popup.html */ = {isa = PBXFileReference; lastKnownFileType = text.html; path = popup.html; sourceTree = "<group>"; };
+		806DC66AED13C755C7471E75 /* popup.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = popup.js; sourceTree = "<group>"; };
 		94509BF92A671ABBDFF2B99E /* JobStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JobStore.swift; sourceTree = "<group>"; };
 		98A65EE820695155FA7C2F93 /* SafariWebExtensionHandler.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SafariWebExtensionHandler.swift; sourceTree = "<group>"; };
+		C188A9A536F81D9116B2DA75 /* content.js */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.javascript; path = content.js; sourceTree = "<group>"; };
+		D0EBA5229B96E1125D87C9B6 /* manifest.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = manifest.json; sourceTree = "<group>"; };
+		F9C9520B16B85893FE2DE3B5 /* popup.css */ = {isa = PBXFileReference; lastKnownFileType = text.css; path = popup.css; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
+		19A7C4999FE47620D5EA5896 /* WebExtension */ = {
+			isa = PBXGroup;
+			children = (
+				7180092C261E68A56A5D1857 /* background.js */,
+				C188A9A536F81D9116B2DA75 /* content.js */,
+				D0EBA5229B96E1125D87C9B6 /* manifest.json */,
+				F9C9520B16B85893FE2DE3B5 /* popup.css */,
+				7AD53519C4751446624ABA0D /* popup.html */,
+				806DC66AED13C755C7471E75 /* popup.js */,
+			);
+			path = WebExtension;
+			sourceTree = "<group>";
+		};
 		1F439D435E7F6777DAC616D5 = {
 			isa = PBXGroup;
 			children = (
@@ -88,6 +113,14 @@
 			path = Sources;
 			sourceTree = "<group>";
 		};
+		7A5C16C33BA34D52A104AABB /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				19A7C4999FE47620D5EA5896 /* WebExtension */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
 		828E4A74C3735A49026FBE7E /* SWinyDLSafariApp */ = {
 			isa = PBXGroup;
 			children = (
@@ -99,6 +132,7 @@
 		B85C173A4A6E625135D049CE /* SWinyDLSafariExtension */ = {
 			isa = PBXGroup;
 			children = (
+				7A5C16C33BA34D52A104AABB /* Resources */,
 				CC6E5D72DB84380EAD9284FF /* Sources */,
 			);
 			path = SWinyDLSafariExtension;
@@ -147,6 +181,7 @@
 			buildConfigurationList = 5808CD2B6E29786739C4C6CD /* Build configuration list for PBXNativeTarget "SWinyDLSafariExtension" */;
 			buildPhases = (
 				BF063445C6B66D7EA6EF3A31 /* Sources */,
+				9C45AE85C5CFC1C1125516C9 /* Resources */,
 			);
 			buildRules = (
 			);
@@ -189,6 +224,22 @@
 			);
 		};
 /* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		9C45AE85C5CFC1C1125516C9 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				C497A2A70779C02FB5111B0A /* background.js in Resources */,
+				D21BEF8E9CED7B0B1D212F61 /* content.js in Resources */,
+				ED4875F009868477A689B21C /* manifest.json in Resources */,
+				3654FDEC1588C741C84689B5 /* popup.css in Resources */,
+				C2630742BCA67A91ED4AC95B /* popup.html in Resources */,
+				98115CFF70F161C3A3A4FC56 /* popup.js in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		965A415F2A2641257395887D /* Sources */ = {

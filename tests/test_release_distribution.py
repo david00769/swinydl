@@ -39,6 +39,7 @@ class ReleaseDistributionTests(unittest.TestCase):
         self.assertIn("hdiutil create", script)
         self.assertIn('-srcfolder "$STAGE_PARENT"', script)
         self.assertIn("/usr/bin/xattr -cr", script)
+        self.assertIn("Contents/Resources/manifest.json", script)
 
 
 if __name__ == "__main__":

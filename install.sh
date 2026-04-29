@@ -189,6 +189,25 @@ clear_app_quarantine() {
   fi
 }
 
+register_safari_extension() {
+  EXTENSION_PATH="$APP_PATH/Contents/PlugIns/SWinyDLSafariExtension.appex"
+  LSREGISTER="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
+
+  note "Registering the SWinyDL Safari extension with macOS..."
+  if [ -x "$LSREGISTER" ]; then
+    "$LSREGISTER" -f -R -trusted "$APP_PATH" 2>/dev/null || true
+  fi
+
+  if command -v pluginkit >/dev/null 2>&1; then
+    pluginkit -a "$EXTENSION_PATH" 2>/dev/null || true
+    if pluginkit -mAvvv -p com.apple.Safari.web-extension 2>/dev/null | grep -q "com.davidsiroky.swinydl.SafariApp.Extension"; then
+      note "Safari can see the SWinyDL extension. Enable it in Safari Settings > Extensions."
+    else
+      note "Safari has not listed the extension yet. Open the SWinyDL Safari app once, then check Safari Settings > Extensions."
+    fi
+  fi
+}
+
 require_prebuilt_or_explicit_build() {
   if [ "$BUILD_FROM_SOURCE" -eq 1 ] || [ -d "$PREBUILT_APP_PATH" ]; then
     return 0
@@ -215,7 +234,19 @@ sign_app_bundle() {
   fi
 
   note "Ad-hoc signing the SWinyDL app bundle..."
-  if ! /usr/bin/codesign --force --deep --sign - "$APP_PATH"; then
+  EXTENSION_PATH="$APP_PATH/Contents/PlugIns/SWinyDLSafariExtension.appex"
+  APP_ENTITLEMENTS="$REPO_ROOT/safari/SWinyDLSafariApp/SWinyDLSafariApp.entitlements"
+  EXTENSION_ENTITLEMENTS="$REPO_ROOT/safari/SWinyDLSafariExtension/SWinyDLSafariExtension.entitlements"
+
+  if [ ! -f "$APP_ENTITLEMENTS" ] || [ ! -f "$EXTENSION_ENTITLEMENTS" ]; then
+    error_exit "Missing signing entitlements. Download the latest DMG, or rebuild from source before running install.sh."
+  fi
+
+  if ! /usr/bin/codesign --force --sign - --entitlements "$EXTENSION_ENTITLEMENTS" "$EXTENSION_PATH"; then
+    error_exit "Unable to sign $EXTENSION_PATH. If you are installing from the DMG, drag the SWinyDL folder out of the DMG first and run ./install.sh from the copied folder."
+  fi
+
+  if ! /usr/bin/codesign --force --sign - --entitlements "$APP_ENTITLEMENTS" "$APP_PATH"; then
     error_exit "Unable to sign $APP_PATH. If you are installing from the DMG, drag the SWinyDL folder out of the DMG first and run ./install.sh from the copied folder."
   fi
 
@@ -260,8 +291,10 @@ fi
 
 [ -d "$APP_PATH" ] || error_exit "Build completed without producing $APP_PATH."
 [ -d "$APP_PATH/Contents/PlugIns/SWinyDLSafariExtension.appex" ] || error_exit "The built app is missing the embedded Safari extension bundle."
+[ -f "$APP_PATH/Contents/PlugIns/SWinyDLSafariExtension.appex/Contents/Resources/manifest.json" ] || error_exit "The Safari extension is missing its WebExtension manifest. Download the latest DMG, or rebuild with ./scripts/build_app.sh."
 sign_app_bundle
 clear_app_quarantine
+register_safari_extension
 
 note "Running SWinyDL doctor..."
 "$VENV_PYTHON" -m swinydl.main doctor
@@ -279,8 +312,12 @@ Next steps:
 1. In Safari, open Settings > Extensions.
 2. Enable "SWinyDL Safari".
 3. If the extension does not appear, enable Safari's Develop menu and turn on "Allow Unsigned Extensions".
-4. Open a logged-in Canvas or Echo360 page in Safari.
-5. Use the SWinyDL extension popup to load the course and launch jobs.
+4. If it still does not appear, quit and reopen the SWinyDL Safari app from this folder.
+5. Open a logged-in Canvas or Echo360 page in Safari.
+6. Use the SWinyDL extension popup to load the course and launch jobs.
+
+Do not double-click the .appex file directly. Safari discovers the extension
+through the containing SWinyDLSafariApp.app after that app has been opened.
 
 The app is at:
   $APP_PATH

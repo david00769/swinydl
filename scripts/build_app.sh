@@ -63,6 +63,16 @@ case "$CONFIGURATION" in
     ;;
 esac
 
+case "$BUILD_ROOT" in
+  /*) ;;
+  *) BUILD_ROOT="$REPO_ROOT/$BUILD_ROOT" ;;
+esac
+
+case "$OUTPUT_APP_PATH" in
+  /*) ;;
+  *) OUTPUT_APP_PATH="$REPO_ROOT/$OUTPUT_APP_PATH" ;;
+esac
+
 require_command() {
   command -v "$1" >/dev/null 2>&1 || {
     printf 'Error: %s is required for source builds.\n' "$1" >&2
@@ -94,6 +104,7 @@ xcodegen generate --spec safari/project.yml
 
 printf 'Building SWinyDLSafariApp.app (%s)...\n' "$CONFIGURATION"
 mkdir -p "$BUILD_OUTPUT_DIR" "$DERIVED_DATA_DIR"
+rm -rf "$BUILT_APP_PATH" "$BUILD_OUTPUT_DIR/SWinyDLSafariExtension.appex"
 xcodebuild \
   -project safari/SWinyDLSafari.xcodeproj \
   -scheme SWinyDLSafariApp \
@@ -112,8 +123,31 @@ xcodebuild \
   exit 1
 }
 
+EXTENSION_RESOURCES_SRC="$REPO_ROOT/safari/SWinyDLSafariExtension/Resources/WebExtension"
+EXTENSION_RESOURCES_DST="$BUILT_APP_PATH/Contents/PlugIns/SWinyDLSafariExtension.appex/Contents/Resources"
+[ -f "$EXTENSION_RESOURCES_SRC/manifest.json" ] || {
+  printf 'Error: Missing Safari WebExtension manifest at %s\n' "$EXTENSION_RESOURCES_SRC/manifest.json" >&2
+  exit 1
+}
+mkdir -p "$EXTENSION_RESOURCES_DST"
+ditto "$EXTENSION_RESOURCES_SRC" "$EXTENSION_RESOURCES_DST"
+[ -f "$EXTENSION_RESOURCES_DST/manifest.json" ] || {
+  printf 'Error: Built Safari extension is missing Contents/Resources/manifest.json.\n' >&2
+  exit 1
+}
+
 printf 'Ad-hoc signing built app bundle...\n'
-/usr/bin/codesign --force --deep --sign - "$BUILT_APP_PATH"
+EXTENSION_APP_PATH="$BUILT_APP_PATH/Contents/PlugIns/SWinyDLSafariExtension.appex"
+/usr/bin/codesign \
+  --force \
+  --sign - \
+  --entitlements "$REPO_ROOT/safari/SWinyDLSafariExtension/SWinyDLSafariExtension.entitlements" \
+  "$EXTENSION_APP_PATH"
+/usr/bin/codesign \
+  --force \
+  --sign - \
+  --entitlements "$REPO_ROOT/safari/SWinyDLSafariApp/SWinyDLSafariApp.entitlements" \
+  "$BUILT_APP_PATH"
 /usr/bin/codesign --verify --deep --strict "$BUILT_APP_PATH"
 
 rm -rf "$OUTPUT_APP_PATH"

@@ -20,7 +20,7 @@ For day-to-day use, the simplest entrypoint is:
 ./install.sh
 ```
 
-`install.sh` is the primary supported setup path. In a GitHub DMG release it uses the prebuilt `SWinyDLSafariApp.app`, runs `uv sync`, bootstraps the CoreML bundles, locally ad-hoc signs and verifies the app bundle, runs `swinydl doctor`, and opens the app plus Safari. In a source checkout, `./install.sh` does not compile the Safari wrapper by default; use `./scripts/build_app.sh` first, or use `./install.sh --build-from-source` as a compatibility shortcut.
+`install.sh` is the primary supported setup path. In a GitHub DMG release it uses the prebuilt `SWinyDLSafariApp.app`, verifies the Safari extension includes its required WebExtension `manifest.json`, runs `uv sync`, bootstraps the CoreML bundles, locally ad-hoc signs and verifies the app bundle, registers the containing app and extension with macOS, runs `swinydl doctor`, and opens the app plus Safari. In a source checkout, `./install.sh` does not compile the Safari wrapper by default; use `./scripts/build_app.sh` first, or use `./install.sh --build-from-source` as a compatibility shortcut.
 For unsigned DMG installs, it also clears downloaded-file quarantine from the bundled app before opening it.
 
 For a first-time non-technical Mac user, the simplest setup path is:
@@ -36,9 +36,12 @@ After that:
 
 1. Enable the bundled Safari extension in Safari Settings
 2. If it does not appear, enable Safari's Develop menu and turn on `Allow Unsigned Extensions`
-3. If you want to verify the extension is registered, run `pluginkit -mAvvv -p com.apple.Safari.web-extension | rg SWinyDL`
-4. Open a logged-in Canvas or Echo360 page in Safari
-5. Use the extension popup to load the course, choose whether downloaded media should be deleted after transcription, and launch a manifest-driven backend job into the native wrapper app window
+3. If it still does not appear, quit and reopen `SWinyDLSafariApp.app` from the copied `SWinyDL` folder
+4. If you want to verify the extension is registered, run `pluginkit -mAvvv -p com.apple.Safari.web-extension | rg SWinyDL`
+5. Open a logged-in Canvas or Echo360 page in Safari
+6. Use the extension popup to load the course, choose whether downloaded media should be deleted after transcription, and launch a manifest-driven backend job into the native wrapper app window
+
+Do not double-click `SWinyDLSafariExtension.appex`. Safari discovers the extension through the containing `SWinyDLSafariApp.app`; `./install.sh` also re-registers that containing app and extension with macOS.
 
 The native wrapper window shows per-lesson transcript files and can open the transcription folder directly.
 It also shows whether the Parakeet ASR model bundle and speaker diarizer bundle are ready.

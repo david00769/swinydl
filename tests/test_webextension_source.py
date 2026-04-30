@@ -23,6 +23,11 @@ class WebExtensionSourceTests(unittest.TestCase):
 
         self.assertIn('document.querySelectorAll("form[action]")', contents)
         self.assertIn("formActionUrls", contents)
+        self.assertIn("data-tool-id", contents)
+        self.assertIn("data-tool-path", contents)
+        self.assertIn("embeddedUrls", contents)
+        self.assertIn("storageUrls", contents)
+        self.assertIn("lessonCandidates", contents)
         self.assertIn("page-context-updated", contents)
         self.assertIn("lti", contents)
 
@@ -30,9 +35,16 @@ class WebExtensionSourceTests(unittest.TestCase):
         contents = (WEBEXTENSION / "background.js").read_text(encoding="utf-8")
 
         self.assertIn("tabContextCache", contents)
+        self.assertIn("browser.scripting.executeScript", contents)
+        self.assertIn("allFrames: true", contents)
         self.assertIn("page-context-updated", contents)
         self.assertIn("mergePageContexts", contents)
+        self.assertIn("pageUrls", contents)
         self.assertIn("formActionUrls", contents)
+        self.assertIn("embeddedUrls", contents)
+        self.assertIn("storageUrls", contents)
+        self.assertIn("buildCloudCourseFromPageContext", contents)
+        self.assertIn("lessonCandidates", contents)
         self.assertIn("lti", contents)
 
 

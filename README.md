@@ -68,6 +68,13 @@ For most people, the best path is:
 ./install.sh
 ```
 
+If Terminal says `permission denied`, make the installer executable and run it again:
+
+```bash
+chmod +x install.sh
+./install.sh
+```
+
 If Homebrew, `uv`, or `ffmpeg` are missing, approve the installer prompts.
 
 `./install.sh` does the setup for you:

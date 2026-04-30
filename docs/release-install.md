@@ -31,6 +31,13 @@ This runtime DMG does not include the Safari Xcode project, Swift package source
 ./install.sh
 ```
 
+If Terminal says `permission denied`, make the installer executable and run it again:
+
+```bash
+chmod +x install.sh
+./install.sh
+```
+
 If Homebrew, `uv`, or `ffmpeg` are missing, approve the installer prompts.
 
 The normal release install does not require Xcode, xcodegen, Swift, source code, or local compilation.

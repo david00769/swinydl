@@ -1,8 +1,12 @@
 const CAPTION_EXTENSIONS = new Set(["vtt", "srt"]);
 const MEDIA_EXTENSIONS = new Set(["m3u8", "mp4", "m4a", "aac", "mp3", "mov", "webm"]);
+const tabContextCache = new Map();
 
-browser.runtime.onMessage.addListener((message) => {
+browser.runtime.onMessage.addListener((message, sender) => {
   switch (message?.type) {
+    case "page-context-updated":
+      rememberPageContext(sender, message.context);
+      return false;
     case "load-course":
       return loadCourseForActiveTab();
     case "launch-job":
@@ -16,25 +20,37 @@ browser.runtime.onMessage.addListener((message) => {
   }
 });
 
+if (browser.tabs?.onRemoved) {
+  browser.tabs.onRemoved.addListener((tabId) => {
+    tabContextCache.delete(tabId);
+  });
+}
+
 async function loadCourseForActiveTab() {
   const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
   if (!tab?.id || !tab.url) {
     return { ok: false, error: "No active Safari tab was found." };
   }
 
-  let context = { pageUrl: tab.url, pageTitle: tab.title || "", iframeUrls: [], anchorUrls: [], mediaLinks: [] };
+  let context = { pageUrl: tab.url, pageTitle: tab.title || "", iframeUrls: [], anchorUrls: [], formActionUrls: [], mediaLinks: [] };
   try {
     context = await browser.tabs.sendMessage(tab.id, { type: "collect-page-context" });
+    rememberPageContext({ tab }, context);
   } catch (_error) {
   }
 
+  context = mergePageContexts(context, ...(tabContextCache.get(tab.id) || []));
   const courseUrl = deriveCourseUrl(context);
   if (!courseUrl) {
     return { ok: false, error: "This page does not look like a supported Canvas or Echo360 course entrypoint." };
   }
 
-  const course = await discoverCourse(courseUrl);
-  return { ok: true, course, sourcePageUrl: context.pageUrl, courseUrl };
+  try {
+    const course = await discoverCourse(courseUrl);
+    return { ok: true, course, sourcePageUrl: context.pageUrl, courseUrl };
+  } catch (error) {
+    return { ok: false, error: `Found EchoVideo on this page, but could not load the course inventory: ${String(error?.message || error)}` };
+  }
 }
 
 async function launchJob(payload) {
@@ -75,14 +91,51 @@ function deriveCourseUrl(context) {
   const candidates = [
     context.pageUrl,
     ...(context.iframeUrls || []),
-    ...(context.anchorUrls || [])
+    ...(context.anchorUrls || []),
+    ...(context.formActionUrls || [])
   ].filter(Boolean);
   for (const value of candidates) {
-    if (/echo360|\/ess\/portal\/section\//i.test(value)) {
+    if (/echo360|\/ess\/portal\/section\/|\/lti\//i.test(value)) {
       return value;
     }
   }
   return null;
+}
+
+function rememberPageContext(sender, context) {
+  const tabId = sender?.tab?.id;
+  if (tabId == null || !context) {
+    return;
+  }
+  const frameId = sender.frameId ?? 0;
+  const contextsByFrame = new Map((tabContextCache.get(tabId) || []).map((item) => [item.frameId, item.context]));
+  contextsByFrame.set(frameId, context);
+  tabContextCache.set(
+    tabId,
+    Array.from(contextsByFrame.entries()).map(([cachedFrameId, cachedContext]) => ({
+      frameId: cachedFrameId,
+      context: cachedContext
+    }))
+  );
+}
+
+function mergePageContexts(...contexts) {
+  const merged = { pageUrl: "", pageTitle: "", iframeUrls: [], anchorUrls: [], formActionUrls: [], mediaLinks: [] };
+  for (const entry of contexts.flat()) {
+    const context = entry?.context || entry;
+    if (!context) {
+      continue;
+    }
+    merged.pageUrl = merged.pageUrl || context.pageUrl || "";
+    merged.pageTitle = merged.pageTitle || context.pageTitle || "";
+    for (const key of ["iframeUrls", "anchorUrls", "formActionUrls", "mediaLinks"]) {
+      merged[key].push(...(context[key] || []));
+    }
+  }
+  for (const key of ["iframeUrls", "anchorUrls", "formActionUrls", "mediaLinks"]) {
+    merged[key] = Array.from(new Set(merged[key].filter(Boolean)));
+  }
+  return merged;
 }
 
 async function discoverCourse(courseUrl) {

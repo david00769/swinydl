@@ -73,6 +73,8 @@ Do not select `SWinyDLSafariApp.app`, `SWinyDLSafariExtension.appex`, or `manife
 
 Safari removes temporary extensions after 24 hours or when Safari quits, so repeat that step after each Safari restart if you use the fallback.
 
+If you installed an older temporary extension and EchoVideo still says the page is unsupported, remove the old temporary extension from Safari `Settings > Extensions`, then add the current `SWinyDL-WebExtension.zip` or `WebExtension` folder again. The current extension needs permission for `echo360.net.au`, which older temporary installs did not request.
+
 ## Update
 
 1. Download the newer SWinyDL DMG from GitHub Releases.

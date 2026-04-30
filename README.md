@@ -262,6 +262,8 @@ Do not double-click `SWinyDLSafariExtension.appex`; macOS may warn that it is un
 
 Temporary extensions are not permanent. Safari removes them after 24 hours or when Safari quits, so repeat `Add Temporary Extension...` after each Safari restart until SWinyDL ships as a signed/notarized app.
 
+If you installed an older temporary extension and EchoVideo still says the page is unsupported, remove the old temporary extension from Safari `Settings > Extensions`, then add the current `SWinyDL-WebExtension.zip` or `WebExtension` folder again. The current extension needs permission for `echo360.net.au`, which older temporary installs did not request.
+
 You can also check app health in Terminal:
 
 ```bash

@@ -27,6 +27,7 @@ class DocumentationTests(unittest.TestCase):
             self.assertIn("runtime", contents)
             self.assertIn("prebuilt CoreML runner", contents)
             self.assertIn("chmod +x install.sh", contents)
+            self.assertIn("resource fork, Finder information", contents)
             self.assertIn("does not include", contents)
             self.assertIn("GitHub", contents)
 

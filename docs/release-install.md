@@ -40,6 +40,8 @@ chmod +x install.sh
 
 If Homebrew, `uv`, or `ffmpeg` are missing, approve the installer prompts.
 
+If signing fails with `resource fork, Finder information, or similar detritus not allowed`, download the latest release and run `./install.sh` again. Current installers scrub that metadata before signing.
+
 The normal release install does not require Xcode, xcodegen, Swift, source code, or local compilation.
 
 ## Enable Safari

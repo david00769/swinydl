@@ -182,10 +182,14 @@ ensure_xcode_ready() {
   fi
 }
 
-clear_app_quarantine() {
-  if command -v xattr >/dev/null 2>&1; then
-    note "Clearing downloaded-file quarantine from the SWinyDL app if present..."
-    xattr -dr com.apple.quarantine "$APP_PATH" 2>/dev/null || true
+scrub_app_metadata() {
+  note "Clearing downloaded-file quarantine and Finder metadata from the SWinyDL app if present..."
+  if [ -x /usr/bin/dot_clean ]; then
+    /usr/bin/dot_clean -m "$APP_PATH" 2>/dev/null || true
+  fi
+  if [ -x /usr/bin/xattr ]; then
+    # -c clears com.apple.quarantine plus resource-fork/Finder metadata that codesign rejects.
+    /usr/bin/xattr -cr "$APP_PATH" 2>/dev/null || true
   fi
 }
 
@@ -247,6 +251,7 @@ sign_app_bundle() {
     return 0
   fi
 
+  scrub_app_metadata
   note "Ad-hoc signing the SWinyDL app bundle..."
   EXTENSION_PATH="$APP_PATH/Contents/PlugIns/SWinyDLSafariExtension.appex"
   SIGNING_TMP_DIR="$(mktemp -d)"
@@ -317,7 +322,6 @@ fi
 [ -d "$APP_PATH/Contents/PlugIns/SWinyDLSafariExtension.appex" ] || error_exit "The built app is missing the embedded Safari extension bundle."
 [ -f "$APP_PATH/Contents/PlugIns/SWinyDLSafariExtension.appex/Contents/Resources/manifest.json" ] || error_exit "The Safari extension is missing its WebExtension manifest. Download the latest DMG, or rebuild with ./scripts/build_app.sh."
 sign_app_bundle
-clear_app_quarantine
 register_safari_extension
 
 note "Running SWinyDL doctor..."

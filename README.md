@@ -287,6 +287,18 @@ Make sure you copied the `SWinyDL` folder out of the DMG, then run:
 
 The installer locally signs the bundled app, clears downloaded-file quarantine, then opens it. Do not run the app directly from inside the mounted DMG.
 
+### Signing fails with resource fork or Finder information
+
+If `./install.sh` fails with `resource fork, Finder information, or similar detritus not allowed`, download the latest release and run `./install.sh` again. Current installers scrub that metadata before signing.
+
+For an older copied folder, this manual cleanup also works:
+
+```bash
+/usr/bin/dot_clean -m SWinyDLSafariApp.app
+/usr/bin/xattr -cr SWinyDLSafariApp.app
+./install.sh
+```
+
 ### The app says models are missing
 
 Run:

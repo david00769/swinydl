@@ -7,6 +7,7 @@ from swinydl.transcription import (
     SpeakerTurn,
     _assign_segment_speaker,
     _assign_word_speaker,
+    _ensure_swift_runner,
     _ffmpeg_hwaccel_args,
     _words_from_token_timings,
     diarizer_backend_status,
@@ -60,6 +61,28 @@ class TranscriptionPlatformTests(unittest.TestCase):
             status = diarizer_backend_status()
         self.assertFalse(status["ready"])
         self.assertIn("CoreML assets", status["reason"])
+
+    def test_packaged_runner_makes_parakeet_ready_without_swift(self):
+        with patch("swinydl.transcription.find_swift_binary", return_value=None), patch(
+            "swinydl.transcription._parakeet_coreml_models_exist", return_value=True
+        ), patch(
+            "swinydl.transcription.packaged_coreml_runner_path",
+            return_value=Path("bin/parakeet-coreml-runner"),
+        ):
+            status = parakeet_backend_status()
+
+        self.assertTrue(status["ready"])
+        self.assertEqual(status["runner"], "bin/parakeet-coreml-runner")
+
+    def test_ensure_swift_runner_uses_packaged_binary_first(self):
+        with patch(
+            "swinydl.transcription.packaged_coreml_runner_path",
+            return_value=Path("bin/parakeet-coreml-runner"),
+        ), patch("swinydl.transcription.find_swift_binary") as swift:
+            runner = _ensure_swift_runner("parakeet-coreml-runner")
+
+        self.assertEqual(runner, Path("bin/parakeet-coreml-runner"))
+        swift.assert_not_called()
 
     def test_word_and_segment_speaker_assignment_uses_overlap(self):
         turns = [

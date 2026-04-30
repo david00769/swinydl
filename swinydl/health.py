@@ -1,6 +1,7 @@
 """Runtime health checks for local tools, staged models, and platform support."""
 
 import importlib.util
+from pathlib import Path
 import platform
 from typing import Any
 
@@ -24,6 +25,7 @@ from .transcription import (
     diarization_runtime_status,
     diarizer_backend_available,
     diarizer_backend_status,
+    packaged_coreml_runners_available,
     parakeet_backend_available,
     parakeet_backend_status,
 )
@@ -125,6 +127,12 @@ def _check_chrome(env: dict[str, object]) -> dict[str, object]:
 
 
 def _check_xcode_select(env: dict[str, object]) -> dict[str, object]:
+    if _runtime_release_app_available():
+        return _check(
+            "xcode-select",
+            "pass",
+            "Prebuilt release app is present; Xcode command line tools are not required for normal use.",
+        )
     path = env["xcode_select_path"]
     if path:
         return _check("xcode-select", "pass", f"Xcode developer directory is set to {path}.")
@@ -137,6 +145,12 @@ def _check_xcode_select(env: dict[str, object]) -> dict[str, object]:
 
 
 def _check_xcode_first_launch(env: dict[str, object]) -> dict[str, object]:
+    if _runtime_release_app_available():
+        return _check(
+            "xcode-first-launch",
+            "pass",
+            "Prebuilt release app is present; Xcode first-launch setup is not required for normal use.",
+        )
     ready = env["xcode_first_launch_ready"]
     if ready is True:
         return _check("xcode-first-launch", "pass", "Xcode first-launch setup and license acceptance are complete.")
@@ -156,6 +170,8 @@ def _check_xcode_first_launch(env: dict[str, object]) -> dict[str, object]:
 
 
 def _check_swift(env: dict[str, object]) -> dict[str, object]:
+    if packaged_coreml_runners_available():
+        return _check("swift", "pass", "Packaged CoreML runners are present; Swift is not required for normal transcription.")
     swift_binary = env["swift_binary"]
     if swift_binary:
         version = env["swift_version"] or "Swift is installed."
@@ -169,6 +185,8 @@ def _check_swift(env: dict[str, object]) -> dict[str, object]:
 
 
 def _check_xcodegen(env: dict[str, object]) -> dict[str, object]:
+    if _runtime_release_app_available():
+        return _check("xcodegen", "pass", "Prebuilt release app is present; xcodegen is not required for normal use.")
     xcodegen_binary = env["xcodegen_binary"]
     if xcodegen_binary:
         return _check("xcodegen", "pass", f"xcodegen available at {xcodegen_binary}.")
@@ -181,6 +199,8 @@ def _check_xcodegen(env: dict[str, object]) -> dict[str, object]:
 
 
 def _check_safari_project() -> dict[str, object]:
+    if _runtime_release_app_available():
+        return _check("safari-project", "pass", "Runtime release does not include the Safari source project; prebuilt app is present.")
     project_spec = safari_project_spec_path()
     project_file = safari_project_path() / "project.pbxproj"
     if project_file.exists():
@@ -201,6 +221,11 @@ def _check_safari_project() -> dict[str, object]:
 
 
 def _check_safari_build() -> dict[str, object]:
+    release_app = _runtime_release_app_path()
+    release_extension = release_app / "Contents" / "PlugIns" / "SWinyDLSafariExtension.appex"
+    if release_app.exists() and release_extension.exists():
+        return _check("safari-app-build", "pass", f"Prebuilt Safari wrapper app is present at {release_app}.")
+
     app_bundle = safari_built_app_path()
     extension_bundle = safari_extension_bundle_path()
     if app_bundle.exists() and extension_bundle.exists():
@@ -320,6 +345,18 @@ def _check(
     if details:
         payload["details"] = details
     return payload
+
+
+def _runtime_release_app_path() -> Path:
+    """Return the prebuilt app location used by GitHub DMG releases."""
+    return Path.cwd().resolve() / "SWinyDLSafariApp.app"
+
+
+def _runtime_release_app_available() -> bool:
+    """Return whether this looks like a copied runtime DMG release folder."""
+    app = _runtime_release_app_path()
+    extension = app / "Contents" / "PlugIns" / "SWinyDLSafariExtension.appex"
+    return app.exists() and extension.exists()
 
 
 def _short_error(message: str) -> str:

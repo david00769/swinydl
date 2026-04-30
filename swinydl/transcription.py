@@ -22,6 +22,8 @@ VIDEO_EXTENSIONS = {".mp4", ".mov", ".m4v", ".mkv", ".avi", ".webm"}
 DEFAULT_PARAKEET_COREML_VERSION = "v3"
 DEFAULT_PARAKEET_COREML_DIRNAME = "parakeet-tdt-0.6b-v3-coreml"
 DEFAULT_DIARIZER_COREML_DIRNAME = "speaker-diarization-coreml"
+PARAKEET_RUNNER_PRODUCT = "parakeet-coreml-runner"
+DIARIZER_RUNNER_PRODUCT = "speaker-diarizer-coreml-runner"
 
 
 @dataclass(frozen=True)
@@ -125,14 +127,7 @@ def parakeet_backend_available() -> bool:
 
 def parakeet_backend_status() -> dict[str, object]:
     """Return a structured readiness check for the local Parakeet backend."""
-    swift = find_swift_binary()
     model_dir = _parakeet_coreml_model_dir()
-    if swift is None:
-        return {
-            "ready": False,
-            "reason": "Swift is not installed. Install Xcode command line tools to build the Parakeet CoreML runner.",
-            "model_dir": str(model_dir),
-        }
     if not _parakeet_coreml_models_exist(model_dir):
         return {
             "ready": False,
@@ -142,11 +137,32 @@ def parakeet_backend_status() -> dict[str, object]:
             ),
             "model_dir": str(model_dir),
         }
+    packaged_runner = packaged_coreml_runner_path(PARAKEET_RUNNER_PRODUCT)
+    if packaged_runner is not None:
+        return {
+            "ready": True,
+            "reason": None,
+            "model_dir": str(model_dir),
+            "runner": str(packaged_runner),
+        }
+    swift = find_swift_binary()
+    if swift is None:
+        return {
+            "ready": False,
+            "reason": (
+                "Swift is not installed and the packaged Parakeet CoreML runner is missing. "
+                "Install from the GitHub DMG again, or install Xcode command line tools for a source build."
+            ),
+            "model_dir": str(model_dir),
+        }
     package_dir = _parakeet_runner_package_dir()
     if not package_dir.exists():
         return {
             "ready": False,
-            "reason": f"Swift runner package is missing at {package_dir}.",
+            "reason": (
+                f"Swift runner package is missing at {package_dir} and no packaged runner was found. "
+                "Install from the GitHub DMG again, or use a full source checkout."
+            ),
             "model_dir": str(model_dir),
         }
     return {"ready": True, "reason": None, "model_dir": str(model_dir)}
@@ -246,7 +262,7 @@ def _ensure_parakeet_coreml_runner() -> Path:
     status = parakeet_backend_status()
     if not status["ready"]:
         raise DependencyMissingError(str(status["reason"]))
-    return _ensure_swift_runner("parakeet-coreml-runner")
+    return _ensure_swift_runner(PARAKEET_RUNNER_PRODUCT)
 
 
 def _run_diarizer_coreml(audio_path: Path) -> dict[str, Any]:
@@ -280,15 +296,21 @@ def _ensure_diarizer_coreml_runner() -> Path:
     status = diarizer_backend_status()
     if not status["ready"]:
         raise DependencyMissingError(str(status["reason"]))
-    return _ensure_swift_runner("speaker-diarizer-coreml-runner")
+    return _ensure_swift_runner(DIARIZER_RUNNER_PRODUCT)
 
 
 def _ensure_swift_runner(product_name: str) -> Path:
-    """Build a Swift product on demand and return its release binary path."""
+    """Return a packaged Swift runner, or build one from source as a developer fallback."""
+    packaged_runner = packaged_coreml_runner_path(product_name)
+    if packaged_runner is not None:
+        return packaged_runner
+
     package_dir = _parakeet_runner_package_dir()
     swift = find_swift_binary()
     if swift is None:
-        raise DependencyMissingError("Swift is not installed.")
+        raise DependencyMissingError(
+            f"{product_name} is not packaged in this install, and Swift is not installed for a source build."
+        )
     bin_path = subprocess.run(
         [swift, "build", "--package-path", str(package_dir), "-c", "release", "--show-bin-path"],
         capture_output=True,
@@ -316,6 +338,22 @@ def _ensure_swift_runner(product_name: str) -> Path:
     if not runner.exists():
         raise TranscriptionError(f"{product_name} was not built at {runner}.")
     return runner
+
+
+def packaged_coreml_runner_path(product_name: str) -> Path | None:
+    """Return a packaged release runner executable when the DMG includes one."""
+    runner = Path(__file__).resolve().parents[1] / "bin" / product_name
+    if runner.is_file() and os.access(runner, os.X_OK):
+        return runner
+    return None
+
+
+def packaged_coreml_runners_available() -> bool:
+    """Return whether the release install includes both CoreML runner executables."""
+    return (
+        packaged_coreml_runner_path(PARAKEET_RUNNER_PRODUCT) is not None
+        and packaged_coreml_runner_path(DIARIZER_RUNNER_PRODUCT) is not None
+    )
 
 
 @contextmanager
@@ -365,14 +403,7 @@ def _parakeet_coreml_models_exist(directory: Path) -> bool:
 
 def diarizer_backend_status() -> dict[str, object]:
     """Return a structured readiness check for the local diarizer backend."""
-    swift = find_swift_binary()
     model_dir = _diarizer_coreml_model_dir()
-    if swift is None:
-        return {
-            "ready": False,
-            "reason": "Swift is not installed. Install Xcode command line tools to build the speaker diarizer runner.",
-            "model_dir": str(model_dir),
-        }
     if not _diarizer_coreml_models_exist(model_dir):
         return {
             "ready": False,
@@ -382,11 +413,32 @@ def diarizer_backend_status() -> dict[str, object]:
             ),
             "model_dir": str(model_dir),
         }
+    packaged_runner = packaged_coreml_runner_path(DIARIZER_RUNNER_PRODUCT)
+    if packaged_runner is not None:
+        return {
+            "ready": True,
+            "reason": None,
+            "model_dir": str(model_dir),
+            "runner": str(packaged_runner),
+        }
+    swift = find_swift_binary()
+    if swift is None:
+        return {
+            "ready": False,
+            "reason": (
+                "Swift is not installed and the packaged speaker diarizer runner is missing. "
+                "Install from the GitHub DMG again, or install Xcode command line tools for a source build."
+            ),
+            "model_dir": str(model_dir),
+        }
     package_dir = _parakeet_runner_package_dir()
     if not package_dir.exists():
         return {
             "ready": False,
-            "reason": f"Swift runner package is missing at {package_dir}.",
+            "reason": (
+                f"Swift runner package is missing at {package_dir} and no packaged runner was found. "
+                "Install from the GitHub DMG again, or use a full source checkout."
+            ),
             "model_dir": str(model_dir),
         }
     return {"ready": True, "reason": None, "model_dir": str(model_dir)}

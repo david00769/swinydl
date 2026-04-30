@@ -24,6 +24,7 @@ BUILD_ROOT="$REPO_ROOT/dist/build"
 STAGE_PARENT="$REPO_ROOT/dist/release/$VERSION"
 STAGE_ROOT="$STAGE_PARENT/SWinyDL"
 DMG_PATH="$REPO_ROOT/dist/SWinyDL-$VERSION.dmg"
+RUNNER_PACKAGE="$REPO_ROOT/swift/ParakeetCoreMLRunner"
 
 rm -rf "$STAGE_PARENT" "$DMG_PATH"
 mkdir -p "$STAGE_ROOT"
@@ -34,7 +35,8 @@ APP_PATH="$STAGE_ROOT/SWinyDLSafariApp.app"
 "$REPO_ROOT/scripts/build_app.sh" \
   --configuration Release \
   --build-root "$BUILD_ROOT" \
-  --output "$APP_PATH"
+  --output "$APP_PATH" \
+  --version "${VERSION#v}"
 
 [ -d "$APP_PATH" ] || {
   printf 'Expected built app at %s\n' "$APP_PATH" >&2
@@ -49,29 +51,46 @@ APP_PATH="$STAGE_ROOT/SWinyDLSafariApp.app"
   exit 1
 }
 
+command -v swift >/dev/null 2>&1 || {
+  printf 'swift is required to build release CoreML runner binaries.\n' >&2
+  exit 1
+}
+[ -d "$RUNNER_PACKAGE" ] || {
+  printf 'Missing Swift runner package at %s\n' "$RUNNER_PACKAGE" >&2
+  exit 1
+}
+
+printf 'Building release CoreML runner binaries...\n'
+swift build --package-path "$RUNNER_PACKAGE" -c release --product parakeet-coreml-runner
+swift build --package-path "$RUNNER_PACKAGE" -c release --product speaker-diarizer-coreml-runner
+RUNNER_BIN_DIR="$(swift build --package-path "$RUNNER_PACKAGE" -c release --show-bin-path)"
+mkdir -p "$STAGE_ROOT/bin"
+for runner in parakeet-coreml-runner speaker-diarizer-coreml-runner; do
+  [ -x "$RUNNER_BIN_DIR/$runner" ] || {
+    printf 'Expected built runner at %s\n' "$RUNNER_BIN_DIR/$runner" >&2
+    exit 1
+  }
+  ditto "$RUNNER_BIN_DIR/$runner" "$STAGE_ROOT/bin/$runner"
+  /usr/bin/codesign --force --sign - "$STAGE_ROOT/bin/$runner"
+done
+
 for path in \
   install.sh \
-  run.sh \
-  app.py \
-  swinydl.py \
   pyproject.toml \
   uv.lock \
-  README.md \
   LICENSE \
   THIRD_PARTY_NOTICES.md
 do
   [ -e "$path" ] && ditto "$path" "$STAGE_ROOT/$path"
 done
 
-for dir in docs safari scripts swift swinydl vendor; do
+ditto docs/release-install.md "$STAGE_ROOT/README.md"
+ditto safari/SWinyDLSafariExtension/Resources/WebExtension "$STAGE_ROOT/WebExtension"
+
+for dir in swinydl vendor; do
   [ -d "$dir" ] && rsync -a \
-    --exclude '.build/' \
     --exclude '.cache/' \
-    --exclude 'DerivedData/' \
     --exclude '__pycache__/' \
-    --exclude 'xcuserdata/' \
-    --exclude '*.xcuserstate' \
-    --exclude 'safari/.build/' \
     "$dir" "$STAGE_ROOT/"
 done
 

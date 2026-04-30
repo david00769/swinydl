@@ -209,7 +209,21 @@ register_safari_extension() {
 }
 
 require_prebuilt_or_explicit_build() {
-  if [ "$BUILD_FROM_SOURCE" -eq 1 ] || [ -d "$PREBUILT_APP_PATH" ]; then
+  if [ "$BUILD_FROM_SOURCE" -eq 1 ]; then
+    if [ ! -x "$BUILD_SCRIPT" ]; then
+      cat >&2 <<EOF
+Error: This runtime release folder does not include source-build files.
+
+Developer source build:
+  Clone https://github.com/david00769/swinydl, then run ./install.sh --build-from-source
+  from the source checkout.
+EOF
+      exit 1
+    fi
+    return 0
+  fi
+
+  if [ -d "$PREBUILT_APP_PATH" ]; then
     return 0
   fi
 
@@ -235,20 +249,30 @@ sign_app_bundle() {
 
   note "Ad-hoc signing the SWinyDL app bundle..."
   EXTENSION_PATH="$APP_PATH/Contents/PlugIns/SWinyDLSafariExtension.appex"
-  APP_ENTITLEMENTS="$REPO_ROOT/safari/SWinyDLSafariApp/SWinyDLSafariApp.entitlements"
-  EXTENSION_ENTITLEMENTS="$REPO_ROOT/safari/SWinyDLSafariExtension/SWinyDLSafariExtension.entitlements"
+  SIGNING_TMP_DIR="$(mktemp -d)"
+  APP_ENTITLEMENTS="$SIGNING_TMP_DIR/app.entitlements.plist"
+  EXTENSION_ENTITLEMENTS="$SIGNING_TMP_DIR/extension.entitlements.plist"
 
-  if [ ! -f "$APP_ENTITLEMENTS" ] || [ ! -f "$EXTENSION_ENTITLEMENTS" ]; then
-    error_exit "Missing signing entitlements. Download the latest DMG, or rebuild from source before running install.sh."
+  if ! /usr/bin/codesign -d --entitlements :- "$EXTENSION_PATH" > "$EXTENSION_ENTITLEMENTS" 2>/dev/null; then
+    rm -rf "$SIGNING_TMP_DIR"
+    error_exit "Unable to read the bundled extension entitlements. Download the latest DMG, or rebuild from source before running install.sh."
+  fi
+
+  if ! /usr/bin/codesign -d --entitlements :- "$APP_PATH" > "$APP_ENTITLEMENTS" 2>/dev/null; then
+    rm -rf "$SIGNING_TMP_DIR"
+    error_exit "Unable to read the bundled app entitlements. Download the latest DMG, or rebuild from source before running install.sh."
   fi
 
   if ! /usr/bin/codesign --force --sign - --entitlements "$EXTENSION_ENTITLEMENTS" "$EXTENSION_PATH"; then
+    rm -rf "$SIGNING_TMP_DIR"
     error_exit "Unable to sign $EXTENSION_PATH. If you are installing from the DMG, drag the SWinyDL folder out of the DMG first and run ./install.sh from the copied folder."
   fi
 
   if ! /usr/bin/codesign --force --sign - --entitlements "$APP_ENTITLEMENTS" "$APP_PATH"; then
+    rm -rf "$SIGNING_TMP_DIR"
     error_exit "Unable to sign $APP_PATH. If you are installing from the DMG, drag the SWinyDL folder out of the DMG first and run ./install.sh from the copied folder."
   fi
+  rm -rf "$SIGNING_TMP_DIR"
 
   /usr/bin/codesign --verify --deep --strict "$APP_PATH" || error_exit "The SWinyDL app bundle did not pass signature verification."
 }
@@ -309,12 +333,15 @@ cat <<EOF
 SWinyDL install completed.
 
 Next steps:
-1. In Safari, open Settings > Extensions.
-2. Enable "SWinyDL Safari".
-3. If the extension does not appear, enable Safari's Develop menu and turn on "Allow Unsigned Extensions".
-4. If it still does not appear, quit and reopen the SWinyDL Safari app from this folder.
+1. In Safari, open Settings > Advanced and turn on "Show features for web developers".
+2. Open Settings > Developer and turn on "Allow unsigned extensions". macOS will ask for your password.
+3. Open Settings > Extensions and enable "SWinyDL Safari".
+4. If the extension does not appear, quit and reopen the SWinyDL Safari app from this folder, or run ./install.sh again.
 5. Open a logged-in Canvas or Echo360 page in Safari.
 6. Use the SWinyDL extension popup to load the course and launch jobs.
+
+Safari resets "Allow unsigned extensions" when Safari quits, so repeat steps 2
+and 3 after each Safari restart while SWinyDL is unsigned.
 
 Do not double-click the .appex file directly. Safari discovers the extension
 through the containing SWinyDLSafariApp.app after that app has been opened.

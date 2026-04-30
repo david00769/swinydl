@@ -6,10 +6,11 @@ REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 CONFIGURATION="Debug"
 BUILD_ROOT="$REPO_ROOT/safari/.build"
 OUTPUT_APP_PATH="$REPO_ROOT/SWinyDLSafariApp.app"
+APP_VERSION=""
 
 usage() {
   cat <<EOF
-Usage: ./scripts/build_app.sh [--configuration Debug|Release] [--build-root PATH] [--output PATH]
+Usage: ./scripts/build_app.sh [--configuration Debug|Release] [--build-root PATH] [--output PATH] [--version X.Y.Z]
 
 Builds SWinyDLSafariApp.app and its embedded Safari extension from source.
 The default output is:
@@ -41,6 +42,14 @@ while [ "$#" -gt 0 ]; do
         exit 1
       }
       OUTPUT_APP_PATH="$2"
+      shift 2
+      ;;
+    --version)
+      [ "$#" -ge 2 ] || {
+        printf 'Error: --version requires a value.\n' >&2
+        exit 1
+      }
+      APP_VERSION="${2#v}"
       shift 2
       ;;
     -h|--help)
@@ -83,6 +92,19 @@ require_command() {
 require_command xcodegen
 require_command xcodebuild
 
+if [ -z "$APP_VERSION" ]; then
+  APP_VERSION="$(
+    cd "$REPO_ROOT"
+    python3 - <<'PY'
+from swinydl.version import __version__
+print(__version__)
+PY
+  )"
+fi
+
+BUILD_NUMBER="$(printf '%s' "$APP_VERSION" | tr -cd '0-9')"
+[ -n "$BUILD_NUMBER" ] || BUILD_NUMBER="1"
+
 if ! xcode-select -p >/dev/null 2>&1; then
   printf 'Error: Xcode command line tools are not configured. Run xcode-select --install first.\n' >&2
   exit 1
@@ -111,6 +133,8 @@ xcodebuild \
   -configuration "$CONFIGURATION" \
   -derivedDataPath "$DERIVED_DATA_DIR" \
   CONFIGURATION_BUILD_DIR="$BUILD_OUTPUT_DIR" \
+  MARKETING_VERSION="$APP_VERSION" \
+  CURRENT_PROJECT_VERSION="$BUILD_NUMBER" \
   CODE_SIGNING_ALLOWED=NO \
   build
 

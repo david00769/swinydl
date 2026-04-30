@@ -28,6 +28,13 @@ class UpdateControllerSourceTests(unittest.TestCase):
         self.assertIn("downloadAvailableDMG", contents)
         self.assertIn("release.dmgAsset", contents)
 
+    def test_app_reports_safari_extension_lookup_errors(self):
+        contents = APP_VIEW.read_text(encoding="utf-8")
+
+        self.assertIn("getStateOfSafariExtension", contents)
+        self.assertIn("Safari could not find the SWinyDL extension", contents)
+        self.assertIn("Allow unsigned extensions", contents)
+
     def test_runtime_resolves_release_install_root_relative_to_app(self):
         contents = JOB_STORE.read_text(encoding="utf-8")
 

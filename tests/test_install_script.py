@@ -36,8 +36,9 @@ class InstallScriptTests(unittest.TestCase):
         self.assertIn("lsregister", contents)
         self.assertIn('"$BUILD_SCRIPT"', contents)
         self.assertIn("This folder does not contain a prebuilt SWinyDLSafariApp.app", contents)
+        self.assertIn("runtime release folder does not include source-build files", contents)
         self.assertIn("xcodebuild -checkFirstLaunchStatus", contents)
-        self.assertIn("Allow Unsigned Extensions", contents)
+        self.assertIn("Allow unsigned extensions", contents)
         self.assertIn("Press Enter to continue, or Ctrl-C to cancel.", contents)
 
     def test_install_script_has_dmg_no_compile_path(self):
@@ -71,3 +72,6 @@ class InstallScriptTests(unittest.TestCase):
         self.assertIn('EXTENSION_RESOURCES_SRC="$REPO_ROOT/safari/SWinyDLSafariExtension/Resources/WebExtension"', contents)
         self.assertIn('EXTENSION_RESOURCES_DST="$BUILT_APP_PATH/Contents/PlugIns/SWinyDLSafariExtension.appex/Contents/Resources"', contents)
         self.assertIn("manifest.json", contents)
+        self.assertIn("--version X.Y.Z", contents)
+        self.assertIn('MARKETING_VERSION="$APP_VERSION"', contents)
+        self.assertIn('CURRENT_PROJECT_VERSION="$BUILD_NUMBER"', contents)

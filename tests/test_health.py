@@ -53,3 +53,25 @@ class HealthTests(unittest.TestCase):
 
         self.assertEqual(check["status"], "pass")
         self.assertIn("Built Safari wrapper app", check["summary"])
+
+    def test_runtime_release_app_skips_source_build_requirements(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            extension_bundle = root / "SWinyDLSafariApp.app" / "Contents" / "PlugIns" / "SWinyDLSafariExtension.appex"
+            extension_bundle.mkdir(parents=True)
+
+            with patch("swinydl.health.Path.cwd", return_value=root):
+                project_check = health._check_safari_project()
+                build_check = health._check_safari_build()
+
+        self.assertEqual(project_check["status"], "pass")
+        self.assertIn("Runtime release", project_check["summary"])
+        self.assertEqual(build_check["status"], "pass")
+        self.assertIn("Prebuilt Safari wrapper app", build_check["summary"])
+
+    def test_packaged_runners_skip_swift_requirement(self):
+        with patch("swinydl.health.packaged_coreml_runners_available", return_value=True):
+            check = health._check_swift({"swift_binary": None, "swift_version": None})
+
+        self.assertEqual(check["status"], "pass")
+        self.assertIn("Swift is not required", check["summary"])

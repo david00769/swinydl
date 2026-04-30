@@ -184,8 +184,7 @@ private struct ContentView: View {
                         }
                     }
                     InspectorActionRow(title: "Safari Extensions", systemImage: "puzzlepiece.extension") {
-                        SFSafariApplication.showPreferencesForExtension(withIdentifier: SWinyDLBridge.extensionBundleIdentifier) { _ in
-                        }
+                        openSafariExtensionPreferences()
                     }
                 }
             }
@@ -225,6 +224,40 @@ private struct ContentView: View {
                 .foregroundStyle(Color(red: 0.16, green: 0.22, blue: 0.28))
             }
             Spacer(minLength: 0)
+        }
+    }
+
+    private func openSafariExtensionPreferences() {
+        let extensionIdentifier = SWinyDLBridge.extensionBundleIdentifier
+        SFSafariExtensionManager.getStateOfSafariExtension(withIdentifier: extensionIdentifier) { state, lookupError in
+            DispatchQueue.main.async {
+                if let lookupError {
+                    updates.infoMessage = """
+                    Safari could not find the SWinyDL extension.
+
+                    \(lookupError.localizedDescription)
+
+                    Open Safari Settings > Developer, turn on Allow unsigned extensions, then reopen SWinyDLSafariApp.app or run ./install.sh again.
+                    """
+                    return
+                }
+
+                SFSafariApplication.showPreferencesForExtension(withIdentifier: extensionIdentifier) { showError in
+                    DispatchQueue.main.async {
+                        if let showError {
+                            updates.infoMessage = """
+                            Safari could not open the SWinyDL extension settings.
+
+                            \(showError.localizedDescription)
+
+                            Open Safari Settings > Extensions manually and enable SWinyDL Safari.
+                            """
+                        } else if let state, !state.isEnabled {
+                            updates.infoMessage = "Safari opened Extensions. Enable SWinyDL Safari before launching jobs from Canvas or Echo360."
+                        }
+                    }
+                }
+            }
         }
     }
 

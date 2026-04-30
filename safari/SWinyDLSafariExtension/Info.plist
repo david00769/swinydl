@@ -8,30 +8,22 @@
   <string>$(EXECUTABLE_NAME)</string>
   <key>CFBundleIdentifier</key>
   <string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+  <key>CFBundleDisplayName</key>
+  <string>SWinyDL Safari</string>
   <key>CFBundleName</key>
-  <string>$(PRODUCT_NAME)</string>
+  <string>SWinyDL Safari</string>
   <key>CFBundlePackageType</key>
   <string>XPC!</string>
   <key>CFBundleShortVersionString</key>
-  <string>1.0</string>
+  <string>$(MARKETING_VERSION)</string>
   <key>CFBundleVersion</key>
-  <string>1</string>
+  <string>$(CURRENT_PROJECT_VERSION)</string>
   <key>NSExtension</key>
   <dict>
     <key>NSExtensionPointIdentifier</key>
     <string>com.apple.Safari.web-extension</string>
     <key>NSExtensionPrincipalClass</key>
     <string>$(PRODUCT_MODULE_NAME).SafariWebExtensionHandler</string>
-  </dict>
-  <key>SFSafariWebsiteAccess</key>
-  <dict>
-    <key>Allowed Domains</key>
-    <array>
-      <string>*.instructure.com</string>
-      <string>*.echo360.org</string>
-      <string>*.echo360.net</string>
-      <string>*.streaming.sydney.edu.au</string>
-    </array>
   </dict>
 </dict>
 </plist>

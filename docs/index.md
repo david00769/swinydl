@@ -20,8 +20,10 @@ For day-to-day use, the simplest entrypoint is:
 ./install.sh
 ```
 
-`install.sh` is the primary supported setup path. In a GitHub DMG release it uses the prebuilt `SWinyDLSafariApp.app`, verifies the Safari extension includes its required WebExtension `manifest.json`, runs `uv sync`, bootstraps the CoreML bundles, locally ad-hoc signs and verifies the app bundle, registers the containing app and extension with macOS, runs `swinydl doctor`, and opens the app plus Safari. In a source checkout, `./install.sh` does not compile the Safari wrapper by default; use `./scripts/build_app.sh` first, or use `./install.sh --build-from-source` as a compatibility shortcut.
+`install.sh` is the primary supported setup path. In a GitHub DMG release it uses the prebuilt `SWinyDLSafariApp.app` and prebuilt CoreML runner binaries, verifies the Safari extension includes its required WebExtension `manifest.json`, runs `uv sync`, bootstraps the CoreML bundles, locally ad-hoc signs and verifies the app bundle, registers the containing app and extension with macOS, runs `swinydl doctor`, and opens the app plus Safari. In a source checkout, `./install.sh` does not compile the Safari wrapper by default; use `./scripts/build_app.sh` first, or use `./install.sh --build-from-source` as a compatibility shortcut.
 For unsigned DMG installs, it also clears downloaded-file quarantine from the bundled app before opening it.
+
+The GitHub DMG is runtime-only. It includes install/runtime files, the prebuilt app, the WebExtension resources needed for Safari's temporary-extension fallback, the Python backend runtime package, model/runtime assets, and license notices. It intentionally does not include the Safari Xcode project, Swift package source, test suite, or build scripts. Developer build instructions remain in the GitHub repository.
 
 For a first-time non-technical Mac user, the simplest setup path is:
 
@@ -34,11 +36,11 @@ For a first-time non-technical Mac user, the simplest setup path is:
 
 After that:
 
-1. Enable the bundled Safari extension in Safari Settings
-2. If it does not appear, open Safari `Settings > Advanced` and turn on `Show features for web developers`
-3. Open Safari `Settings > Developer` and turn on `Allow unsigned extensions`
-4. If it still does not appear, quit and reopen `SWinyDLSafariApp.app` from the copied `SWinyDL` folder
-5. If needed, use Safari `Settings > Developer > Add Temporary Extension...` and select `safari/SWinyDLSafariExtension/Resources/WebExtension` from the copied `SWinyDL` folder
+1. Open Safari `Settings > Advanced` and turn on `Show features for web developers`
+2. Open Safari `Settings > Developer` and turn on `Allow unsigned extensions`
+3. Open Safari `Settings > Extensions` and enable `SWinyDL Safari`
+4. If it still does not appear, quit and reopen `SWinyDLSafariApp.app` from the copied `SWinyDL` folder, or run `./install.sh` again
+5. If needed, use Safari `Settings > Developer > Add Temporary Extension...` and select `WebExtension` from the copied `SWinyDL` folder
 6. If you want to verify the extension is registered, run `pluginkit -mAvvv -p com.apple.Safari.web-extension | rg SWinyDL`
 7. Open a logged-in Canvas or Echo360 page in Safari
 8. Use the extension popup to load the course, choose whether downloaded media should be deleted after transcription, and launch a manifest-driven backend job into the native wrapper app window
@@ -56,7 +58,7 @@ The backend has also been verified non-interactively on public sample media:
 - local CoreML diarization completes unattended
 - concurrent transcribes no longer share the same temp workspace or bootstrap state
 
-The old Chrome-guided launcher still exists as fallback:
+The old Chrome-guided launcher exists only in source checkouts. It is not included in the runtime DMG:
 
 ```bash
 uv run app.py
@@ -68,7 +70,7 @@ Supported scope:
 - Safari-first, Chrome fallback
 - unsigned GitHub DMG distribution first; signed and notarized distribution is future work
 - Python `>=3.11`
-- Swift toolchain and xcodegen only for `./install.sh --build-from-source`
+- Swift toolchain and xcodegen only for source checkouts and `./install.sh --build-from-source`
 - package install via `pip` or `uv`
 
 ## Building From Source
@@ -126,8 +128,8 @@ There is no separate `requirements.txt` or `MANIFEST.in` workflow in v4.
 
 The transcription stack now uses:
 
-- local Parakeet CoreML via the repo-local Swift runner
-- local CoreML speaker diarization via a second Swift runner
+- local Parakeet CoreML via the packaged runner binaries in the runtime DMG, or the repo-local Swift package in source checkouts
+- local CoreML speaker diarization via the packaged runner binaries in the runtime DMG, or the repo-local Swift package in source checkouts
 - a Safari-native entrypoint that launches `swinydl process-manifest`
 
 `--asr-backend auto` resolves to Parakeet CoreML.
@@ -135,8 +137,8 @@ The transcription stack now uses:
 The flow is:
 
 1. Python normalizes media to mono 16 kHz WAV.
-2. Python invokes the local Swift runner.
-3. Swift loads the staged CoreML Parakeet bundles and runs transcription on Apple Silicon.
+2. Python invokes the packaged runner binary from `bin/` in a runtime DMG install, or builds and invokes the source runner in a developer checkout.
+3. The runner loads the staged CoreML Parakeet bundles and runs transcription on Apple Silicon.
 4. Swift returns token timings as JSON.
 5. Python reconstructs words and transcript segments, then writes `.txt`, `.srt`, and `.json`, with `.txt` treated as the primary human-facing transcript.
 

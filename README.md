@@ -38,6 +38,8 @@ You need:
 
 You do not need Xcode or Apple's command line tools for the normal DMG install.
 
+You do not need Swift or local compilation for the normal DMG install. The release DMG includes prebuilt CoreML runner binaries for transcription and speaker separation.
+
 You do not need to install Homebrew, `uv`, or `ffmpeg` before starting. `./install.sh` checks for them and offers to install anything missing.
 
 If you prefer to install Homebrew and the required tools yourself before running SWinyDL, run:
@@ -74,12 +76,33 @@ If Homebrew, `uv`, or `ffmpeg` are missing, approve the installer prompts.
 - creates the Python environment
 - downloads the required local speech models if they are missing
 - uses the prebuilt Mac app and Safari extension from the DMG
+- uses the prebuilt CoreML runner binaries from the DMG, so transcription does not compile Swift code during normal use
 - verifies the Safari extension includes its required `manifest.json`
 - ad-hoc signs and verifies the app bundle locally
 - registers the containing app and extension with macOS so Safari can list it
 - opens the app and Safari when setup is finished
 
 For the normal DMG install, `./install.sh` is still required. It prepares the local Python environment, checks `ffmpeg`, signs and verifies the app bundle, verifies the app can run, and opens Safari so you can enable the extension.
+
+## What Is In The DMG
+
+The DMG is intentionally runtime-only. It includes:
+- `SWinyDLSafariApp.app`
+- `install.sh`
+- the `swinydl` Python runtime package
+- prebuilt CoreML runner binaries in `bin/`
+- model/runtime assets in `vendor/`
+- `WebExtension` for Safari's temporary-extension fallback
+- license notices and a short runtime install guide
+
+The DMG does not include:
+- the Safari Xcode project
+- Swift package source
+- source-build scripts
+- tests
+- developer documentation
+
+Build instructions remain on this GitHub page for developers who clone the repository.
 
 You do not need to download the Parakeet model manually.
 
@@ -144,16 +167,18 @@ If you already have a prebuilt `SWinyDLSafariApp.app` in the folder but still wa
 
 After the installer finishes:
 
-1. Open Safari `Settings > Extensions`
-2. Enable `SWinyDL Safari`
-3. If the extension does not appear, open Safari `Settings > Advanced` and turn on `Show features for web developers`
-4. Open Safari `Settings > Developer` and turn on `Allow unsigned extensions`
-5. Go back to Safari `Settings > Extensions` and enable `SWinyDL Safari`
-6. If it still does not appear, use the temporary extension fallback below
-7. Open your Canvas or Echo360 page in Safari
-8. Open the `SWinyDL Safari` extension
-9. Choose the lessons you want
-10. Start the job
+1. Open Safari `Settings > Advanced`
+2. Turn on `Show features for web developers`
+3. Open Safari `Settings > Developer`
+4. Turn on `Allow unsigned extensions` and enter your Mac password when prompted
+5. Open Safari `Settings > Extensions`
+6. Enable `SWinyDL Safari`
+7. If it still does not appear, quit and reopen `SWinyDLSafariApp.app` from the copied `SWinyDL` folder, or run `./install.sh` again
+8. If it still does not appear after that, use the temporary extension fallback below
+9. Open your Canvas or Echo360 page in Safari
+10. Open the `SWinyDL Safari` extension
+11. Choose the lessons you want
+12. Start the job
 
 Because this first release is unsigned, Safari may require developer-mode extension loading. Apple's unsigned-extension setting resets every time Safari quits, so you may need to turn on `Allow unsigned extensions` again after restarting Safari.
 
@@ -165,7 +190,7 @@ Temporary extension fallback:
 4. Select this folder inside your copied `SWinyDL` folder:
 
 ```text
-safari/SWinyDLSafariExtension/Resources/WebExtension
+WebExtension
 ```
 
 5. Enable the temporary `SWinyDL Safari` extension in Safari `Settings > Extensions`
@@ -214,11 +239,12 @@ You can also download the latest DMG manually from [GitHub Releases](https://git
 ### The Safari extension does not appear
 
 1. Run `./install.sh` again
-2. Open Safari `Settings > Extensions`
-3. If needed, open Safari `Settings > Advanced` and turn on `Show features for web developers`
-4. Open Safari `Settings > Developer` and turn on `Allow unsigned extensions`
-5. Quit and reopen `SWinyDLSafariApp.app` from the copied `SWinyDL` folder, or run `./install.sh` again so it re-registers the extension
-6. If the extension still does not appear, use Safari `Settings > Developer > Add Temporary Extension...` and select `safari/SWinyDLSafariExtension/Resources/WebExtension` from your copied `SWinyDL` folder
+2. Open Safari `Settings > Advanced` and turn on `Show features for web developers`
+3. Open Safari `Settings > Developer` and turn on `Allow unsigned extensions`
+4. Open Safari `Settings > Extensions`
+5. Enable `SWinyDL Safari`
+6. If the extension still does not appear, quit and reopen `SWinyDLSafariApp.app` from the copied `SWinyDL` folder, or run `./install.sh` again so it re-registers the extension
+7. If the extension still does not appear, use Safari `Settings > Developer > Add Temporary Extension...` and select `WebExtension` from your copied `SWinyDL` folder
 
 Do not double-click `SWinyDLSafariExtension.appex`; macOS may warn that it is unsigned, and Safari will not install it directly. The app bundle contains the extension and registers it with Safari when the app opens.
 
@@ -266,7 +292,7 @@ swinydl doctor
 
 ## Technical Fallbacks
 
-If you are comfortable with the command line, you can still:
+If you are comfortable with the command line, the runtime DMG still includes the `swinydl` CLI:
 
 ```bash
 swinydl process COURSE_URL
@@ -274,7 +300,7 @@ swinydl process-manifest /path/to/job.json
 swinydl transcribe /path/to/local/file.mp4
 ```
 
-The older Chrome-guided launcher still exists as a fallback:
+The older Chrome-guided launcher is a developer/source-checkout fallback only. It is not included in the runtime DMG:
 
 ```bash
 uv run app.py
@@ -282,6 +308,6 @@ uv run app.py
 
 ## More Detail
 
-If you want the lower-level technical notes, commands, and model details, see:
+If you want source-build instructions, lower-level technical notes, commands, and model details, see the GitHub repository:
 - [docs/index.md](docs/index.md)
 - [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)

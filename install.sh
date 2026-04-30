@@ -231,7 +231,7 @@ EOF
 Error: This folder does not contain a prebuilt SWinyDLSafariApp.app.
 
 Normal install:
-  Download SWinyDL-v4.0.0.dmg from GitHub Releases, open it, drag the SWinyDL
+  Download the latest SWinyDL-vX.Y.Z.dmg from GitHub Releases, open it, drag the SWinyDL
   folder out of the DMG, then run ./install.sh from that copied folder.
 
 Developer source build:

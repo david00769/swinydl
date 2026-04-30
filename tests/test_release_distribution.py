@@ -37,6 +37,8 @@ class ReleaseDistributionTests(unittest.TestCase):
         self.assertIn("speaker-diarizer-coreml-runner", script)
         self.assertIn("docs/release-install.md", script)
         self.assertIn("WebExtension", script)
+        self.assertIn("SWinyDL-WebExtension.zip", script)
+        self.assertIn("/usr/bin/zip", script)
         self.assertIn("for dir in swinydl vendor", script)
         self.assertIn("pyproject.toml", script)
         self.assertIn("uv.lock", script)

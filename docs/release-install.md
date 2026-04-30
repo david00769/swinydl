@@ -9,6 +9,7 @@ It contains only the runtime install:
 - prebuilt CoreML runner binaries in `bin/`
 - model/runtime assets
 - `WebExtension`, used only for Safari's temporary-extension fallback
+- `SWinyDL-WebExtension.zip`, the same temporary-extension files packaged as a selectable zip
 - this install guide and license notices
 
 Build instructions and source-build files live on GitHub:
@@ -62,7 +63,13 @@ Temporary fallback:
 
 1. Open Safari `Settings > Developer`.
 2. Click `Add Temporary Extension...`.
-3. Select the `WebExtension` folder in this copied `SWinyDL` folder.
+3. In the file picker, go to this copied `SWinyDL` folder.
+4. Select the `WebExtension` folder, but do not open it.
+5. Click `Select`.
+
+If Safari will not let you select that folder, select `SWinyDL-WebExtension.zip` from the same copied `SWinyDL` folder instead.
+
+Do not select `SWinyDLSafariApp.app`, `SWinyDLSafariExtension.appex`, or `manifest.json`. Safari wants the folder or zip file that contains `manifest.json`.
 
 Safari removes temporary extensions after 24 hours or when Safari quits, so repeat that step after each Safari restart if you use the fallback.
 

@@ -86,6 +86,10 @@ done
 
 ditto docs/release-install.md "$STAGE_ROOT/README.md"
 ditto safari/SWinyDLSafariExtension/Resources/WebExtension "$STAGE_ROOT/WebExtension"
+(
+  cd "$STAGE_ROOT"
+  /usr/bin/zip -qry SWinyDL-WebExtension.zip WebExtension
+)
 
 for dir in swinydl vendor; do
   [ -d "$dir" ] && rsync -a \

@@ -40,10 +40,11 @@ After that:
 2. Open Safari `Settings > Developer` and turn on `Allow unsigned extensions`
 3. Open Safari `Settings > Extensions` and enable `SWinyDL Safari`
 4. If it still does not appear, quit and reopen `SWinyDLSafariApp.app` from the copied `SWinyDL` folder, or run `./install.sh` again
-5. If needed, use Safari `Settings > Developer > Add Temporary Extension...` and select `WebExtension` from the copied `SWinyDL` folder
-6. If you want to verify the extension is registered, run `pluginkit -mAvvv -p com.apple.Safari.web-extension | rg SWinyDL`
-7. Open a logged-in Canvas or Echo360 page in Safari
-8. Use the extension popup to load the course, choose whether downloaded media should be deleted after transcription, and launch a manifest-driven backend job into the native wrapper app window
+5. If needed, use Safari `Settings > Developer > Add Temporary Extension...`, select the `WebExtension` folder from the copied `SWinyDL` folder without opening it, and click `Select`
+6. If the picker will not let you select that folder, select `SWinyDL-WebExtension.zip` from the same copied `SWinyDL` folder instead
+7. If you want to verify the extension is registered, run `pluginkit -mAvvv -p com.apple.Safari.web-extension | rg SWinyDL`
+8. Open a logged-in Canvas or Echo360 page in Safari
+9. Use the extension popup to load the course, choose whether downloaded media should be deleted after transcription, and launch a manifest-driven backend job into the native wrapper app window
 
 Do not double-click `SWinyDLSafariExtension.appex`. Safari discovers the extension through the containing `SWinyDLSafariApp.app`; `./install.sh` also re-registers that containing app and extension with macOS.
 

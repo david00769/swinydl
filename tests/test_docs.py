@@ -13,6 +13,7 @@ class DocumentationTests(unittest.TestCase):
         for contents in (readme, docs_index):
             self.assertIn("Add Temporary Extension", contents)
             self.assertIn("WebExtension", contents)
+            self.assertIn("SWinyDL-WebExtension.zip", contents)
             self.assertIn("Safari removes temporary extensions", contents)
             self.assertIn("Allow unsigned extensions", contents)
 

@@ -93,6 +93,7 @@ The DMG is intentionally runtime-only. It includes:
 - prebuilt CoreML runner binaries in `bin/`
 - model/runtime assets in `vendor/`
 - `WebExtension` for Safari's temporary-extension fallback
+- `SWinyDL-WebExtension.zip`, which contains the same temporary-extension files
 - license notices and a short runtime install guide
 
 The DMG does not include:
@@ -187,13 +188,23 @@ Temporary extension fallback:
 1. Open Safari `Settings > Developer`
 2. Turn on `Allow unsigned extensions`
 3. Click `Add Temporary Extension...`
-4. Select this folder inside your copied `SWinyDL` folder:
+4. In the file picker, go to your copied `SWinyDL` folder
+5. Select this folder, but do not open it:
 
 ```text
 WebExtension
 ```
 
-5. Enable the temporary `SWinyDL Safari` extension in Safari `Settings > Extensions`
+6. Click `Select`
+7. Enable the temporary `SWinyDL Safari` extension in Safari `Settings > Extensions`
+
+If you cannot select the `WebExtension` folder, select this zip file in the same copied `SWinyDL` folder instead:
+
+```text
+SWinyDL-WebExtension.zip
+```
+
+Do not select `SWinyDLSafariApp.app`, `SWinyDLSafariExtension.appex`, or `manifest.json` for this temporary-extension fallback. Safari wants the folder or zip file that contains `manifest.json`.
 
 Safari removes temporary extensions after 24 hours or when you quit Safari. If you use this fallback, repeat the `Add Temporary Extension...` step after every Safari restart.
 
@@ -244,7 +255,8 @@ You can also download the latest DMG manually from [GitHub Releases](https://git
 4. Open Safari `Settings > Extensions`
 5. Enable `SWinyDL Safari`
 6. If the extension still does not appear, quit and reopen `SWinyDLSafariApp.app` from the copied `SWinyDL` folder, or run `./install.sh` again so it re-registers the extension
-7. If the extension still does not appear, use Safari `Settings > Developer > Add Temporary Extension...` and select `WebExtension` from your copied `SWinyDL` folder
+7. If the extension still does not appear, use Safari `Settings > Developer > Add Temporary Extension...` and select the `WebExtension` folder from your copied `SWinyDL` folder without opening it
+8. If the file picker will not let you select that folder, select `SWinyDL-WebExtension.zip` from the same copied `SWinyDL` folder
 
 Do not double-click `SWinyDLSafariExtension.appex`; macOS may warn that it is unsigned, and Safari will not install it directly. The app bundle contains the extension and registers it with Safari when the app opens.
 

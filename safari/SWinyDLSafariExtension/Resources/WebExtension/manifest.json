@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "SWinyDL Safari",
-  "version": "4.0.3",
+  "version": "4.0.4",
   "description": "Safari-first course selection and transcript launch flow for SWinyDL.",
   "permissions": [
     "activeTab",

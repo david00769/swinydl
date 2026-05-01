@@ -1,6 +1,21 @@
 import SwiftUI
 import SafariServices
 
+private enum AppTheme {
+    static let background = Color(red: 0.965, green: 0.976, blue: 0.984)
+    static let panel = Color.white
+    static let panelBorder = Color(red: 0.875, green: 0.905, blue: 0.93)
+    static let primaryText = Color(red: 0.10, green: 0.16, blue: 0.21)
+    static let secondaryText = Color(red: 0.34, green: 0.43, blue: 0.52)
+    static let mutedText = Color(red: 0.48, green: 0.56, blue: 0.63)
+    static let accent = Color(red: 0.06, green: 0.46, blue: 0.43)
+    static let success = Color(red: 0.10, green: 0.48, blue: 0.27)
+    static let warning = Color(red: 0.70, green: 0.32, blue: 0.04)
+    static let danger = Color(red: 0.70, green: 0.16, blue: 0.16)
+    static let neutral = Color(red: 0.34, green: 0.42, blue: 0.48)
+    static let blue = Color(red: 0.20, green: 0.42, blue: 0.66)
+}
+
 @main
 struct SWinyDLSafariApp: App {
     @StateObject private var store = JobStore()
@@ -31,7 +46,7 @@ private struct ContentView: View {
 
     var body: some View {
         ZStack {
-            Color(red: 0.95, green: 0.96, blue: 0.97)
+            AppTheme.background
                 .ignoresSafeArea()
 
             VStack(spacing: 0) {
@@ -58,10 +73,13 @@ private struct ContentView: View {
                         .padding(.horizontal, 22)
                         .padding(.vertical, 18)
                     }
-                    inspectorPanel
-                        .frame(width: 300)
-                        .padding(.trailing, 22)
-                        .padding(.top, 18)
+                    ScrollView {
+                        inspectorPanel
+                            .padding(.vertical, 18)
+                    }
+                    .frame(width: 300)
+                    .scrollIndicators(.visible)
+                    .padding(.trailing, 22)
                 }
             }
         }
@@ -97,10 +115,10 @@ private struct ContentView: View {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("SWinyDL Safari")
                         .font(.system(size: 24, weight: .bold, design: .rounded))
-                        .foregroundStyle(Color(red: 0.10, green: 0.16, blue: 0.21))
+                        .foregroundStyle(AppTheme.primaryText)
                     Text("Open a logged-in Canvas or Echo360 page in Safari, then launch jobs from the extension.")
                         .font(.subheadline)
-                        .foregroundStyle(Color(red: 0.40, green: 0.47, blue: 0.53))
+                        .foregroundStyle(AppTheme.secondaryText)
                 }
                 Spacer()
                 HStack(spacing: 8) {
@@ -109,7 +127,7 @@ private struct ContentView: View {
                     ToolbarPill(
                         title: store.modelReadiness.ready ? "Models ready" : "Models missing",
                         systemImage: store.modelReadiness.ready ? "checkmark.circle.fill" : "shippingbox.fill",
-                        tint: store.modelReadiness.ready ? Color(red: 0.16, green: 0.56, blue: 0.31) : Color(red: 0.84, green: 0.51, blue: 0.12)
+                        tint: store.modelReadiness.ready ? AppTheme.success : AppTheme.warning
                     )
                 }
             }
@@ -139,22 +157,22 @@ private struct ContentView: View {
     }
 
     private var jobsSection: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 14) {
             HStack {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Activity")
                         .font(.title2.weight(.bold))
-                        .foregroundStyle(Color(red: 0.12, green: 0.18, blue: 0.24))
+                        .foregroundStyle(AppTheme.primaryText)
                     Text("Watch active runs, open transcripts, and inspect failures or retained media.")
-                        .foregroundStyle(Color(red: 0.40, green: 0.47, blue: 0.53))
+                        .foregroundStyle(AppTheme.secondaryText)
                 }
                 Spacer()
                 Text("\(store.jobs.count) total")
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Color(red: 0.40, green: 0.47, blue: 0.53))
+                    .foregroundStyle(AppTheme.secondaryText)
             }
 
-            LazyVStack(spacing: 10) {
+            LazyVStack(spacing: 8) {
                 ForEach(store.jobs) { job in
                     JobCard(job: job)
                 }
@@ -163,11 +181,17 @@ private struct ContentView: View {
     }
 
     private var inspectorPanel: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            DashboardCard(padding: 16, cornerRadius: 18) {
+        VStack(alignment: .leading, spacing: 12) {
+            if !store.modelReadiness.ready {
+                readinessPanel(emphasized: true)
+            }
+
+            DashboardCard(padding: 14, cornerRadius: 12) {
                 VStack(alignment: .leading, spacing: 12) {
                     Text("Workspace")
-                        .font(.headline)
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(AppTheme.mutedText)
+                        .textCase(.uppercase)
                     InspectorActionRow(title: "Refresh Jobs", systemImage: "arrow.clockwise") {
                         store.refresh()
                     }
@@ -189,22 +213,16 @@ private struct ContentView: View {
                 }
             }
 
-            DashboardCard(padding: 16, cornerRadius: 18) {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("Readiness")
-                        .font(.headline)
-                    ReadinessRow(title: "Parakeet ASR", ready: store.modelReadiness.parakeetReady)
-                    ReadinessRow(title: "Speaker diarizer", ready: store.modelReadiness.diarizerReady)
-                    Text(store.modelReadiness.summary)
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
-                }
+            if store.modelReadiness.ready {
+                readinessPanel(emphasized: false)
             }
 
-            DashboardCard(padding: 16, cornerRadius: 18) {
+            DashboardCard(padding: 14, cornerRadius: 12) {
                 VStack(alignment: .leading, spacing: 10) {
                     Text("Defaults")
-                        .font(.headline)
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(AppTheme.mutedText)
+                        .textCase(.uppercase)
                     InfoRow(title: "Primary output", value: ".txt")
                     InfoRow(title: "Also written", value: ".srt, .json")
                     InfoRow(title: "Speaker separation", value: "On by default")
@@ -212,19 +230,53 @@ private struct ContentView: View {
                 }
             }
 
-            DashboardCard(padding: 16, cornerRadius: 18) {
-                VStack(alignment: .leading, spacing: 10) {
+            DashboardCard(padding: 14, cornerRadius: 12) {
+                VStack(alignment: .leading, spacing: 8) {
                     Text("How to start")
-                        .font(.headline)
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(AppTheme.mutedText)
+                        .textCase(.uppercase)
                     Text("1. Enable the SWinyDL Safari extension.")
                     Text("2. Open a logged-in Canvas or Echo360 page.")
                     Text("3. Select lessons in the popup and launch the run.")
                 }
                 .font(.subheadline)
-                .foregroundStyle(Color(red: 0.16, green: 0.22, blue: 0.28))
+                .foregroundStyle(AppTheme.primaryText)
             }
-            Spacer(minLength: 0)
         }
+    }
+
+    private func readinessPanel(emphasized: Bool) -> some View {
+        DashboardCard(padding: 14, cornerRadius: 12) {
+            VStack(alignment: .leading, spacing: 10) {
+                HStack {
+                    Text("Readiness")
+                        .font(.caption.weight(.bold))
+                        .foregroundStyle(AppTheme.mutedText)
+                        .textCase(.uppercase)
+                    Spacer()
+                    StatusBadge(status: store.modelReadiness.ready ? "success" : "failed", compact: true)
+                }
+                ReadinessRow(title: "Parakeet ASR", ready: store.modelReadiness.parakeetReady)
+                ReadinessRow(title: "Speaker diarizer", ready: store.modelReadiness.diarizerReady)
+                if !store.modelReadiness.ready {
+                    InlineMessage(
+                        icon: "shippingbox.fill",
+                        text: store.modelReadiness.summary,
+                        tint: AppTheme.warning,
+                        compact: true
+                    )
+                } else {
+                    Text(store.modelReadiness.summary)
+                        .font(.caption)
+                        .foregroundStyle(AppTheme.secondaryText)
+                }
+            }
+        }
+        .overlay(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .stroke(emphasized ? AppTheme.warning.opacity(0.30) : Color.clear, lineWidth: 1)
+        )
     }
 
     private func openSafariExtensionPreferences() {
@@ -276,7 +328,7 @@ private struct ContentView: View {
                 AppBanner(
                     icon: "safari",
                     text: "No Safari-launched jobs yet. Enable the SWinyDL extension, open a logged-in Canvas or Echo360 page, and queue a run from the popup.",
-                    tint: Color(red: 0.17, green: 0.45, blue: 0.42)
+                    tint: AppTheme.accent
                 )
             )
         }
@@ -285,7 +337,7 @@ private struct ContentView: View {
                 AppBanner(
                     icon: "shippingbox",
                     text: store.modelReadiness.summary,
-                    tint: Color(red: 0.84, green: 0.51, blue: 0.12)
+                    tint: AppTheme.warning
                 )
             )
         }
@@ -306,7 +358,7 @@ private struct ContentView: View {
                 AppBanner(
                     icon: "shippingbox",
                     text: "Required local CoreML model artifacts are missing. Run `swinydl bootstrap-models` and retry the failed lessons.",
-                    tint: Color(red: 0.84, green: 0.51, blue: 0.12)
+                    tint: AppTheme.warning
                 )
             )
         }
@@ -375,13 +427,13 @@ private struct JobCard: View {
     let job: JobEnvelope
 
     var body: some View {
-        DashboardCard(padding: expanded ? 16 : 13, cornerRadius: 20) {
-            VStack(alignment: .leading, spacing: expanded ? 10 : 8) {
+        DashboardCard(padding: expanded ? 14 : 12, cornerRadius: 12) {
+            VStack(alignment: .leading, spacing: expanded ? 10 : 7) {
                 HStack(alignment: .top, spacing: 10) {
                     VStack(alignment: .leading, spacing: 6) {
                         Text(job.status?.courseTitle ?? job.manifestURL.lastPathComponent)
-                            .font(.headline.weight(.semibold))
-                            .foregroundStyle(Color(red: 0.11, green: 0.17, blue: 0.22))
+                            .font(.subheadline.weight(.semibold))
+                            .foregroundStyle(AppTheme.primaryText)
                             .lineLimit(1)
                         HStack(spacing: 7) {
                             StatusBadge(status: job.status?.overallStatus ?? SWinyDLBridge.pendingStatus)
@@ -422,13 +474,14 @@ private struct JobCard: View {
                 }
 
                 if let status = job.status {
-                    VStack(alignment: .leading, spacing: 6) {
+                    VStack(alignment: .leading, spacing: 5) {
                         HStack(alignment: .firstTextBaseline, spacing: 8) {
                             Text(summaryLabel(for: status))
-                                .font(.subheadline.weight(.medium))
+                                .font(.caption.weight(.medium))
+                                .foregroundStyle(AppTheme.secondaryText)
                                 .lineLimit(1)
                             Text(progressLabel(for: status))
-                                .font(.subheadline.weight(.semibold))
+                                .font(.caption.weight(.bold))
                                 .foregroundStyle(color(for: status.overallStatus))
                             Spacer()
                             if let updatedAt = status.updatedAt, !updatedAt.isEmpty {
@@ -444,7 +497,7 @@ private struct JobCard: View {
                         if let compactStatusLine = compactStatusLine(for: status) {
                             Text(compactStatusLine)
                                 .font(.caption)
-                                .foregroundStyle(Color(red: 0.40, green: 0.47, blue: 0.53))
+                                .foregroundStyle(AppTheme.secondaryText)
                                 .lineLimit(expanded ? 2 : 1)
                         }
                     }
@@ -455,13 +508,13 @@ private struct JobCard: View {
                         InlineMessage(
                             icon: "checkmark.circle.fill",
                             text: completionMessage(for: status),
-                            tint: Color(red: 0.16, green: 0.56, blue: 0.31),
+                            tint: AppTheme.success,
                             compact: true
                         )
                     }
 
                     if expanded {
-                        DashboardCard(padding: 14, cornerRadius: 18) {
+                        DetailPanel {
                             VStack(alignment: .leading, spacing: 8) {
                                 Text("Run Settings")
                                     .font(.subheadline.weight(.semibold))
@@ -476,7 +529,7 @@ private struct JobCard: View {
                             }
                         }
 
-                        DashboardCard(padding: 14, cornerRadius: 18) {
+                        DetailPanel {
                             VStack(alignment: .leading, spacing: 8) {
                                 Text("What Was Produced")
                                     .font(.subheadline.weight(.semibold))
@@ -503,7 +556,7 @@ private struct JobCard: View {
                         }
 
                         if !status.events.isEmpty {
-                            DashboardCard(padding: 14, cornerRadius: 18) {
+                            DetailPanel {
                                 VStack(alignment: .leading, spacing: 8) {
                                     Text("Recent Activity")
                                         .font(.subheadline.weight(.semibold))
@@ -525,29 +578,38 @@ private struct JobCard: View {
                         }
                     }
                 } else {
-                    InlineMessage(icon: "clock.badge", text: "Queued. Waiting for the native wrapper to launch the backend.", tint: .orange, compact: true)
+                    InlineMessage(icon: "clock.badge", text: "Queued. Waiting for the native wrapper to launch the backend.", tint: AppTheme.warning, compact: true)
                 }
             }
         }
         .overlay(alignment: .leading) {
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .fill(color(for: job.status?.overallStatus ?? SWinyDLBridge.pendingStatus))
-                .frame(width: 6)
-                .padding(.vertical, 12)
-                .padding(.leading, 8)
+                .frame(width: statusStripeWidth)
+                .padding(.vertical, 10)
+                .padding(.leading, 7)
         }
     }
 
     private func color(for status: String) -> Color {
         switch status {
         case "success":
-            return Color(red: 0.16, green: 0.56, blue: 0.31)
+            return AppTheme.success
         case "failed":
-            return Color(red: 0.77, green: 0.22, blue: 0.22)
+            return AppTheme.danger
         case "running", "launching":
-            return Color(red: 0.84, green: 0.51, blue: 0.12)
+            return AppTheme.warning
         default:
-            return Color(red: 0.34, green: 0.42, blue: 0.48)
+            return AppTheme.neutral
+        }
+    }
+
+    private var statusStripeWidth: CGFloat {
+        switch job.status?.overallStatus ?? SWinyDLBridge.pendingStatus {
+        case "failed", "running", "launching", "success":
+            return 4
+        default:
+            return 0
         }
     }
 
@@ -755,12 +817,12 @@ private struct LessonStatusCard: View {
         }
         .padding(12)
         .background(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(Color.white.opacity(0.92))
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .fill(AppTheme.background)
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(Color.black.opacity(0.05), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(AppTheme.panelBorder, lineWidth: 1)
         )
     }
 
@@ -806,7 +868,7 @@ private struct LessonStatusCard: View {
 
 private struct DashboardCard<Content: View>: View {
     var padding: CGFloat = 20
-    var cornerRadius: CGFloat = 22
+    var cornerRadius: CGFloat = 12
     @ViewBuilder let content: Content
 
     var body: some View {
@@ -815,13 +877,31 @@ private struct DashboardCard<Content: View>: View {
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .fill(Color.white.opacity(0.96))
+                    .fill(AppTheme.panel)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                    .stroke(Color.white.opacity(0.95), lineWidth: 1)
+                    .stroke(AppTheme.panelBorder, lineWidth: 1)
             )
-            .shadow(color: Color(red: 0.16, green: 0.24, blue: 0.24).opacity(0.08), radius: 18, x: 0, y: 10)
+            .shadow(color: Color.black.opacity(0.035), radius: 8, x: 0, y: 3)
+    }
+}
+
+private struct DetailPanel<Content: View>: View {
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        content
+            .padding(12)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(AppTheme.background)
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .stroke(AppTheme.panelBorder, lineWidth: 1)
+            )
     }
 }
 
@@ -841,7 +921,7 @@ private struct CompactActionCard: View {
                     .background(tint.opacity(0.12), in: RoundedRectangle(cornerRadius: 11, style: .continuous))
                 Text(title)
                     .font(.subheadline.weight(.semibold))
-                    .foregroundStyle(Color(red: 0.11, green: 0.17, blue: 0.22))
+                    .foregroundStyle(AppTheme.primaryText)
                 Spacer()
             }
             .padding(.horizontal, 16)
@@ -877,14 +957,14 @@ private struct MetaPill: View {
     var body: some View {
         HStack(spacing: 6) {
             Text(title)
-                .foregroundStyle(Color(red: 0.41, green: 0.48, blue: 0.53))
+                .foregroundStyle(AppTheme.mutedText)
             Text(value)
-                .foregroundStyle(Color(red: 0.12, green: 0.18, blue: 0.24))
+                .foregroundStyle(AppTheme.primaryText)
         }
         .font(.caption.weight(.semibold))
         .padding(.horizontal, 10)
         .padding(.vertical, 7)
-        .background(Color(red: 0.93, green: 0.96, blue: 0.97), in: Capsule())
+        .background(AppTheme.background, in: Capsule())
     }
 }
 
@@ -937,15 +1017,15 @@ private struct StatusBadge: View {
     private var color: Color {
         switch status {
         case "success":
-            return Color(red: 0.16, green: 0.56, blue: 0.31)
+            return AppTheme.success
         case "skipped":
-            return Color(red: 0.24, green: 0.45, blue: 0.70)
+            return AppTheme.blue
         case "failed":
-            return Color(red: 0.77, green: 0.22, blue: 0.22)
+            return AppTheme.danger
         case "running", "launching", "retry_requested":
-            return Color(red: 0.84, green: 0.51, blue: 0.12)
+            return AppTheme.warning
         default:
-            return Color(red: 0.34, green: 0.42, blue: 0.48)
+            return AppTheme.neutral
         }
     }
 }
@@ -969,6 +1049,7 @@ private struct PrimaryActionButton: View {
 }
 
 private struct SecondaryActionButton: View {
+    @Environment(\.isEnabled) private var isEnabled
     let title: String
     let systemImage: String
     var compact: Bool = false
@@ -980,10 +1061,15 @@ private struct SecondaryActionButton: View {
                 .font((compact ? Font.caption : Font.subheadline).weight(.semibold))
                 .padding(.horizontal, compact ? 10 : 14)
                 .padding(.vertical, compact ? 6 : 9)
-                .background(Color.white.opacity(0.88), in: Capsule())
-                .foregroundStyle(Color(red: 0.12, green: 0.19, blue: 0.25))
+                .background(isEnabled ? Color.white : AppTheme.background, in: Capsule())
+                .foregroundStyle(isEnabled ? AppTheme.primaryText : AppTheme.mutedText.opacity(0.75))
+                .overlay(
+                    Capsule()
+                        .stroke(isEnabled ? AppTheme.panelBorder : Color.clear, lineWidth: 1)
+                )
         }
         .buttonStyle(.plain)
+        .opacity(isEnabled ? 1.0 : 0.55)
     }
 }
 
@@ -997,12 +1083,27 @@ private struct InlineMessage: View {
         HStack(alignment: .top, spacing: 8) {
             Image(systemName: icon)
                 .foregroundStyle(tint)
+                .frame(width: 16)
             Text(text)
                 .font(compact ? .caption : .subheadline)
-                .foregroundStyle(.secondary)
+                .fontWeight(compact ? .medium : .regular)
+                .foregroundStyle(messageTextColor)
+                .fixedSize(horizontal: false, vertical: true)
         }
         .padding(compact ? 10 : 12)
-        .background(tint.opacity(0.08), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .background(messageBackgroundColor, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 10, style: .continuous)
+                .stroke(tint.opacity(0.20), lineWidth: 1)
+        )
+    }
+
+    private var messageBackgroundColor: Color {
+        tint.opacity(0.10)
+    }
+
+    private var messageTextColor: Color {
+        tint
     }
 }
 
@@ -1022,14 +1123,14 @@ private struct FileChip: View {
 
     private var backgroundColor: Color {
         emphasized
-            ? Color(red: 0.16, green: 0.56, blue: 0.31).opacity(0.14)
-            : Color(red: 0.93, green: 0.95, blue: 0.97)
+            ? AppTheme.success.opacity(0.14)
+            : AppTheme.background
     }
 
     private var foregroundColor: Color {
         emphasized
-            ? Color(red: 0.16, green: 0.46, blue: 0.28)
-            : Color(red: 0.14, green: 0.22, blue: 0.30)
+            ? AppTheme.success
+            : AppTheme.primaryText
     }
 }
 
@@ -1069,13 +1170,13 @@ private struct StageBadge: View {
     private var color: Color {
         switch stage {
         case "done":
-            return Color(red: 0.16, green: 0.56, blue: 0.31)
+            return AppTheme.success
         case "failed":
-            return Color(red: 0.77, green: 0.22, blue: 0.22)
+            return AppTheme.danger
         case "transcribing", "diarizing", "writing_files", "extracting_audio", "downloading":
-            return Color(red: 0.84, green: 0.51, blue: 0.12)
+            return AppTheme.warning
         default:
-            return Color(red: 0.34, green: 0.42, blue: 0.48)
+            return AppTheme.neutral
         }
     }
 }
@@ -1124,7 +1225,7 @@ private struct ActiveRunStrip: View {
                     }
                 }
                 ProgressView(value: Double(status.completedLessons), total: Double(max(status.totalLessons, 1)))
-                    .tint(Color(red: 0.84, green: 0.51, blue: 0.12))
+                    .tint(AppTheme.warning)
                 if let detail = status.detail, !detail.isEmpty {
                     Text(detail)
                         .font(.caption)
@@ -1148,14 +1249,14 @@ private struct ActiveRunStrip: View {
 private struct ToolbarPill: View {
     let title: String
     let systemImage: String
-    var tint: Color = Color(red: 0.22, green: 0.31, blue: 0.37)
+    var tint: Color = AppTheme.neutral
 
     var body: some View {
         Label(title, systemImage: systemImage)
             .font(.caption.weight(.semibold))
             .padding(.horizontal, 10)
             .padding(.vertical, 7)
-            .background(Color.white, in: Capsule())
+            .background(AppTheme.panel, in: Capsule())
             .foregroundStyle(tint)
             .overlay(
                 Capsule()
@@ -1174,7 +1275,7 @@ private struct InspectorActionRow: View {
             HStack(spacing: 10) {
                 Image(systemName: systemImage)
                     .frame(width: 18)
-                    .foregroundStyle(Color(red: 0.17, green: 0.45, blue: 0.42))
+                    .foregroundStyle(AppTheme.accent)
                 Text(title)
                     .font(.subheadline.weight(.semibold))
                 Spacer()
@@ -1182,7 +1283,7 @@ private struct InspectorActionRow: View {
                     .font(.caption.weight(.bold))
                     .foregroundStyle(.secondary)
             }
-            .foregroundStyle(Color(red: 0.12, green: 0.19, blue: 0.25))
+            .foregroundStyle(AppTheme.primaryText)
             .padding(.vertical, 4)
         }
         .buttonStyle(.plain)
@@ -1196,11 +1297,11 @@ private struct ReadinessRow: View {
     var body: some View {
         HStack {
             Text(title)
-                .foregroundStyle(Color(red: 0.16, green: 0.22, blue: 0.28))
+                .foregroundStyle(AppTheme.primaryText)
             Spacer()
             Label(ready ? "Ready" : "Missing", systemImage: ready ? "checkmark.circle.fill" : "shippingbox.fill")
                 .font(.caption.weight(.semibold))
-                .foregroundStyle(ready ? Color(red: 0.16, green: 0.56, blue: 0.31) : Color(red: 0.84, green: 0.51, blue: 0.12))
+                .foregroundStyle(ready ? AppTheme.success : AppTheme.warning)
         }
     }
 }
@@ -1223,7 +1324,7 @@ private struct EmptyStateStep: View {
                 .font(.headline.weight(.bold))
                 .foregroundStyle(.white)
                 .frame(width: 30, height: 30)
-                .background(Color(red: 0.17, green: 0.45, blue: 0.42), in: Circle())
+                .background(AppTheme.accent, in: Circle())
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
                     .font(.headline)
@@ -1242,11 +1343,11 @@ private struct InfoRow: View {
     var body: some View {
         HStack(alignment: .firstTextBaseline) {
             Text(title)
-                .foregroundStyle(Color(red: 0.40, green: 0.46, blue: 0.51))
+                .foregroundStyle(AppTheme.secondaryText)
             Spacer()
             Text(value)
                 .fontWeight(.semibold)
-                .foregroundStyle(Color(red: 0.16, green: 0.22, blue: 0.28))
+                .foregroundStyle(AppTheme.primaryText)
         }
     }
 }

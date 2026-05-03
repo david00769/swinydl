@@ -117,6 +117,48 @@ require_command() {
   command -v "$1" >/dev/null 2>&1 || error_exit "$2 Current PATH: $PATH"
 }
 
+validate_runtime_payload() {
+  missing=""
+  for path in \
+    pyproject.toml \
+    uv.lock \
+    swinydl \
+    swinydl/main.py \
+    swinydl/version.py
+  do
+    if [ ! -e "$REPO_ROOT/$path" ]; then
+      missing="$missing $path"
+    fi
+  done
+
+  if [ "$USE_PREBUILT_APP" -eq 1 ]; then
+    for path in \
+      SWinyDLSafariApp.app \
+      SWinyDLSafariApp.app/Contents/PlugIns/SWinyDLSafariExtension.appex/Contents/Resources/manifest.json \
+      bin/parakeet-coreml-runner \
+      bin/speaker-diarizer-coreml-runner
+    do
+      if [ ! -e "$REPO_ROOT/$path" ]; then
+        missing="$missing $path"
+      fi
+    done
+  fi
+
+  [ -z "$missing" ] && return 0
+
+  cat >&2 <<EOF
+Error: This SWinyDL folder is missing required runtime files:$missing
+
+This usually means the DMG copy or release package is incomplete. Delete this
+copied SWinyDL folder, download the latest SWinyDL DMG from GitHub Releases,
+drag the SWinyDL folder out of the DMG again, then re-run ./install.sh.
+
+The installer stopped before uv sync so you do not get a misleading
+"No module named 'swinydl'" build error.
+EOF
+  exit 1
+}
+
 load_homebrew_shellenv() {
   if command -v brew >/dev/null 2>&1; then
     eval "$(brew shellenv)"
@@ -324,6 +366,7 @@ sign_app_bundle() {
 }
 
 require_prebuilt_or_explicit_build
+validate_runtime_payload
 confirm_continue
 if [ "$USE_PREBUILT_APP" -eq 1 ]; then
   ensure_homebrew_tools uv ffmpeg

@@ -59,6 +59,8 @@ If Homebrew, `uv`, or `ffmpeg` are missing, approve the installer prompts.
 
 If signing fails with `resource fork, Finder information, or similar detritus not allowed`, download the latest release and run `./install.sh` again. Current installers scrub that metadata before signing.
 
+If `./install.sh` says the folder is missing runtime files, or `uv` reports `No module named 'swinydl'`, delete the copied `SWinyDL` folder and download the latest DMG again. A complete runtime folder must include the `swinydl` Python runtime package plus the `bin/` runner binaries.
+
 If macOS blocks the unsigned app after setup, Control-click `SWinyDLSafariApp.app`, choose `Open`, then confirm the warning. Do not open the app from inside the mounted DMG.
 
 The normal release install does not require Xcode, xcodegen, Swift, source code, or local compilation.

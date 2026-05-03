@@ -38,6 +38,8 @@ Terminal fallback is only for cases where the unsigned app will not open or app 
 
 If macOS blocks the unsigned app, Control-click `SWinyDLSafariApp.app`, choose `Open`, and confirm the warning. If macOS says the app is damaged, run `./install.sh` from the copied folder.
 
+If `./install.sh` says the folder is missing runtime files, or `uv` reports `No module named 'swinydl'`, delete the copied `SWinyDL` folder and download the latest DMG again. A complete runtime folder includes the `swinydl` Python runtime package and the `bin/` runner binaries.
+
 After that:
 
 1. Open Safari `Settings > Advanced` and turn on `Show features for web developers`

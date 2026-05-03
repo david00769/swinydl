@@ -471,6 +471,14 @@ private struct SetupRepairLauncher {
                 logDirectoryPath: nil
             )
         }
+        let missingRuntimePayload = SWinyDLRuntime.missingRuntimePayload(in: repoRoot, requirePrebuiltApp: true)
+        if !missingRuntimePayload.isEmpty {
+            return SetupRepairResult(
+                success: false,
+                message: "This SWinyDL folder is incomplete. Missing: \(missingRuntimePayload.joined(separator: ", ")). Download the latest DMG and copy the SWinyDL folder again.",
+                logDirectoryPath: nil
+            )
+        }
 
         let process = Process()
         let logsDir = SWinyDLBridge.logsDirectory()
@@ -549,6 +557,28 @@ private enum SWinyDLRuntime {
         return candidates.first { isInstallRoot($0) }
     }
 
+    static func missingRuntimePayload(in root: URL, requirePrebuiltApp: Bool) -> [String] {
+        var required = [
+            "pyproject.toml",
+            "uv.lock",
+            "install.sh",
+            "swinydl",
+            "swinydl/main.py",
+            "swinydl/version.py",
+        ]
+        if requirePrebuiltApp {
+            required.append(contentsOf: [
+                "SWinyDLSafariApp.app",
+                "SWinyDLSafariApp.app/Contents/PlugIns/SWinyDLSafariExtension.appex/Contents/Resources/manifest.json",
+                "bin/parakeet-coreml-runner",
+                "bin/speaker-diarizer-coreml-runner",
+            ])
+        }
+        return required.filter { relativePath in
+            !FileManager.default.fileExists(atPath: root.appendingPathComponent(relativePath).path)
+        }
+    }
+
     static func pythonPath(bundle: Bundle) -> String {
         if let root = installRoot(bundle: bundle) {
             let venvPython = root.appendingPathComponent(".venv/bin/python")
@@ -575,22 +605,41 @@ private enum SWinyDLRuntime {
 
     private static func installRootCandidates(bundle: Bundle) -> [URL] {
         var candidates: [URL] = []
+        func appendCandidate(_ url: URL) {
+            let standardized = url.standardizedFileURL
+            if !candidates.contains(standardized) {
+                candidates.append(standardized)
+            }
+        }
+
         if let configured = bundle.object(forInfoDictionaryKey: "SWINYDLRepoRoot") as? String,
            !configured.isEmpty {
-            candidates.append(URL(fileURLWithPath: configured, isDirectory: true))
+            appendCandidate(URL(fileURLWithPath: configured, isDirectory: true))
         }
 
         let appParent = bundle.bundleURL.deletingLastPathComponent()
-        candidates.append(appParent)
-        candidates.append(appParent.deletingLastPathComponent())
+        appendCandidate(appParent)
+        appendCandidate(appParent.deletingLastPathComponent())
+
+        let home = FileManager.default.homeDirectoryForCurrentUser
+        for parent in ["Desktop", "Downloads", "Applications"] {
+            for folder in ["SWinyDL", "swinydl"] {
+                appendCandidate(
+                    home
+                        .appendingPathComponent(parent, isDirectory: true)
+                        .appendingPathComponent(folder, isDirectory: true)
+                )
+            }
+        }
         return candidates
     }
 
     private static func isInstallRoot(_ url: URL) -> Bool {
         let fileManager = FileManager.default
         let pyproject = url.appendingPathComponent("pyproject.toml").path
-        let packageDir = url.appendingPathComponent("swinydl", isDirectory: true).path
+        let installer = url.appendingPathComponent("install.sh").path
+        let appBundle = url.appendingPathComponent("SWinyDLSafariApp.app", isDirectory: true).path
         return fileManager.fileExists(atPath: pyproject)
-            && fileManager.fileExists(atPath: packageDir)
+            && (fileManager.fileExists(atPath: installer) || fileManager.fileExists(atPath: appBundle))
     }
 }

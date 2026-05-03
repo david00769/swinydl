@@ -137,15 +137,34 @@ enum SWinyDLBridge {
 
     private static func installRootCandidates(bundle: Bundle) -> [URL] {
         var candidates: [URL] = []
+
+        func appendCandidate(_ url: URL) {
+            let standardized = url.standardizedFileURL
+            if !candidates.contains(standardized) {
+                candidates.append(standardized)
+            }
+        }
+
         if let configured = bundle.object(forInfoDictionaryKey: "SWINYDLRepoRoot") as? String,
            !configured.isEmpty {
-            candidates.append(URL(fileURLWithPath: configured, isDirectory: true))
+            appendCandidate(URL(fileURLWithPath: configured, isDirectory: true))
         }
 
         var current = bundle.bundleURL
         for _ in 0..<6 {
             current = current.deletingLastPathComponent()
-            candidates.append(current)
+            appendCandidate(current)
+        }
+
+        let home = FileManager.default.homeDirectoryForCurrentUser
+        for parent in ["Desktop", "Downloads", "Applications"] {
+            for folder in ["SWinyDL", "swinydl"] {
+                appendCandidate(
+                    home
+                        .appendingPathComponent(parent, isDirectory: true)
+                        .appendingPathComponent(folder, isDirectory: true)
+                )
+            }
         }
         return candidates
     }
@@ -153,9 +172,10 @@ enum SWinyDLBridge {
     private static func isInstallRoot(_ url: URL) -> Bool {
         let fileManager = FileManager.default
         let pyproject = url.appendingPathComponent("pyproject.toml").path
-        let packageDir = url.appendingPathComponent("swinydl", isDirectory: true).path
+        let installer = url.appendingPathComponent("install.sh").path
+        let appBundle = url.appendingPathComponent("SWinyDLSafariApp.app", isDirectory: true).path
         return fileManager.fileExists(atPath: pyproject)
-            && fileManager.fileExists(atPath: packageDir)
+            && (fileManager.fileExists(atPath: installer) || fileManager.fileExists(atPath: appBundle))
     }
 }
 

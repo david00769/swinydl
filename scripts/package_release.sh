@@ -81,9 +81,13 @@ for path in \
   LICENSE \
   THIRD_PARTY_NOTICES.md
 do
-  [ -e "$path" ] && ditto "$path" "$STAGE_ROOT/$path"
+  [ -e "$path" ] || {
+    printf 'Missing required release file: %s\n' "$path" >&2
+    exit 1
+  }
+  ditto "$path" "$STAGE_ROOT/$path"
 done
-[ -f "$STAGE_ROOT/install.sh" ] && chmod +x "$STAGE_ROOT/install.sh"
+chmod +x "$STAGE_ROOT/install.sh"
 
 ditto docs/release-install.md "$STAGE_ROOT/README.md"
 ditto docs/user-guide.md "$STAGE_ROOT/USER-GUIDE.md"
@@ -93,14 +97,62 @@ ditto safari/SWinyDLSafariExtension/Resources/WebExtension "$STAGE_ROOT/WebExten
   /usr/bin/zip -qry SWinyDL-WebExtension.zip WebExtension
 )
 
-for dir in swinydl vendor; do
-  [ -d "$dir" ] && rsync -a \
+for dir in swinydl; do
+  [ -d "$dir" ] || {
+    printf 'Missing required runtime directory: %s\n' "$dir" >&2
+    exit 1
+  }
+  rsync -a \
     --exclude '.cache/' \
     --exclude '__pycache__/' \
     "$dir" "$STAGE_ROOT/"
 done
+if [ -d vendor ]; then
+  rsync -a \
+    --exclude '.cache/' \
+    --exclude '__pycache__/' \
+    vendor "$STAGE_ROOT/"
+else
+  mkdir -p "$STAGE_ROOT/vendor"
+fi
 
 /usr/bin/xattr -cr "$STAGE_ROOT" 2>/dev/null || true
+
+REQUIRED_PAYLOAD_PATHS=(
+  "SWinyDLSafariApp.app"
+  "SWinyDLSafariApp.app/Contents/PlugIns/SWinyDLSafariExtension.appex/Contents/Resources/manifest.json"
+  "install.sh"
+  "pyproject.toml"
+  "uv.lock"
+  "README.md"
+  "USER-GUIDE.md"
+  "WebExtension/manifest.json"
+  "SWinyDL-WebExtension.zip"
+  "bin/parakeet-coreml-runner"
+  "bin/speaker-diarizer-coreml-runner"
+  "swinydl"
+  "swinydl/main.py"
+  "swinydl/version.py"
+  "vendor"
+)
+for required_path in "${REQUIRED_PAYLOAD_PATHS[@]}"; do
+  if [ ! -e "$STAGE_ROOT/$required_path" ]; then
+    printf 'Release package is missing required payload: %s\n' "$required_path" >&2
+    exit 1
+  fi
+done
+[ -x "$STAGE_ROOT/install.sh" ] || {
+  printf 'Release install.sh is not executable.\n' >&2
+  exit 1
+}
+[ -x "$STAGE_ROOT/bin/parakeet-coreml-runner" ] || {
+  printf 'Release parakeet runner is not executable.\n' >&2
+  exit 1
+}
+[ -x "$STAGE_ROOT/bin/speaker-diarizer-coreml-runner" ] || {
+  printf 'Release speaker diarizer runner is not executable.\n' >&2
+  exit 1
+}
 
 UNEXPECTED_ZIP="$(find "$STAGE_ROOT" -type f -name '*.zip' ! -name 'SWinyDL-WebExtension.zip' -print -quit)"
 if [ -n "$UNEXPECTED_ZIP" ]; then

@@ -329,6 +329,10 @@ Make sure you copied the `SWinyDL` folder out of the DMG, then run:
 
 The installer locally signs the bundled app, clears downloaded-file quarantine, then opens it. Do not run the app directly from inside the mounted DMG.
 
+### Installer says runtime files are missing
+
+If `./install.sh` says the folder is missing runtime files, or `uv` reports `No module named 'swinydl'`, delete the copied `SWinyDL` folder and download the latest DMG again. A complete runtime folder includes the `swinydl` Python runtime package and the `bin/` runner binaries.
+
 ### Signing fails with resource fork or Finder information
 
 If `./install.sh` fails with `resource fork, Finder information, or similar detritus not allowed`, download the latest release and run `./install.sh` again. Current installers scrub that metadata before signing.

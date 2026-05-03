@@ -35,8 +35,11 @@ final class SafariWebExtensionHandler: NSObject, NSExtensionRequestHandling {
     }
 
     private func launchJob(payload: [String: Any]) throws -> [String: Any] {
-        guard let manifestPayload = payload["manifest"] as? [String: Any] else {
+        guard var manifestPayload = payload["manifest"] as? [String: Any] else {
             return ["ok": false, "error": "Missing manifest payload."]
+        }
+        if (manifestPayload["output_root"] as? String)?.isEmpty != false {
+            manifestPayload["output_root"] = SWinyDLBridge.savedOutputRoot(bundle: .main).path
         }
         let jobID = UUID().uuidString.lowercased()
         let manifestsDir = SWinyDLBridge.manifestsDirectory()
@@ -80,12 +83,17 @@ final class SafariWebExtensionHandler: NSObject, NSExtensionRequestHandling {
         let statusData = try JSONEncoder.bridgeEncoder().encode(initialStatus)
         try statusData.write(to: statusURL, options: .atomic)
 
-        let appOpened = launchHostApplication()
+        let appLaunch = launchHostApplication()
 
         return [
             "ok": true,
             "jobId": jobID,
-            "appOpened": appOpened,
+            "appOpened": appLaunch.succeeded,
+            "app_launch": [
+                "attempted": true,
+                "succeeded": appLaunch.succeeded,
+                "error": appLaunch.error.map { $0 as Any } ?? NSNull(),
+            ],
             "manifestPath": manifestURL.path,
             "statusPath": statusURL.path,
         ]
@@ -116,24 +124,42 @@ final class SafariWebExtensionHandler: NSObject, NSExtensionRequestHandling {
     }
 
     private func openApp() -> [String: Any] {
-        if launchHostApplication() {
+        let appLaunch = launchHostApplication()
+        if appLaunch.succeeded {
             return ["ok": true]
         }
         return [
             "ok": false,
-            "error": "Safari could not find the SWinyDL app. Open SWinyDL and run Repair Setup, or run ./install.sh from the copied SWinyDL folder, then try Open App again."
+            "error": appLaunch.error ?? "Safari could not find the SWinyDL app. Open SWinyDL and run Repair Setup, or run ./install.sh from the copied SWinyDL folder, then try Open App again."
         ]
     }
 
-    private func launchHostApplication() -> Bool {
+    private func launchHostApplication() -> (succeeded: Bool, error: String?) {
         guard let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.davidsiroky.swinydl.SafariApp") else {
-            return false
+            return (
+                false,
+                "Safari could not find the SWinyDL app. Open SWinyDL and run Repair Setup, or run ./install.sh from the copied SWinyDL folder, then try Open App again."
+            )
         }
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.activates = true
-        NSWorkspace.shared.openApplication(at: appURL, configuration: configuration) { _, _ in
+        let semaphore = DispatchSemaphore(value: 0)
+        var succeeded = false
+        var errorMessage: String?
+        NSWorkspace.shared.openApplication(at: appURL, configuration: configuration) { app, error in
+            if let error {
+                errorMessage = "Safari queued the job but macOS could not open SWinyDL: \(error.localizedDescription)"
+            } else if app == nil {
+                errorMessage = "Safari queued the job but macOS did not confirm SWinyDL opened."
+            } else {
+                succeeded = true
+            }
+            semaphore.signal()
         }
-        return true
+        if semaphore.wait(timeout: .now() + 3.0) == .timedOut {
+            return (false, "Safari queued the job but could not confirm SWinyDL opened. Click Open App.")
+        }
+        return (succeeded, errorMessage)
     }
 
     private func extractSelectedLessons(from manifestPayload: [String: Any]) -> [JobLessonStatus] {

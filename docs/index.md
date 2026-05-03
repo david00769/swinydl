@@ -51,13 +51,13 @@ After that:
 9. Use `Open App` in the extension popup to bring the native wrapper window forward
 10. Use the extension popup to load the course, choose whether downloaded media should be deleted after transcription, and launch a manifest-driven backend job into the native wrapper app window
 
-The normal first-transcript flow is documented in [docs/user-guide.md](user-guide.md). In short: open the app, run `Repair Setup` if needed, allow the macOS app-data prompt if Safari handoff needs attention, use `Open Logs` if repair fails, open a logged-in Canvas or EchoVideo page, use the Safari popup's `Reload`, `Check All`, `Uncheck All`, `Transcribe`, and `Download + Transcribe` controls, then open finished `.txt` transcripts from the app.
+The normal first-transcript flow is documented in [docs/user-guide.md](user-guide.md). In short: open the app, run `Repair Setup` if needed, allow the macOS app-data prompt if Safari handoff needs attention, use `Open Logs` if repair fails, open a logged-in Canvas or EchoVideo page, use the Safari popup's `Reload`, `Check All`, `Uncheck All`, `Transcribe`, and `Download + Transcribe` controls, then watch the persistent popup handoff: `Queued for transcription. Progress appears in SWinyDL.` If the app does not open, the popup says `Queued, but SWinyDL did not open. Click Open App.`
 
 Do not double-click `SWinyDLSafariExtension.appex`. Safari discovers the extension through the containing `SWinyDLSafariApp.app`; `./install.sh` also re-registers that containing app and extension with macOS.
 
 The temporary extension fallback is not permanent. Safari removes temporary extensions after 24 hours or when Safari quits, and Safari's `Allow unsigned extensions` setting also resets when Safari quits. If you rely on `Add Temporary Extension...`, repeat that step after each Safari restart until SWinyDL ships as a signed/notarized app.
 
-The native wrapper window shows whether Safari handoff is ready, whether the Parakeet ASR model bundle and speaker diarizer bundle are ready, per-lesson transcript files, and the output folder. The default output folder is `swinydl-output` inside the copied `SWinyDL` folder. Runtime scratch files use the sibling `temp` folder in that same copied folder.
+The native wrapper window shows whether Safari handoff is ready, shared queue status, whether the Parakeet ASR model bundle and speaker diarizer bundle are ready, per-lesson transcript files, and the saved output folder. The default output folder is `swinydl-output` inside the copied `SWinyDL` folder. To choose a different transcript folder, use `Defaults > Output folder > Choose` in the native app; Safari-launched jobs use that saved native-app setting. `Open Outputs` shows and opens the current saved folder. Runtime scratch files use the sibling `temp` folder in that same copied folder.
 
 If course discovery fails, click `Export Debug Log` in the Safari extension popup and share the saved sanitized JSON file. It includes page/discovery state but excludes cookies, storage values, hidden input values, and full raw HTML.
 

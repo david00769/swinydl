@@ -26,14 +26,15 @@
         <p>Open SWinyDL, click Repair Setup if readiness needs attention, allow the macOS “access data from other apps” prompt if it appears, then open Canvas or EchoVideo.</p>
       </section>
 
-      <section id="controls" class="controls hidden">
-        <div class="selection-toolbar">
-          <span id="selection-count">0 selected</span>
-          <div>
-            <button id="check-all" class="secondary compact">Check All</button>
-            <button id="uncheck-all" class="secondary compact">Uncheck All</button>
-          </div>
+      <section id="handoff" class="handoff hidden">
+        <div>
+          <h2 id="handoff-title">Queued for transcription.</h2>
+          <p id="handoff-detail">Progress appears in SWinyDL.</p>
         </div>
+        <button id="handoff-open-app">Open App</button>
+      </section>
+
+      <section id="controls" class="controls hidden">
         <label class="setting">
           <input id="delete-downloads" type="checkbox" checked />
           <span>Delete downloaded media after transcription to conserve disk space</span>
@@ -47,6 +48,14 @@
       <section id="course" class="course hidden">
         <h2 id="course-title"></h2>
         <p id="course-meta"></p>
+      </section>
+
+      <section id="selection-controls" class="selection-controls hidden">
+        <span id="selection-count">0 selected</span>
+        <div>
+          <button id="check-all" class="secondary compact">Check All</button>
+          <button id="uncheck-all" class="secondary compact">Uncheck All</button>
+        </div>
       </section>
 
       <section id="lesson-list" class="lesson-list"></section>

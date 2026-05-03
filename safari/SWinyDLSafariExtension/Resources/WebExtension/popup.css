@@ -24,7 +24,7 @@ body {
 
 .header-actions,
 .jobs-actions,
-.selection-toolbar {
+.selection-controls {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -32,6 +32,12 @@ body {
 
 .header-actions {
   flex-shrink: 0;
+}
+
+.header-actions button {
+  flex: 0 0 auto;
+  height: 36px;
+  min-width: 78px;
 }
 
 .jobs-actions {
@@ -58,7 +64,8 @@ body {
   border-radius: 10px;
 }
 
-.first-run {
+.first-run,
+.handoff {
   margin: 14px 0;
   padding: 12px;
   background: #ffffff;
@@ -66,20 +73,42 @@ body {
   border-radius: 10px;
 }
 
-.first-run h2 {
+.handoff {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-color: #b8d8cf;
+  background: #f3fbf8;
+}
+
+.first-run h2,
+.handoff h2 {
   margin: 0 0 4px;
   font-size: 13px;
 }
 
-.first-run p {
+.first-run p,
+.handoff p {
   margin: 0;
   color: #645c51;
+}
+
+.handoff button {
+  flex: 0 0 auto;
 }
 
 .controls,
 .course,
 .jobs {
   margin-top: 14px;
+}
+
+.selection-controls {
+  justify-content: space-between;
+  margin-top: 10px;
+  color: #645c51;
+  font-weight: 600;
 }
 
 .setting {
@@ -93,19 +122,11 @@ body {
   border-radius: 10px;
 }
 
-.selection-toolbar {
-  justify-content: space-between;
-  color: #645c51;
-  font-weight: 600;
-}
-
 .setting input {
   margin-top: 2px;
 }
 
 .actions button,
-#refresh,
-#open-app,
 .jobs-actions button {
   flex: 1;
 }
@@ -138,14 +159,19 @@ body {
 
 button {
   appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border: 0;
   border-radius: 999px;
   background: #0f766e;
   color: white;
-  min-height: 32px;
+  height: 32px;
   padding: 8px 12px;
   cursor: pointer;
   font-weight: 600;
+  line-height: 1.1;
+  white-space: nowrap;
 }
 
 button.secondary {

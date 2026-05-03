@@ -27,12 +27,14 @@ struct ModelBootstrapStatus {
 final class JobStore: ObservableObject {
     @Published private(set) var jobs: [JobEnvelope] = []
     @Published private(set) var modelReadiness = ModelReadiness.detect(bundle: .main)
-    @Published private(set) var handoffReady = SWinyDLBridge.sharedContainerAvailable()
+    @Published private(set) var handoffReady = SWinyDLBridge.sharedQueueAvailable()
     @Published private(set) var modelBootstrapStatus = ModelBootstrapStatus.idle
+    @Published private(set) var outputRootURL = SWinyDLBridge.savedOutputRoot(bundle: .main)
     @Published var preview: TranscriptPreview?
 
     private var timer: Timer?
     private var runningJobs: Set<String> = []
+    private var outputAccessURLs: [String: URL] = [:]
 
     func start() {
         refresh()
@@ -44,7 +46,8 @@ final class JobStore: ObservableObject {
 
     func refresh() {
         modelReadiness = ModelReadiness.detect(bundle: .main)
-        handoffReady = SWinyDLBridge.sharedContainerAvailable()
+        handoffReady = SWinyDLBridge.sharedQueueAvailable()
+        outputRootURL = SWinyDLBridge.savedOutputRoot(bundle: .main)
         let manifestsDir = SWinyDLBridge.manifestsDirectory()
         let manifestURLs = (try? FileManager.default.contentsOfDirectory(
             at: manifestsDir,
@@ -72,6 +75,9 @@ final class JobStore: ObservableObject {
             }
             if ["success", "failed"].contains(status.overallStatus) {
                 runningJobs.remove(job.id)
+                if let accessURL = outputAccessURLs.removeValue(forKey: job.id) {
+                    accessURL.stopAccessingSecurityScopedResource()
+                }
             }
         }
     }
@@ -186,18 +192,63 @@ final class JobStore: ObservableObject {
     }
 
     var outputRootPath: String {
-        jobs.compactMap { job in
-            guard let outputRoot = job.status?.outputRoot, !outputRoot.isEmpty else {
-                return nil
+        outputRootURL.path
+    }
+
+    var outputRootDisplayName: String {
+        let name = outputRootURL.lastPathComponent
+        return name.isEmpty ? outputRootURL.path : name
+    }
+
+    var handoffStatusLabel: String {
+        guard handoffReady else {
+            return "Needs Allow"
+        }
+        let queuedCount = jobs.filter { job in
+            guard let status = job.status?.overallStatus else {
+                return true
             }
-            return outputRoot
-        }.first ?? SWinyDLRuntime.defaultOutputRoot(bundle: .main).path
+            return [
+                SWinyDLBridge.pendingStatus,
+                SWinyDLBridge.retryStatus,
+                "launching",
+                "running",
+            ].contains(status)
+        }.count
+        if queuedCount == 0 {
+            return "Ready - No queued jobs"
+        }
+        if queuedCount == 1 {
+            return "Ready - 1 queued job"
+        }
+        return "Ready - \(queuedCount) queued jobs"
     }
 
     func openDefaultOutputRoot() {
-        let url = URL(fileURLWithPath: outputRootPath, isDirectory: true)
-        try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
-        NSWorkspace.shared.open(url)
+        try? FileManager.default.createDirectory(at: outputRootURL, withIntermediateDirectories: true)
+        NSWorkspace.shared.open(outputRootURL)
+    }
+
+    func chooseOutputDirectory() {
+        let panel = NSOpenPanel()
+        panel.title = "Choose SWinyDL Output Folder"
+        panel.message = "Choose where transcript files should be saved."
+        panel.prompt = "Use This Folder"
+        panel.canChooseFiles = false
+        panel.canChooseDirectories = true
+        panel.canCreateDirectories = true
+        panel.allowsMultipleSelection = false
+        panel.directoryURL = outputRootURL
+
+        guard panel.runModal() == .OK, let url = panel.url else {
+            return
+        }
+        SWinyDLBridge.setSavedOutputRoot(url)
+        outputRootURL = url
+    }
+
+    func resetOutputDirectory() {
+        outputRootURL = SWinyDLBridge.resetSavedOutputRoot(bundle: .main)
     }
 
     func previewTranscript(path: String) {
@@ -257,6 +308,11 @@ final class JobStore: ObservableObject {
     private func launch(job: JobEnvelope) {
         guard !runningJobs.contains(job.id) else { return }
         runningJobs.insert(job.id)
+        if let path = job.status?.outputRoot, !path.isEmpty,
+           outputAccessURLs[job.id] == nil,
+           let accessURL = SWinyDLBridge.startAccessingSavedOutputRoot(path: path) {
+            outputAccessURLs[job.id] = accessURL
+        }
         let launcher = BackendLauncher()
         let launchStatus = launcher.launch(manifestURL: job.manifestURL)
         if !launchStatus {

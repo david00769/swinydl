@@ -199,7 +199,11 @@ private struct ContentView: View {
                         NSWorkspace.shared.openApplication(at: URL(fileURLWithPath: "/Applications/Safari.app"), configuration: .init()) { _, _ in
                         }
                     }
-                    InspectorActionRow(title: "Open Outputs", systemImage: "folder") {
+                    InspectorActionRow(
+                        title: "Open Outputs",
+                        systemImage: "folder",
+                        subtitle: store.outputRootDisplayName
+                    ) {
                         store.openDefaultOutputRoot()
                     }
                     InspectorActionRow(title: updates.isChecking ? "Checking..." : "Check for Updates", systemImage: "arrow.down.circle") {
@@ -225,7 +229,12 @@ private struct ContentView: View {
                         .textCase(.uppercase)
                     InfoRow(title: "Primary output", value: ".txt")
                     InfoRow(title: "Also written", value: ".srt, .json")
-                    InfoRow(title: "Output folder", value: "swinydl-output")
+                    OutputFolderControl(
+                        path: store.outputRootPath,
+                        chooseAction: { store.chooseOutputDirectory() },
+                        openAction: { store.openDefaultOutputRoot() },
+                        resetAction: { store.resetOutputDirectory() }
+                    )
                     InfoRow(title: "Speaker separation", value: "On by default")
                     InfoRow(title: "Media cleanup", value: "Delete after transcription")
                 }
@@ -258,7 +267,12 @@ private struct ContentView: View {
                     Spacer()
                     StatusBadge(status: store.modelReadiness.ready && store.handoffReady ? "success" : "failed", compact: true)
                 }
-                ReadinessRow(title: "Safari handoff", ready: store.handoffReady, missingLabel: "Needs Allow")
+                ReadinessRow(
+                    title: "Safari handoff",
+                    ready: store.handoffReady,
+                    readyLabel: store.handoffStatusLabel,
+                    missingLabel: "Needs Allow"
+                )
                 ReadinessRow(title: "Parakeet ASR", ready: store.modelReadiness.parakeetReady)
                 ReadinessRow(title: "Speaker diarizer", ready: store.modelReadiness.diarizerReady)
                 if !store.handoffReady {
@@ -1321,6 +1335,7 @@ private struct ToolbarPill: View {
 private struct InspectorActionRow: View {
     let title: String
     let systemImage: String
+    var subtitle: String?
     let action: () -> Void
 
     var body: some View {
@@ -1329,8 +1344,17 @@ private struct InspectorActionRow: View {
                 Image(systemName: systemImage)
                     .frame(width: 18)
                     .foregroundStyle(AppTheme.accent)
-                Text(title)
-                    .font(.subheadline.weight(.semibold))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(.subheadline.weight(.semibold))
+                    if let subtitle, !subtitle.isEmpty {
+                        Text(subtitle)
+                            .font(.caption)
+                            .foregroundStyle(AppTheme.secondaryText)
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                    }
+                }
                 Spacer()
                 Image(systemName: "chevron.right")
                     .font(.caption.weight(.bold))
@@ -1346,6 +1370,7 @@ private struct InspectorActionRow: View {
 private struct ReadinessRow: View {
     let title: String
     let ready: Bool
+    var readyLabel: String = "Ready"
     var missingLabel: String = "Missing"
 
     var body: some View {
@@ -1353,7 +1378,7 @@ private struct ReadinessRow: View {
             Text(title)
                 .foregroundStyle(AppTheme.primaryText)
             Spacer()
-            Label(ready ? "Ready" : missingLabel, systemImage: ready ? "checkmark.circle.fill" : "shippingbox.fill")
+            Label(ready ? readyLabel : missingLabel, systemImage: ready ? "checkmark.circle.fill" : "shippingbox.fill")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(ready ? AppTheme.success : AppTheme.warning)
         }
@@ -1403,6 +1428,44 @@ private struct InfoRow: View {
                 .fontWeight(.semibold)
                 .foregroundStyle(AppTheme.primaryText)
         }
+    }
+}
+
+private struct OutputFolderControl: View {
+    let path: String
+    let chooseAction: () -> Void
+    let openAction: () -> Void
+    let resetAction: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("Output folder")
+                    .foregroundStyle(AppTheme.secondaryText)
+                Spacer()
+                Text(displayName)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(AppTheme.primaryText)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+            }
+            Text(path)
+                .font(.caption)
+                .foregroundStyle(AppTheme.mutedText)
+                .lineLimit(2)
+                .truncationMode(.middle)
+                .textSelection(.enabled)
+            HStack(spacing: 8) {
+                SecondaryActionButton(title: "Choose", systemImage: "folder.badge.plus", compact: true, action: chooseAction)
+                SecondaryActionButton(title: "Open", systemImage: "folder", compact: true, action: openAction)
+                SecondaryActionButton(title: "Reset", systemImage: "arrow.uturn.backward", compact: true, action: resetAction)
+            }
+        }
+    }
+
+    private var displayName: String {
+        let name = URL(fileURLWithPath: path, isDirectory: true).lastPathComponent
+        return name.isEmpty ? path : name
     }
 }
 

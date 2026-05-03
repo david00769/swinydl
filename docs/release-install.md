@@ -97,10 +97,11 @@ If course discovery fails, click `Export Debug Log` in the Safari extension popu
 5. Use `Check All` or `Uncheck All`, then choose the lessons you want.
 6. Leave `Delete downloaded media after transcription` on unless you want to keep media files.
 7. Click `Transcribe`, or click `Download + Transcribe` if you want the media retained during the run.
-8. The popup queues the job and opens SWinyDL. If the app does not appear, click `Open App`.
-9. Use the app window to watch progress and open finished `.txt` transcripts.
+8. The popup shows `Queued for transcription. Progress appears in SWinyDL.`
+9. If the app does not appear, the popup says `Queued, but SWinyDL did not open. Click Open App.`
+10. Use the app window to watch progress and open finished `.txt` transcripts.
 
-The default output folder is `swinydl-output` inside this copied `SWinyDL` folder. Use `Open Outputs` in the app to open it.
+The default output folder is `swinydl-output` inside this copied `SWinyDL` folder. To choose a different transcript folder, use `Defaults > Output folder > Choose` in the native app. SWinyDL saves that folder for future Safari-launched jobs, and the `Open Outputs` row shows and opens the saved folder.
 
 Temporary downloads, converted audio, and cookie handoff files use the `temp` folder inside the same copied `SWinyDL` folder.
 

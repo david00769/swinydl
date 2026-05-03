@@ -79,9 +79,10 @@ Safari removes temporary extensions after 24 hours or when Safari quits. Safari 
 8. Use `Check All` or `Uncheck All`, then choose the lessons you want.
 9. Leave `Delete downloaded media after transcription` on unless you want to keep the downloaded media files.
 10. Click `Transcribe` for transcripts only, or `Download + Transcribe` if you also want SWinyDL to retain the media during the run.
-11. The popup queues the job and opens SWinyDL. If the app does not appear, click `Open App`.
+11. The popup shows `Queued for transcription. Progress appears in SWinyDL.`
+12. If the app does not appear, the popup says `Queued, but SWinyDL did not open. Click Open App.`
 
-The app window shows Safari handoff readiness, queued jobs, running progress, current stage, elapsed time, errors, and links to finished transcript files.
+The app window shows Safari handoff readiness, shared queue status, queued jobs, running progress, current stage, elapsed time, errors, and links to finished transcript files.
 
 ## Outputs
 
@@ -91,7 +92,7 @@ For each completed lesson, SWinyDL writes:
 - `.srt` for timed captions
 - `.json` for structured transcript data
 
-The default output folder is `swinydl-output` inside the copied `SWinyDL` folder. Use `Open Outputs`, `Open Transcript`, or `Open Folder` in the app to get to the files.
+The default output folder is `swinydl-output` inside the copied `SWinyDL` folder. To choose a different transcript folder, use `Defaults > Output folder > Choose` in the native app. SWinyDL saves that folder for future Safari-launched jobs. The `Open Outputs` row shows the current folder name and opens that saved folder. Use `Open Transcript` or `Open Folder` from completed job rows to get to specific files.
 
 Temporary downloads, converted audio, and cookie handoff files use the `temp` folder inside the same copied `SWinyDL` folder. SWinyDL removes per-lesson temporary media after transcription unless you choose to retain media.
 

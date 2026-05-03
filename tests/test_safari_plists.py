@@ -5,6 +5,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 APP_PLIST = REPO_ROOT / "safari" / "SWinyDLSafariApp" / "Info.plist"
 EXTENSION_PLIST = REPO_ROOT / "safari" / "SWinyDLSafariExtension" / "Info.plist"
+APP_ENTITLEMENTS = REPO_ROOT / "safari" / "SWinyDLSafariApp" / "SWinyDLSafariApp.entitlements"
 
 
 class SafariPlistTests(unittest.TestCase):
@@ -23,6 +24,12 @@ class SafariPlistTests(unittest.TestCase):
         self.assertIn("com.apple.Safari.web-extension", contents)
         self.assertIn("SafariWebExtensionHandler", contents)
         self.assertNotIn("SFSafariWebsiteAccess", contents)
+
+    def test_app_can_write_user_selected_output_folder(self):
+        contents = APP_ENTITLEMENTS.read_text(encoding="utf-8")
+
+        self.assertIn("com.apple.security.files.user-selected.read-write", contents)
+        self.assertNotIn("com.apple.security.files.user-selected.read-only", contents)
 
 
 if __name__ == "__main__":

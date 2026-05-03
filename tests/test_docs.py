@@ -50,8 +50,12 @@ class DocumentationTests(unittest.TestCase):
             self.assertIn("Terminal fallback", contents)
             self.assertIn("access data from other apps", contents)
             self.assertIn("Safari handoff", contents)
+            self.assertIn("Progress appears in SWinyDL", contents)
+            self.assertIn("Queued, but SWinyDL did not open", contents)
             self.assertIn("swinydl-output", contents)
             self.assertIn("temp", contents)
+            self.assertIn("Output folder", contents)
+            self.assertIn("Choose", contents)
 
     def test_docs_explain_first_transcript_flow_and_model_repair(self):
         readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")

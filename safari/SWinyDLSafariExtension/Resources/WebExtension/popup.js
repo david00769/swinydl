@@ -10,14 +10,19 @@ const state = {
 const statusNode = document.getElementById("status");
 const controlsNode = document.getElementById("controls");
 const courseNode = document.getElementById("course");
+const selectionControlsNode = document.getElementById("selection-controls");
 const lessonListNode = document.getElementById("lesson-list");
 const jobListNode = document.getElementById("job-list");
 const deleteDownloadsNode = document.getElementById("delete-downloads");
 const firstRunNode = document.getElementById("first-run");
+const handoffNode = document.getElementById("handoff");
+const handoffTitleNode = document.getElementById("handoff-title");
+const handoffDetailNode = document.getElementById("handoff-detail");
 const selectionCountNode = document.getElementById("selection-count");
 
 document.getElementById("refresh").addEventListener("click", loadCourse);
 document.getElementById("open-app").addEventListener("click", openNativeApp);
+document.getElementById("handoff-open-app").addEventListener("click", openNativeApp);
 document.getElementById("check-all").addEventListener("click", () => toggleAll(true));
 document.getElementById("uncheck-all").addEventListener("click", () => toggleAll(false));
 document.getElementById("export-debug").addEventListener("click", exportDebugLog);
@@ -41,7 +46,9 @@ async function loadCourse() {
     setStatus(response?.error || "Unable to load a supported course from the current page.");
     controlsNode.classList.add("hidden");
     courseNode.classList.add("hidden");
+    selectionControlsNode.classList.add("hidden");
     firstRunNode.classList.remove("hidden");
+    hideHandoff();
     lessonListNode.innerHTML = "";
     updateSelectionCount();
     return;
@@ -58,7 +65,9 @@ async function loadCourse() {
 function renderCourse(course) {
   controlsNode.classList.remove("hidden");
   courseNode.classList.remove("hidden");
+  selectionControlsNode.classList.remove("hidden");
   firstRunNode.classList.add("hidden");
+  hideHandoff();
   document.getElementById("course-title").textContent = course.course_title;
   document.getElementById("course-meta").textContent = [
     course.course_context_label || course.platform,
@@ -119,10 +128,13 @@ async function launchJob(requestedAction) {
     setStatus(response?.error || "Unable to queue the job in the native wrapper.");
     return;
   }
-  if (response.appOpened === false) {
-    setStatus(`Queued ${selectedLessonIds.length} lessons, but SWinyDL did not open. Click Open App to watch progress.`);
+  const appLaunchFailed = response?.app_launch?.succeeded === false || response.appOpened === false;
+  if (appLaunchFailed) {
+    showHandoff("Queued, but SWinyDL did not open.", "Click Open App. Progress appears in SWinyDL.");
+    setStatus(`Queued ${selectedLessonIds.length} lessons, but SWinyDL did not open. Click Open App.`);
   } else {
-    setStatus(`Queued ${selectedLessonIds.length} lessons. SWinyDL is opening and will show progress.`);
+    showHandoff("Queued for transcription.", "Progress appears in SWinyDL.");
+    setStatus(`Queued ${selectedLessonIds.length} lessons. Progress appears in SWinyDL.`);
   }
   await pollJobStatuses();
 }
@@ -199,6 +211,16 @@ function updateSelectionCount() {
 
 function setStatus(value) {
   statusNode.textContent = value;
+}
+
+function showHandoff(title, detail) {
+  handoffTitleNode.textContent = title;
+  handoffDetailNode.textContent = detail;
+  handoffNode.classList.remove("hidden");
+}
+
+function hideHandoff() {
+  handoffNode.classList.add("hidden");
 }
 
 function startDiscoveryStatus() {

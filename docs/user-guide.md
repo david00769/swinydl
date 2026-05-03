@@ -8,7 +8,7 @@ First download checklist:
 
 1. Download the latest `SWinyDL-v...dmg` from [GitHub Releases](https://github.com/david00769/swinydl/releases).
 2. Open the DMG.
-3. Drag the `SWinyDL` folder out of the DMG to a normal folder such as `Documents` or `Applications`.
+3. Drag the `SWinyDL` folder out of the DMG to a normal folder such as `Desktop` or `Documents`.
 4. Do not run anything from inside the mounted DMG.
 5. Open the unsigned app from Finder:
    - Control-click or right-click `SWinyDLSafariApp.app`, choose `Open`, then confirm the warning.
@@ -35,7 +35,7 @@ chmod +x install.sh
 ./install.sh
 ```
 
-Approve the installer prompts if Homebrew, `uv`, or `ffmpeg` are missing. The installer uses the prebuilt app and prebuilt CoreML runner binaries from the DMG.
+Approve the installer prompts if Homebrew, `uv`, or `ffmpeg` are missing. The installer uses the prebuilt app and prebuilt transcription helper programs from the DMG.
 
 If macOS blocks the unsigned app after setup, use Finder to open it: Control-click or right-click `SWinyDLSafariApp.app`, choose `Open`, then confirm the warning. The equivalent menu path is to select `SWinyDLSafariApp.app` in Finder and choose `File > Open`. If macOS still blocks it or says the app is damaged, run `./install.sh` from the copied folder.
 

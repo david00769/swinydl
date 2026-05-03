@@ -1,6 +1,6 @@
 # SWinyDL
 
-I coded this up in one weekend to help my daughter get transcripts from her lectures she can upload to NotebookLLM
+I coded this up in one weekend to help my daughter get transcripts from her lectures she can upload to NotebookLM.
 
 SWinyDL downloads and transcribes Echo360 lecture recordings on Apple Silicon Macs.
 
@@ -38,7 +38,7 @@ You need:
 
 You do not need Xcode or Apple's command line tools for the normal DMG install.
 
-You do not need Swift or local compilation for the normal DMG install. The release DMG includes prebuilt CoreML runner binaries for transcription and speaker separation.
+You do not need Swift or local compilation for the normal DMG install. The release DMG includes prebuilt helper programs for transcription and speaker separation.
 
 You do not need to install Homebrew, `uv`, or `ffmpeg` before opening SWinyDL. If the app's `Repair Setup` action cannot find them, run `./install.sh` from Terminal and approve its install prompts.
 
@@ -59,7 +59,7 @@ For most people, the best path is:
 
 1. Download the latest `SWinyDL-v...dmg` from [GitHub Releases](https://github.com/david00769/swinydl/releases)
 2. Open the DMG
-3. Drag the `SWinyDL` folder out of the DMG and put it somewhere you want to keep it, such as `Documents` or `Applications`
+3. Drag the `SWinyDL` folder out of the DMG and put it somewhere you want to keep it, such as `Desktop` or `Documents`
 4. Do not run anything from inside the mounted DMG
 5. Open the unsigned app from Finder:
    - Control-click or right-click `SWinyDLSafariApp.app` in the copied folder, choose `Open`, then confirm the warning
@@ -98,9 +98,9 @@ If Finder still will not open the app, run `./install.sh` from Terminal in the c
 - creates the Python environment
 - downloads the required local speech models if they are missing
 - uses the prebuilt Mac app and Safari extension from the DMG
-- uses the prebuilt CoreML runner binaries from the DMG, so transcription does not compile Swift code during normal use
-- verifies the Safari extension includes its required `manifest.json`
-- ad-hoc signs and verifies the app bundle locally
+- uses the prebuilt transcription helper programs from the DMG, so transcription does not compile Swift code during normal use
+- verifies the Safari extension includes the files Safari needs
+- locally re-signs and verifies the app bundle
 - registers the containing app and extension with macOS so Safari can list it
 - opens the app and Safari when setup is finished, unless the app launched it in repair mode
 
@@ -116,8 +116,8 @@ The DMG is intentionally runtime-only. It includes:
 - `SWinyDLSafariApp.app`
 - `install.sh`
 - the `swinydl` Python runtime package
-- prebuilt CoreML runner binaries in `bin/`
-- model/runtime assets in `vendor/`
+- prebuilt transcription helper programs in `bin/`
+- a `vendor/` folder where setup downloads the local speech models if they are missing
 - `WebExtension` for Safari's temporary-extension fallback
 - `SWinyDL-WebExtension.zip`, which contains the same temporary-extension files
 - `USER-GUIDE.md`, the normal-user click-by-click guide
@@ -183,8 +183,8 @@ The source build path:
 - runs `scripts/build_app.sh`
 - regenerates the Safari Xcode project from `safari/project.yml`
 - builds `SWinyDLSafariApp.app` locally with `xcodebuild`
-- ad-hoc signs and verifies the locally built app bundle
-- runs `swinydl doctor`
+- locally re-signs and verifies the locally built app bundle
+- runs the SWinyDL doctor check
 - opens the newly built app and Safari
 
 Xcode command line tools, `xcodegen`, and local compilation are only needed for this developer source-build path. Normal DMG users do not need them.
@@ -221,7 +221,7 @@ For a fuller click-by-click walkthrough, see the [user guide](docs/user-guide.md
 
 1. Open `SWinyDLSafariApp.app` from the copied `SWinyDL` folder.
 2. Click `Repair Setup` in the `Readiness` panel if setup or models need repair.
-3. If the Readiness panel shows `Safari handoff` as needing attention, allow the macOS app-data prompt when it appears.
+3. If the Readiness panel shows `Safari handoff` as needing attention, click `Allow` if macOS asks whether SWinyDL can access data from other apps.
 4. Open a logged-in Canvas or EchoVideo lecture page in Safari.
 5. Open the `SWinyDL Safari` extension popup.
 6. Click `Reload` if needed.
@@ -320,7 +320,7 @@ If you installed an older temporary extension and EchoVideo still says the page 
 You can also check app health in Terminal:
 
 ```bash
-swinydl doctor
+uv run swinydl doctor
 ```
 
 ### macOS says the app is damaged
@@ -356,7 +356,7 @@ Click `Repair Setup` in the app's `Readiness` panel. The app runs the non-intera
 If you prefer Terminal, run:
 
 ```bash
-swinydl bootstrap-models
+uv run swinydl bootstrap-models
 ```
 
 Running the installer again also repairs the local model folder:
@@ -372,17 +372,19 @@ Large lectures can sit in one stage for a while during local transcription or di
 If something looks wrong, run:
 
 ```bash
-swinydl doctor
+uv run swinydl doctor
 ```
 
 ## Technical Fallbacks
 
 If you are comfortable with the command line, the runtime DMG still includes the `swinydl` CLI:
 
+Run these from the copied `SWinyDL` folder after setup:
+
 ```bash
-swinydl process COURSE_URL
-swinydl process-manifest /path/to/job.json
-swinydl transcribe /path/to/local/file.mp4
+uv run swinydl process COURSE_URL
+uv run swinydl process-manifest /path/to/job.json
+uv run swinydl transcribe /path/to/local/file.mp4
 ```
 
 The older Chrome-guided launcher is a developer/source-checkout fallback only. It is not included in the runtime DMG:

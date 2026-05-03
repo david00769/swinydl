@@ -25,7 +25,9 @@ class DocumentationTests(unittest.TestCase):
 
         for contents in (readme, release_readme):
             self.assertIn("runtime", contents)
-            self.assertIn("prebuilt CoreML runner", contents)
+            self.assertIn("prebuilt transcription helper", contents)
+            self.assertIn("vendor/", contents)
+            self.assertIn("downloads the local speech models", contents)
             self.assertIn("chmod +x install.sh", contents)
             self.assertIn("resource fork, Finder information", contents)
             self.assertIn("does not include", contents)
@@ -56,6 +58,10 @@ class DocumentationTests(unittest.TestCase):
             self.assertIn("temp", contents)
             self.assertIn("Output folder", contents)
             self.assertIn("Choose", contents)
+
+        self.assertIn("uv run swinydl doctor", readme)
+        self.assertIn("uv run swinydl bootstrap-models", readme)
+        self.assertNotIn("\nswinydl doctor", readme)
 
     def test_docs_explain_first_transcript_flow_and_model_repair(self):
         readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")

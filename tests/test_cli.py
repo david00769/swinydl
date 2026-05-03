@@ -8,6 +8,14 @@ from swinydl.echo_exceptions import DiscoveryError
 
 
 class CliTests(unittest.TestCase):
+    def test_cli_help_uses_verified_uv_run_examples(self):
+        help_text = main.build_parser().format_help()
+
+        self.assertIn("uv run swinydl process COURSE_URL", help_text)
+        self.assertIn("uv run swinydl doctor", help_text)
+        self.assertIn("copied SWinyDL folder or source checkout", help_text)
+        self.assertNotIn("\n  swinydl process COURSE_URL", help_text)
+
     def test_url_without_subcommand_defaults_to_process(self):
         summary = SimpleNamespace(
             results=[],

@@ -6,8 +6,8 @@ It contains only the runtime install:
 - `SWinyDLSafariApp.app`
 - `install.sh`
 - the Python backend runtime package
-- prebuilt CoreML runner binaries in `bin/`
-- model/runtime assets
+- prebuilt transcription helper programs in `bin/`
+- a `vendor/` folder where setup downloads the local speech models if they are missing
 - `WebExtension`, used only for Safari's temporary-extension fallback
 - `SWinyDL-WebExtension.zip`, the same temporary-extension files packaged as a selectable zip
 - `USER-GUIDE.md`, the normal-user click-by-click guide
@@ -29,7 +29,7 @@ This runtime DMG does not include the Safari Xcode project, Swift package source
 First download checklist:
 
 1. Drag this `SWinyDL` folder out of the DMG.
-2. Put it somewhere you want to keep it, such as `Documents` or `Applications`.
+2. Put it somewhere you want to keep it, such as `Desktop` or `Documents`.
 3. Do not run anything from inside the mounted DMG.
 4. Open the unsigned app from Finder:
    - Control-click or right-click `SWinyDLSafariApp.app`, choose `Open`, then confirm the warning.
@@ -90,7 +90,7 @@ The full app entry point is either the popup's `Open App` button or `SWinyDLSafa
 
 `Repair Setup` is always available in the app's `Readiness` panel. It runs the non-interactive installer repair path, refreshes model checks, repairs local signing, and re-registers the Safari extension. If repair fails, click `Open Logs` in the same panel to inspect setup output.
 
-The Readiness panel also shows `Safari handoff`. If it needs attention, allow the macOS app-data prompt when it appears so the extension can queue jobs into the native app.
+The Readiness panel also shows `Safari handoff`. If it needs attention, click `Allow` if macOS asks whether SWinyDL can access data from other apps. That lets the extension queue jobs into the native app.
 
 If course discovery fails, click `Export Debug Log` in the Safari extension popup. It saves one sanitized JSON file with page/discovery state and excludes cookies, storage values, hidden input values, and full raw HTML.
 

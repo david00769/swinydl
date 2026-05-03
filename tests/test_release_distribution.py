@@ -46,6 +46,8 @@ class ReleaseDistributionTests(unittest.TestCase):
         self.assertIn("hdiutil create", script)
         self.assertIn('-srcfolder "$STAGE_PARENT"', script)
         self.assertIn("/usr/bin/xattr -cr", script)
+        self.assertIn("UNEXPECTED_ZIP", script)
+        self.assertIn("! -name 'SWinyDL-WebExtension.zip'", script)
         self.assertIn("Contents/Resources/manifest.json", script)
         self.assertNotIn("run.sh \\", script)
         self.assertNotIn("app.py \\", script)

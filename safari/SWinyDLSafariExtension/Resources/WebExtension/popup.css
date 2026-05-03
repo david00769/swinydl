@@ -22,6 +22,22 @@ body {
   gap: 10px;
 }
 
+.header-actions,
+.jobs-actions,
+.selection-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.header-actions {
+  flex-shrink: 0;
+}
+
+.jobs-actions {
+  justify-content: flex-end;
+}
+
 .header h1,
 .jobs-header h2,
 .course h2 {
@@ -42,6 +58,24 @@ body {
   border-radius: 10px;
 }
 
+.first-run {
+  margin: 14px 0;
+  padding: 12px;
+  background: #ffffff;
+  border: 1px solid #ddd3c3;
+  border-radius: 10px;
+}
+
+.first-run h2 {
+  margin: 0 0 4px;
+  font-size: 13px;
+}
+
+.first-run p {
+  margin: 0;
+  color: #645c51;
+}
+
 .controls,
 .course,
 .jobs {
@@ -59,13 +93,20 @@ body {
   border-radius: 10px;
 }
 
+.selection-toolbar {
+  justify-content: space-between;
+  color: #645c51;
+  font-weight: 600;
+}
+
 .setting input {
   margin-top: 2px;
 }
 
 .actions button,
 #refresh,
-#open-app {
+#open-app,
+.jobs-actions button {
   flex: 1;
 }
 
@@ -109,6 +150,11 @@ button {
 button.secondary {
   background: #d7ddd8;
   color: #173a37;
+}
+
+button.compact {
+  padding: 6px 9px;
+  font-size: 12px;
 }
 
 .hidden {

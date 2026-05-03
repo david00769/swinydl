@@ -2,7 +2,9 @@ const state = {
   course: null,
   sourcePageUrl: null,
   courseUrl: null,
-  deleteDownloadedMedia: true
+  deleteDownloadedMedia: true,
+  discoveryTimer: null,
+  discoveryCount: 0
 };
 
 const statusNode = document.getElementById("status");
@@ -11,9 +13,14 @@ const courseNode = document.getElementById("course");
 const lessonListNode = document.getElementById("lesson-list");
 const jobListNode = document.getElementById("job-list");
 const deleteDownloadsNode = document.getElementById("delete-downloads");
+const firstRunNode = document.getElementById("first-run");
+const selectionCountNode = document.getElementById("selection-count");
 
 document.getElementById("refresh").addEventListener("click", loadCourse);
-document.getElementById("select-all").addEventListener("change", toggleAll);
+document.getElementById("open-app").addEventListener("click", openNativeApp);
+document.getElementById("check-all").addEventListener("click", () => toggleAll(true));
+document.getElementById("uncheck-all").addEventListener("click", () => toggleAll(false));
+document.getElementById("export-debug").addEventListener("click", exportDebugLog);
 document.getElementById("transcribe").addEventListener("click", () => launchJob("transcribe"));
 document.getElementById("download-transcribe").addEventListener("click", () => launchJob("download_and_transcribe"));
 document.getElementById("refresh-jobs").addEventListener("click", () => pollJobStatuses());
@@ -23,13 +30,20 @@ loadSettings().then(loadCourse);
 setInterval(pollJobStatuses, 3000);
 
 async function loadCourse() {
-  setStatus("Loading course inventory…");
-  const response = await browser.runtime.sendMessage({ type: "load-course" });
+  startDiscoveryStatus();
+  let response;
+  try {
+    response = await browser.runtime.sendMessage({ type: "load-course" });
+  } finally {
+    stopDiscoveryStatus();
+  }
   if (!response?.ok) {
     setStatus(response?.error || "Unable to load a supported course from the current page.");
     controlsNode.classList.add("hidden");
     courseNode.classList.add("hidden");
+    firstRunNode.classList.remove("hidden");
     lessonListNode.innerHTML = "";
+    updateSelectionCount();
     return;
   }
 
@@ -44,8 +58,13 @@ async function loadCourse() {
 function renderCourse(course) {
   controlsNode.classList.remove("hidden");
   courseNode.classList.remove("hidden");
+  firstRunNode.classList.add("hidden");
   document.getElementById("course-title").textContent = course.course_title;
-  document.getElementById("course-meta").textContent = `${course.platform} • ${course.lessons.length} lessons`;
+  document.getElementById("course-meta").textContent = [
+    course.course_context_label || course.platform,
+    course.course_description,
+    `${course.lessons.length} lessons`
+  ].filter(Boolean).join(" • ");
   lessonListNode.innerHTML = "";
   for (const lesson of course.lessons) {
     const wrapper = document.createElement("label");
@@ -59,6 +78,10 @@ function renderCourse(course) {
     `;
     lessonListNode.appendChild(wrapper);
   }
+  for (const checkbox of document.querySelectorAll("input[data-lesson-id]")) {
+    checkbox.addEventListener("change", updateSelectionCount);
+  }
+  updateSelectionCount();
 }
 
 async function launchJob(requestedAction) {
@@ -121,6 +144,28 @@ async function pollJobStatuses() {
   }
 }
 
+async function openNativeApp() {
+  setStatus("Opening the native SWinyDL app…");
+  const response = await browser.runtime.sendMessage({ type: "open-app" });
+  if (!response?.ok) {
+    setStatus(response?.error || "Unable to open the native SWinyDL app. Run ./install.sh from the copied SWinyDL folder.");
+    return;
+  }
+  setStatus("Opened the native SWinyDL app.");
+}
+
+async function exportDebugLog() {
+  setStatus("Preparing sanitized debug log…");
+  const response = await browser.runtime.sendMessage({ type: "export-debug-log" });
+  if (!response?.ok) {
+    setStatus(response?.error || "Unable to export a debug log from this page.");
+    return;
+  }
+  const filename = `swinydl-debug-${timestampForFilename()}.json`;
+  downloadJson(filename, response.debugLog);
+  setStatus(`Saved ${filename}.`);
+}
+
 async function loadSettings() {
   const stored = await browser.storage.local.get({ deleteDownloadedMediaAfterTranscription: true });
   state.deleteDownloadedMedia = Boolean(stored.deleteDownloadedMediaAfterTranscription);
@@ -134,15 +179,65 @@ async function persistSettings() {
   });
 }
 
-function toggleAll(event) {
-  const checked = event.target.checked;
+function toggleAll(checked) {
   for (const checkbox of document.querySelectorAll("input[data-lesson-id]")) {
     checkbox.checked = checked;
   }
+  updateSelectionCount();
+}
+
+function updateSelectionCount() {
+  const checkboxes = Array.from(document.querySelectorAll("input[data-lesson-id]"));
+  const selected = checkboxes.filter((checkbox) => checkbox.checked).length;
+  const total = checkboxes.length;
+  selectionCountNode.textContent = total ? `${selected}/${total} selected` : "0 selected";
 }
 
 function setStatus(value) {
   statusNode.textContent = value;
+}
+
+function startDiscoveryStatus() {
+  stopDiscoveryStatus();
+  state.discoveryCount = 1;
+  setStatus(`Discovering course content ${state.discoveryCount}...`);
+  state.discoveryTimer = setInterval(() => {
+    state.discoveryCount += 1;
+    setStatus(`Discovering course content ${state.discoveryCount}...`);
+  }, 900);
+}
+
+function stopDiscoveryStatus() {
+  if (state.discoveryTimer) {
+    clearInterval(state.discoveryTimer);
+    state.discoveryTimer = null;
+  }
+}
+
+function timestampForFilename() {
+  const now = new Date();
+  const pad = (value) => String(value).padStart(2, "0");
+  return [
+    now.getFullYear(),
+    pad(now.getMonth() + 1),
+    pad(now.getDate()),
+    "-",
+    pad(now.getHours()),
+    pad(now.getMinutes()),
+    pad(now.getSeconds())
+  ].join("");
+}
+
+function downloadJson(filename, payload) {
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
 }
 
 function escapeHtml(value) {

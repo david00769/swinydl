@@ -15,6 +15,10 @@ browser.runtime.onMessage.addListener((message, sender) => {
       return sendNative("job_status", {});
     case "open-output":
       return sendNative("open_output", { path: message.path });
+    case "open-app":
+      return sendNative("open_app", {});
+    case "export-debug-log":
+      return exportDebugLogForActiveTab();
     default:
       return false;
   }
@@ -27,6 +31,26 @@ if (browser.tabs?.onRemoved) {
 }
 
 async function loadCourseForActiveTab() {
+  const active = await collectActiveTabContext();
+  if (!active.ok) {
+    return active;
+  }
+  const { context, courseUrl } = active;
+
+  try {
+    const course = await discoverCourse(courseUrl, context);
+    return {
+      ok: true,
+      course: decorateCourseDisplay(course, context, courseUrl),
+      sourcePageUrl: context.pageUrl,
+      courseUrl
+    };
+  } catch (error) {
+    return { ok: false, error: `Found EchoVideo on this page, but could not load the course inventory: ${String(error?.message || error)}` };
+  }
+}
+
+async function collectActiveTabContext() {
   const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
   if (!tab?.id || !tab.url) {
     return { ok: false, error: "No active Safari tab was found." };
@@ -51,12 +75,35 @@ async function loadCourseForActiveTab() {
     return { ok: false, error: "This page does not look like a supported Canvas or Echo360 course entrypoint." };
   }
 
-  try {
-    const course = await discoverCourse(courseUrl, context);
-    return { ok: true, course, sourcePageUrl: context.pageUrl, courseUrl };
-  } catch (error) {
-    return { ok: false, error: `Found EchoVideo on this page, but could not load the course inventory: ${String(error?.message || error)}` };
+  return { ok: true, tab, context, courseUrl };
+}
+
+async function exportDebugLogForActiveTab() {
+  const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
+  if (!tab?.id || !tab.url) {
+    return { ok: false, error: "No active Safari tab was found." };
   }
+
+  let error = null;
+  let active = null;
+  try {
+    active = await collectActiveTabContext();
+  } catch (caught) {
+    error = String(caught?.message || caught);
+  }
+
+  const context = active?.context || mergePageContexts(
+    emptyPageContext(tab.url, tab.title || ""),
+    ...(tabContextCache.get(tab.id) || [])
+  );
+  const courseUrl = active?.courseUrl || deriveCourseUrl(context);
+  const debugLog = buildDebugLog({
+    tab,
+    context,
+    courseUrl,
+    error: error || (active?.ok === false ? active.error : null)
+  });
+  return { ok: true, debugLog };
 }
 
 async function launchJob(payload) {
@@ -164,7 +211,9 @@ function emptyPageContext(pageUrl = "", pageTitle = "") {
     embeddedUrls: [],
     storageUrls: [],
     lessonCandidates: [],
-    mediaLinks: []
+    mediaLinks: [],
+    titleCandidates: [],
+    textSnippets: []
   };
 }
 
@@ -204,12 +253,12 @@ function mergePageContexts(...contexts) {
       merged.pageUrls.push(context.pageUrl);
     }
     merged.pageUrls.push(...(context.pageUrls || []));
-    for (const key of ["iframeUrls", "anchorUrls", "formActionUrls", "dataUrls", "inputUrls", "embeddedUrls", "storageUrls", "mediaLinks"]) {
+    for (const key of ["iframeUrls", "anchorUrls", "formActionUrls", "dataUrls", "inputUrls", "embeddedUrls", "storageUrls", "mediaLinks", "titleCandidates", "textSnippets"]) {
       merged[key].push(...(context[key] || []));
     }
     merged.lessonCandidates.push(...(context.lessonCandidates || []));
   }
-  for (const key of ["pageUrls", "iframeUrls", "anchorUrls", "formActionUrls", "dataUrls", "inputUrls", "embeddedUrls", "storageUrls", "mediaLinks"]) {
+  for (const key of ["pageUrls", "iframeUrls", "anchorUrls", "formActionUrls", "dataUrls", "inputUrls", "embeddedUrls", "storageUrls", "mediaLinks", "titleCandidates", "textSnippets"]) {
     merged[key] = Array.from(new Set(merged[key].filter(Boolean)));
   }
   const seenLessonCandidates = new Set();
@@ -274,6 +323,8 @@ function collectPageContextFromDocument() {
   const mediaLinks = Array.from(document.querySelectorAll("video[src], track[src]"))
     .map((node) => node.src)
     .filter(Boolean);
+  const titleCandidates = collectTitleCandidates();
+  const textSnippets = collectTextSnippets(titleCandidates);
 
   return {
     pageUrl: window.location.href,
@@ -292,7 +343,9 @@ function collectPageContextFromDocument() {
     embeddedUrls,
     storageUrls,
     lessonCandidates,
-    mediaLinks
+    mediaLinks,
+    titleCandidates,
+    textSnippets
   };
 
   function collectLessonCandidates(embeddedUrls) {
@@ -324,6 +377,36 @@ function collectPageContextFromDocument() {
     }
     return urls;
   }
+
+  function collectTitleCandidates() {
+    const selectors = [
+      "[aria-current='page']",
+      ".ic-app-course-menu .active",
+      ".pages .active",
+      ".course-title",
+      ".ellipsible",
+      "h1",
+      "h2",
+      "iframe[title]"
+    ];
+    return selectors.flatMap((selector) => Array.from(document.querySelectorAll(selector)))
+      .map((node) => node.getAttribute("title") || node.getAttribute("aria-label") || node.textContent || "")
+      .map((value) => value.replace(/\s+/g, " ").trim())
+      .filter(Boolean)
+      .slice(0, 12);
+  }
+
+  function collectTextSnippets(titleCandidates) {
+    return [
+      document.title,
+      ...titleCandidates,
+      document.querySelector("main")?.textContent || document.body?.innerText || ""
+    ]
+      .map((value) => value.replace(/\s+/g, " ").trim())
+      .filter(Boolean)
+      .map((value) => value.slice(0, 240))
+      .slice(0, 10);
+  }
 }
 
 async function discoverCourse(courseUrl, context = {}) {
@@ -354,6 +437,173 @@ async function discoverCourse(courseUrl, context = {}) {
     lesson.assets = dedupeAssets([...(lesson.assets || []), ...(await resolveLessonAssets(lesson.lesson_url))]);
   }
   return course;
+}
+
+function decorateCourseDisplay(course, context, courseUrl) {
+  const title = bestCourseTitle(course, context);
+  const contextLabel = bestContextLabel(context, courseUrl);
+  return {
+    ...course,
+    course_title: title,
+    course_description: contextLabel === title ? null : contextLabel,
+    course_context_label: course.platform
+  };
+}
+
+function bestCourseTitle(course, context) {
+  const candidates = [
+    course?.course_title,
+    ...(course?.lessons || []).map((lesson) => lesson.course_name),
+    ...(context.titleCandidates || []),
+    context.pageTitle,
+    ...(context.textSnippets || [])
+  ];
+  for (const candidate of candidates) {
+    const title = cleanCourseTitle(candidate);
+    if (title) {
+      return title;
+    }
+  }
+  return "EchoVideo Course";
+}
+
+function bestContextLabel(context, courseUrl) {
+  const candidates = [
+    context.pageTitle,
+    ...(context.titleCandidates || []),
+    courseUrl
+  ];
+  for (const candidate of candidates) {
+    const label = cleanDisplayText(candidate);
+    if (label && !isPlaceholderCourseTitle(label)) {
+      return label;
+    }
+  }
+  return null;
+}
+
+function cleanCourseTitle(value) {
+  const text = cleanDisplayText(value);
+  if (!text || isPlaceholderCourseTitle(text)) {
+    return "";
+  }
+  const parts = text
+    .split(/\s*[>|:\u203a]\s*/)
+    .map((part) => part.trim())
+    .filter(Boolean)
+    .filter((part) => !/^(canvas|echo(video|360)|classes|q&a|study guide|search|dashboard|courses)$/i.test(part));
+  const useful = parts.find((part) => !isPlaceholderCourseTitle(part));
+  return useful || text;
+}
+
+function cleanDisplayText(value) {
+  return String(value || "")
+    .replace(/\s+/g, " ")
+    .replace(/\bEchoVideo\b\s*/gi, "")
+    .trim()
+    .replace(/^[-:|>\u203a]+|[-:|>\u203a]+$/g, "")
+    .trim();
+}
+
+function isPlaceholderCourseTitle(value) {
+  return /^(untitled course|echo(video)? course|course|classes|loading|home)$/i.test(String(value || "").trim());
+}
+
+function buildDebugLog({ tab, context, courseUrl, error }) {
+  const manifest = browser.runtime.getManifest ? browser.runtime.getManifest() : {};
+  return sanitizeDebugValue({
+    generatedAt: new Date().toISOString(),
+    extension: {
+      name: manifest.name || "SWinyDL Safari",
+      version: manifest.version || null,
+      userAgent: navigator.userAgent,
+      platform: navigator.platform
+    },
+    activeTab: {
+      url: tab?.url || null,
+      title: tab?.title || null
+    },
+    discovery: {
+      derivedCourseUrl: courseUrl || null,
+      error: error || null,
+      pageUrl: context.pageUrl,
+      pageTitle: context.pageTitle,
+      pageText: context.pageText,
+      candidateEchoUrls: allCandidateUrls(context),
+      iframeUrls: context.iframeUrls,
+      anchorUrls: context.anchorUrls,
+      formActionUrls: context.formActionUrls,
+      dataUrls: context.dataUrls,
+      embeddedUrls: context.embeddedUrls,
+      mediaLinks: context.mediaLinks,
+      titleCandidates: context.titleCandidates,
+      textSnippets: context.textSnippets,
+      lessonCandidates: context.lessonCandidates
+    },
+    privacy: {
+      sanitized: true,
+      excluded: [
+        "cookies",
+        "localStorage values",
+        "sessionStorage values",
+        "hidden input values",
+        "full raw HTML"
+      ]
+    }
+  });
+}
+
+function allCandidateUrls(context) {
+  return Array.from(new Set([
+    context.pageUrl,
+    ...(context.pageUrls || []),
+    ...(context.iframeUrls || []),
+    ...(context.anchorUrls || []),
+    ...(context.formActionUrls || []),
+    ...(context.dataUrls || []),
+    ...(context.inputUrls || []),
+    ...(context.embeddedUrls || []),
+    ...(context.storageUrls || []),
+    ...(context.mediaLinks || [])
+  ].filter(Boolean)));
+}
+
+function sanitizeDebugValue(value) {
+  if (Array.isArray(value)) {
+    return value.map(sanitizeDebugValue);
+  }
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value)
+        .filter(([key]) => !/cookie|storageValue|hiddenInputValue/i.test(key))
+        .map(([key, item]) => [key, sanitizeDebugValue(item)])
+    );
+  }
+  if (typeof value === "string") {
+    return sanitizeDebugString(value);
+  }
+  return value;
+}
+
+function sanitizeDebugString(value) {
+  const withRedactedUrls = String(value).replace(/https?:\/\/[^\s"'<>\\)]+/gi, (url) => sanitizeUrl(url));
+  return withRedactedUrls
+    .replace(/\b(Bearer|Basic)\s+[A-Za-z0-9._~+/=-]+/gi, "$1 [REDACTED]")
+    .replace(/\b(access[_-]?token|id[_-]?token|refresh[_-]?token|session|cookie|authorization|signature|sig|key|code)=([^&\s]+)/gi, "$1=[REDACTED]");
+}
+
+function sanitizeUrl(value) {
+  try {
+    const url = new URL(value);
+    for (const key of Array.from(url.searchParams.keys())) {
+      if (/token|session|cookie|auth|sig|signature|key|code|state/i.test(key)) {
+        url.searchParams.set(key, "[REDACTED]");
+      }
+    }
+    return url.toString();
+  } catch (_error) {
+    return String(value);
+  }
 }
 
 function buildCloudCourseFromPageContext(hostname, context, sourceUrl, courseUuid) {
@@ -504,6 +754,7 @@ function buildCloudLesson(hostname, item, index, prefix) {
   return {
     lesson_id: lessonId,
     title: `${prefix}${lessonNode.name || `Lesson ${index}`}`,
+    course_name: extractCloudCourseTitle(item),
     date: normalizeDate(item.lesson?.startTimeUTC || lessonNode.createdAt || item.groupInfo?.createdAt),
     lesson_url: `${hostname}/lesson/${lessonId}/classroom`,
     index,
@@ -512,7 +763,11 @@ function buildCloudLesson(hostname, item, index, prefix) {
 }
 
 function extractCloudCourseTitle(item) {
-  return item.lesson?.video?.published?.courseName || "Untitled Course";
+  return item.lesson?.video?.published?.courseName
+    || item.lesson?.lesson?.courseName
+    || item.section?.name
+    || item.groupInfo?.sectionName
+    || "Untitled Course";
 }
 
 async function resolveLessonAssets(lessonUrl) {

@@ -13,16 +13,27 @@
           <h1>SWinyDL</h1>
           <p class="subtitle">Safari-first Echo360 selection and launch flow.</p>
         </div>
-        <button id="refresh" class="secondary">Reload</button>
+        <div class="header-actions">
+          <button id="open-app" class="secondary">Open App</button>
+          <button id="refresh" class="secondary">Reload</button>
+        </div>
       </header>
 
       <section id="status" class="status">Loading course inventory…</section>
 
+      <section id="first-run" class="first-run">
+        <h2>First run</h2>
+        <p>Run the installer, open the app once, enable the Safari extension, then open Canvas or EchoVideo.</p>
+      </section>
+
       <section id="controls" class="controls hidden">
-        <label class="row">
-          <input id="select-all" type="checkbox" checked />
-          <span>Select all lessons</span>
-        </label>
+        <div class="selection-toolbar">
+          <span id="selection-count">0 selected</span>
+          <div>
+            <button id="check-all" class="secondary compact">Check All</button>
+            <button id="uncheck-all" class="secondary compact">Uncheck All</button>
+          </div>
+        </div>
         <label class="setting">
           <input id="delete-downloads" type="checkbox" checked />
           <span>Delete downloaded media after transcription to conserve disk space</span>
@@ -43,7 +54,10 @@
       <section class="jobs">
         <div class="jobs-header">
           <h2>Recent Jobs</h2>
-          <button id="refresh-jobs" class="secondary">Refresh Jobs</button>
+          <div class="jobs-actions">
+            <button id="export-debug" class="secondary">Export Debug Log</button>
+            <button id="refresh-jobs" class="secondary">Refresh Jobs</button>
+          </div>
         </div>
         <div id="job-list" class="job-list"></div>
       </section>

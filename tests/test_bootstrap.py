@@ -62,6 +62,19 @@ class BootstrapTests(unittest.TestCase):
         self.assertTrue(report["bootstrapped"])
         bootstrap_fn.assert_called_once_with(target="all")
 
+    def test_ensure_runtime_model_artifacts_bootstraps_process_manifest_when_defaults_are_missing(self):
+        with patch("swinydl.bootstrap._missing_default_targets", return_value="parakeet"), patch(
+            "swinydl.bootstrap.bootstrap_models",
+            return_value={"results": []},
+        ) as bootstrap_fn, patch(
+            "swinydl.bootstrap.normalize_local_model_layout",
+            return_value={"actions": []},
+        ):
+            report = ensure_runtime_model_artifacts("process-manifest")
+
+        self.assertTrue(report["bootstrapped"])
+        bootstrap_fn.assert_called_once_with(target="parakeet")
+
     def test_ensure_runtime_model_artifacts_skips_inspect(self):
         self.assertIsNone(ensure_runtime_model_artifacts("inspect"))
 

@@ -10,9 +10,18 @@ struct TranscriptPreview: Identifiable {
     var id: String { path }
 }
 
+struct ModelBootstrapStatus {
+    let isRunning: Bool
+    let message: String?
+    let error: String?
+
+    static let idle = ModelBootstrapStatus(isRunning: false, message: nil, error: nil)
+}
+
 final class JobStore: ObservableObject {
     @Published private(set) var jobs: [JobEnvelope] = []
     @Published private(set) var modelReadiness = ModelReadiness.detect(bundle: .main)
+    @Published private(set) var modelBootstrapStatus = ModelBootstrapStatus.idle
     @Published var preview: TranscriptPreview?
 
     private var timer: Timer?
@@ -174,6 +183,37 @@ final class JobStore: ObservableObject {
         preview = TranscriptPreview(path: path, title: url.lastPathComponent, contents: contents)
     }
 
+    func bootstrapModels() {
+        guard !modelBootstrapStatus.isRunning else { return }
+        modelBootstrapStatus = ModelBootstrapStatus(
+            isRunning: true,
+            message: "Downloading local CoreML model bundles...",
+            error: nil
+        )
+        let launcher = ModelBootstrapLauncher()
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let result = launcher.run()
+            DispatchQueue.main.async {
+                guard let self else { return }
+                self.modelReadiness = ModelReadiness.detect(bundle: .main)
+                if result.success {
+                    self.modelBootstrapStatus = ModelBootstrapStatus(
+                        isRunning: false,
+                        message: result.message,
+                        error: nil
+                    )
+                } else {
+                    self.modelBootstrapStatus = ModelBootstrapStatus(
+                        isRunning: false,
+                        message: nil,
+                        error: result.message
+                    )
+                }
+                self.refresh()
+            }
+        }
+    }
+
     private func launch(job: JobEnvelope) {
         guard !runningJobs.contains(job.id) else { return }
         runningJobs.insert(job.id)
@@ -245,7 +285,7 @@ struct ModelReadiness {
         if !diarizerReady {
             missing.append("speaker diarizer")
         }
-        return "Missing model files: \(missing.joined(separator: " and ")). Run install.sh or swinydl bootstrap-models."
+        return "Missing model files: \(missing.joined(separator: " and ")). Use Download Models in this app or run install.sh."
     }
 
     static func detect(bundle: Bundle) -> ModelReadiness {
@@ -258,17 +298,18 @@ struct ModelReadiness {
         let diarizerDir = repoRootURL.appendingPathComponent("vendor/speaker-diarization-coreml", isDirectory: true)
 
         let parakeetRequired = [
-            "MelSpectrogram.mlmodelc",
-            "AudioEncoder.mlmodelc",
-            "TextDecoder.mlmodelc",
-            "MultimodalLogits.mlmodelc",
+            "Preprocessor.mlmodelc",
+            "Encoder.mlmodelc",
+            "Decoder.mlmodelc",
+            "JointDecision.mlmodelc",
             "parakeet_vocab.json",
         ]
         let diarizerRequired = [
-            "SpeakerSegmentation.mlmodelc",
-            "SpeakerEmbedding.mlmodelc",
-            "speaker-diarization/config.json",
-            "speaker-diarization/plda-parameters.json",
+            "Segmentation.mlmodelc",
+            "FBank.mlmodelc",
+            "Embedding.mlmodelc",
+            "PldaRho.mlmodelc",
+            "plda-parameters.json",
             "xvector-transform.json",
         ]
 
@@ -307,6 +348,89 @@ private struct BackendLauncher {
         } catch {
             return false
         }
+    }
+}
+
+private struct ModelBootstrapResult {
+    let success: Bool
+    let message: String
+}
+
+private struct ModelBootstrapLauncher {
+    func run(bundle: Bundle = .main) -> ModelBootstrapResult {
+        guard let repoRoot = SWinyDLRuntime.installRoot(bundle: bundle) else {
+            return ModelBootstrapResult(
+                success: false,
+                message: "SWinyDL could not find the install folder. Copy the SWinyDL folder out of the DMG, then run install.sh from that copied folder."
+            )
+        }
+
+        let envPython = ProcessInfo.processInfo.environment["SWINYDL_PYTHON"]
+        let pythonBinary = envPython ?? SWinyDLRuntime.pythonPath(bundle: bundle)
+        guard FileManager.default.isExecutableFile(atPath: pythonBinary) else {
+            return ModelBootstrapResult(
+                success: false,
+                message: "SWinyDL could not find an executable Python runtime at \(pythonBinary). Run install.sh once from the copied SWinyDL folder."
+            )
+        }
+
+        let process = Process()
+        let tempDir = FileManager.default.temporaryDirectory
+        let outputURL = tempDir.appendingPathComponent("swinydl-bootstrap-\(UUID().uuidString)-stdout.log")
+        let errorURL = tempDir.appendingPathComponent("swinydl-bootstrap-\(UUID().uuidString)-stderr.log")
+        FileManager.default.createFile(atPath: outputURL.path, contents: nil)
+        FileManager.default.createFile(atPath: errorURL.path, contents: nil)
+        guard let outputHandle = try? FileHandle(forWritingTo: outputURL),
+              let errorHandle = try? FileHandle(forWritingTo: errorURL) else {
+            return ModelBootstrapResult(
+                success: false,
+                message: "SWinyDL could not create temporary log files for model download."
+            )
+        }
+        defer {
+            try? outputHandle.close()
+            try? errorHandle.close()
+            try? FileManager.default.removeItem(at: outputURL)
+            try? FileManager.default.removeItem(at: errorURL)
+        }
+        process.executableURL = URL(fileURLWithPath: pythonBinary)
+        process.arguments = ["-m", "swinydl.main", "bootstrap-models"]
+        process.currentDirectoryURL = repoRoot
+        process.standardOutput = outputHandle
+        process.standardError = errorHandle
+        process.environment = (process.environment ?? ProcessInfo.processInfo.environment).merging(
+            ["PYTHONPATH": repoRoot.path],
+            uniquingKeysWith: { _, new in new }
+        )
+
+        do {
+            try process.run()
+            process.waitUntilExit()
+        } catch {
+            return ModelBootstrapResult(
+                success: false,
+                message: "SWinyDL could not start the model downloader: \(error.localizedDescription)"
+            )
+        }
+
+        try? outputHandle.synchronize()
+        try? errorHandle.synchronize()
+        let output = (try? String(contentsOf: outputURL, encoding: .utf8)) ?? ""
+        let stderr = (try? String(contentsOf: errorURL, encoding: .utf8)) ?? ""
+        if process.terminationStatus == 0 {
+            return ModelBootstrapResult(
+                success: true,
+                message: "Model download finished. Parakeet and speaker diarizer readiness has been refreshed."
+            )
+        }
+
+        let detail = ([stderr, output].filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty })
+            .joined(separator: "\n")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return ModelBootstrapResult(
+            success: false,
+            message: detail.isEmpty ? "Model download failed with exit code \(process.terminationStatus)." : detail
+        )
     }
 }
 

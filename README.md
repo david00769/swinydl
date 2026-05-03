@@ -53,6 +53,8 @@ brew install uv ffmpeg
 
 ## Easiest Install
 
+First download checklist:
+
 For most people, the best path is:
 
 1. Download the latest `SWinyDL-v...dmg` from [GitHub Releases](https://github.com/david00769/swinydl/releases)
@@ -76,6 +78,8 @@ chmod +x install.sh
 ```
 
 If Homebrew, `uv`, or `ffmpeg` are missing, approve the installer prompts.
+
+If macOS blocks the unsigned app after setup, prefer running `./install.sh` again from the copied folder. If you manually open the app, Control-click `SWinyDLSafariApp.app`, choose `Open`, then confirm the warning. Do not open the app from inside the mounted DMG.
 
 `./install.sh` does the setup for you:
 - offers to install Homebrew if it is missing
@@ -185,8 +189,13 @@ After the installer finishes:
 8. If it still does not appear after that, use the temporary extension fallback below
 9. Open your Canvas or Echo360 page in Safari
 10. Open the `SWinyDL Safari` extension
-11. Choose the lessons you want
-12. Start the job
+11. Use `Open App` in the extension popup if you need to bring the full SWinyDL app window forward
+12. Choose the lessons you want
+13. Start the job
+
+The full app entry point is either the `Open App` button in the Safari extension popup or `SWinyDLSafariApp.app` inside your copied `SWinyDL` folder. The app window shows model readiness, queued jobs, progress, and transcript output links.
+
+If a page does not load as expected, click `Export Debug Log` in the Safari extension popup. It saves one sanitized JSON file with page/discovery details and no cookies or full raw HTML.
 
 Because this first release is unsigned, Safari may require developer-mode extension loading. Apple's unsigned-extension setting resets every time Safari quits, so you may need to turn on `Allow unsigned extensions` again after restarting Safari.
 
@@ -301,16 +310,18 @@ For an older copied folder, this manual cleanup also works:
 
 ### The app says models are missing
 
-Run:
+Click `Download Models` in the app's `Readiness` panel. The app will run the same model bootstrapper used by the installer, then refresh readiness when the download finishes.
 
-```bash
-./install.sh
-```
-
-or:
+If you prefer Terminal, run:
 
 ```bash
 swinydl bootstrap-models
+```
+
+Running the installer again also repairs the local model folder:
+
+```bash
+./install.sh
 ```
 
 ### A run looks slow

@@ -27,6 +27,8 @@ final class SafariWebExtensionHandler: NSObject, NSExtensionRequestHandling {
             return loadJobStatuses()
         case "open_output":
             return try openOutput(payload: payload)
+        case "open_app":
+            return openApp()
         default:
             return ["ok": false, "error": "Unsupported operation '\(operation)'."]
         }
@@ -110,6 +112,16 @@ final class SafariWebExtensionHandler: NSObject, NSExtensionRequestHandling {
         }
         NSWorkspace.shared.open(URL(fileURLWithPath: path, isDirectory: true))
         return ["ok": true]
+    }
+
+    private func openApp() -> [String: Any] {
+        if launchHostApplication() {
+            return ["ok": true]
+        }
+        return [
+            "ok": false,
+            "error": "Safari could not find the SWinyDL app. Run ./install.sh from the copied SWinyDL folder, then try Open App again."
+        ]
     }
 
     private func launchHostApplication() -> Bool {

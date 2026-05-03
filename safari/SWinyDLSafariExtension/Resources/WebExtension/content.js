@@ -21,6 +21,8 @@
     const mediaLinks = Array.from(document.querySelectorAll("video[src], track[src]"))
       .map((node) => node.src)
       .filter(Boolean);
+    const titleCandidates = collectTitleCandidates();
+    const textSnippets = collectTextSnippets(titleCandidates);
     return {
       pageUrl: window.location.href,
       pageTitle: document.title,
@@ -33,7 +35,9 @@
       embeddedUrls,
       storageUrls,
       lessonCandidates,
-      mediaLinks
+      mediaLinks,
+      titleCandidates,
+      textSnippets
     };
   }
 
@@ -102,6 +106,36 @@
       }
     }
     return urls;
+  }
+
+  function collectTitleCandidates() {
+    const selectors = [
+      "[aria-current='page']",
+      ".ic-app-course-menu .active",
+      ".pages .active",
+      ".course-title",
+      ".ellipsible",
+      "h1",
+      "h2",
+      "iframe[title]"
+    ];
+    return selectors.flatMap((selector) => Array.from(document.querySelectorAll(selector)))
+      .map((node) => node.getAttribute("title") || node.getAttribute("aria-label") || node.textContent || "")
+      .map((value) => value.replace(/\s+/g, " ").trim())
+      .filter(Boolean)
+      .slice(0, 12);
+  }
+
+  function collectTextSnippets(titleCandidates) {
+    return [
+      document.title,
+      ...titleCandidates,
+      document.querySelector("main")?.textContent || document.body?.innerText || ""
+    ]
+      .map((value) => value.replace(/\s+/g, " ").trim())
+      .filter(Boolean)
+      .map((value) => value.slice(0, 240))
+      .slice(0, 10);
   }
 
   function publishPageContext() {

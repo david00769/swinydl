@@ -109,7 +109,7 @@ def bootstrap_models(*, target: str = "all", force: bool = False, vendor_root: P
 
 def ensure_runtime_model_artifacts(command: str) -> dict[str, object] | None:
     """Auto-bootstrap the default staged model bundles for commands that require them."""
-    if command not in {"process", "transcribe", "doctor"}:
+    if command not in {"process", "process-manifest", "transcribe", "doctor"}:
         return None
 
     with _bootstrap_lock():

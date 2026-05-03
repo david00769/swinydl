@@ -266,10 +266,39 @@ private struct ContentView: View {
                         tint: AppTheme.warning,
                         compact: true
                     )
+                    HStack(spacing: 8) {
+                        SecondaryActionButton(
+                            title: store.modelBootstrapStatus.isRunning ? "Downloading..." : "Download Models",
+                            systemImage: "arrow.down.circle",
+                            compact: true
+                        ) {
+                            store.bootstrapModels()
+                        }
+                        .disabled(store.modelBootstrapStatus.isRunning)
+                        SecondaryActionButton(title: "Refresh", systemImage: "arrow.clockwise", compact: true) {
+                            store.refresh()
+                        }
+                    }
                 } else {
                     Text(store.modelReadiness.summary)
                         .font(.caption)
                         .foregroundStyle(AppTheme.secondaryText)
+                }
+                if let message = store.modelBootstrapStatus.message, !message.isEmpty {
+                    InlineMessage(
+                        icon: store.modelBootstrapStatus.isRunning ? "arrow.down.circle" : "checkmark.circle.fill",
+                        text: message,
+                        tint: store.modelBootstrapStatus.isRunning ? AppTheme.accent : AppTheme.success,
+                        compact: true
+                    )
+                }
+                if let error = store.modelBootstrapStatus.error, !error.isEmpty {
+                    InlineMessage(
+                        icon: "exclamationmark.triangle.fill",
+                        text: error,
+                        tint: AppTheme.danger,
+                        compact: true
+                    )
                 }
             }
         }
@@ -336,7 +365,7 @@ private struct ContentView: View {
             banners.append(
                 AppBanner(
                     icon: "shippingbox",
-                    text: store.modelReadiness.summary,
+                    text: "\(store.modelReadiness.summary) Use Download Models in the Readiness panel to repair this from the app.",
                     tint: AppTheme.warning
                 )
             )
@@ -357,7 +386,7 @@ private struct ContentView: View {
             banners.append(
                 AppBanner(
                     icon: "shippingbox",
-                    text: "Required local CoreML model artifacts are missing. Run `swinydl bootstrap-models` and retry the failed lessons.",
+                    text: "Required local CoreML model artifacts are missing. Use Download Models in the Readiness panel, then retry the failed lessons.",
                     tint: AppTheme.warning
                 )
             )

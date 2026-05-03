@@ -47,6 +47,40 @@ class WebExtensionSourceTests(unittest.TestCase):
         self.assertIn("lessonCandidates", contents)
         self.assertIn("lti", contents)
 
+    def test_popup_exposes_app_selection_and_debug_controls(self):
+        html = (WEBEXTENSION / "popup.html").read_text(encoding="utf-8")
+        script = (WEBEXTENSION / "popup.js").read_text(encoding="utf-8")
+
+        self.assertIn('id="open-app"', html)
+        self.assertIn('id="check-all"', html)
+        self.assertIn('id="uncheck-all"', html)
+        self.assertIn('id="selection-count"', html)
+        self.assertIn('id="export-debug"', html)
+        self.assertIn("First run", html)
+        self.assertIn("open-app", script)
+        self.assertIn("export-debug-log", script)
+        self.assertIn("Discovering course content", script)
+
+    def test_background_builds_sanitized_debug_export(self):
+        contents = (WEBEXTENSION / "background.js").read_text(encoding="utf-8")
+
+        self.assertIn("exportDebugLogForActiveTab", contents)
+        self.assertIn("buildDebugLog", contents)
+        self.assertIn("sanitizeDebugValue", contents)
+        self.assertIn("sanitizeUrl", contents)
+        self.assertIn("full raw HTML", contents)
+        self.assertIn("[REDACTED]", contents)
+        self.assertNotIn("outerHTML", contents)
+
+    def test_course_title_fallback_avoids_untitled_course(self):
+        contents = (WEBEXTENSION / "background.js").read_text(encoding="utf-8")
+
+        self.assertIn("decorateCourseDisplay", contents)
+        self.assertIn("bestCourseTitle", contents)
+        self.assertIn("titleCandidates", contents)
+        self.assertIn("isPlaceholderCourseTitle", contents)
+        self.assertIn("EchoVideo Course", contents)
+
 
 if __name__ == "__main__":
     unittest.main()

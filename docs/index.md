@@ -25,14 +25,17 @@ For unsigned DMG installs, it also clears downloaded-file quarantine from the bu
 
 The GitHub DMG is runtime-only. It includes install/runtime files, the prebuilt app, the WebExtension resources needed for Safari's temporary-extension fallback, the Python backend runtime package, model/runtime assets, and license notices. It intentionally does not include the Safari Xcode project, Swift package source, test suite, or build scripts. Developer build instructions remain in the GitHub repository.
 
-For a first-time non-technical Mac user, the simplest setup path is:
+First download checklist for a non-technical Mac user:
 
 1. download the latest `SWinyDL-v...dmg` from [GitHub Releases](https://github.com/david00769/swinydl/releases)
 2. open the DMG
 3. drag the `SWinyDL` folder out of the DMG and put it somewhere writable, such as `Documents` or `Applications`
 4. open Terminal in the copied folder and run `./install.sh`
 5. approve the Homebrew and `uv`/`ffmpeg` install prompts if those tools are missing
-6. enable `SWinyDL Safari` in Safari Settings
+6. if Terminal says permission is denied, run `chmod +x install.sh` and then `./install.sh` again
+7. enable `SWinyDL Safari` in Safari Settings
+
+If macOS blocks the unsigned app, prefer rerunning `./install.sh`. If you need to open it manually, Control-click `SWinyDLSafariApp.app`, choose `Open`, and confirm the warning.
 
 After that:
 
@@ -44,7 +47,8 @@ After that:
 6. If the picker will not let you select that folder, select `SWinyDL-WebExtension.zip` from the same copied `SWinyDL` folder instead
 7. If you want to verify the extension is registered, run `pluginkit -mAvvv -p com.apple.Safari.web-extension | rg SWinyDL`
 8. Open a logged-in Canvas or Echo360 page in Safari
-9. Use the extension popup to load the course, choose whether downloaded media should be deleted after transcription, and launch a manifest-driven backend job into the native wrapper app window
+9. Use `Open App` in the extension popup to bring the native wrapper window forward
+10. Use the extension popup to load the course, choose whether downloaded media should be deleted after transcription, and launch a manifest-driven backend job into the native wrapper app window
 
 Do not double-click `SWinyDLSafariExtension.appex`. Safari discovers the extension through the containing `SWinyDLSafariApp.app`; `./install.sh` also re-registers that containing app and extension with macOS.
 
@@ -52,6 +56,8 @@ The temporary extension fallback is not permanent. Safari removes temporary exte
 
 The native wrapper window shows per-lesson transcript files and can open the transcription folder directly.
 It also shows whether the Parakeet ASR model bundle and speaker diarizer bundle are ready.
+
+If course discovery fails, click `Export Debug Log` in the Safari extension popup and share the saved sanitized JSON file. It includes page/discovery state but excludes cookies, storage values, hidden input values, and full raw HTML.
 
 The backend has also been verified non-interactively on public sample media:
 
@@ -160,7 +166,7 @@ The supported staging path is:
 swinydl bootstrap-models
 ```
 
-That command downloads the repo-local CoreML bundles from the public Hugging Face sources documented below.
+That command downloads the repo-local CoreML bundles from the public Hugging Face sources documented below. The Safari app also exposes this repair path as `Download Models` in the `Readiness` panel, so missing model files can be fixed without rerunning the whole installer.
 
 ## Model Provenance
 

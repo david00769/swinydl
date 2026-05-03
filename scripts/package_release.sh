@@ -100,6 +100,12 @@ done
 
 /usr/bin/xattr -cr "$STAGE_ROOT" 2>/dev/null || true
 
+UNEXPECTED_ZIP="$(find "$STAGE_ROOT" -type f -name '*.zip' ! -name 'SWinyDL-WebExtension.zip' -print -quit)"
+if [ -n "$UNEXPECTED_ZIP" ]; then
+  printf 'Unexpected nested zip in release package: %s\n' "$UNEXPECTED_ZIP" >&2
+  exit 1
+fi
+
 hdiutil create \
   -volname "SWinyDL $VERSION" \
   -srcfolder "$STAGE_PARENT" \

@@ -19,6 +19,8 @@ This runtime DMG does not include the Safari Xcode project, Swift package source
 
 ## Install
 
+First download checklist:
+
 1. Drag this `SWinyDL` folder out of the DMG.
 2. Put it somewhere you want to keep it, such as `Documents` or `Applications`.
 3. Do not run the installer from inside the mounted DMG.
@@ -42,6 +44,8 @@ If Homebrew, `uv`, or `ffmpeg` are missing, approve the installer prompts.
 
 If signing fails with `resource fork, Finder information, or similar detritus not allowed`, download the latest release and run `./install.sh` again. Current installers scrub that metadata before signing.
 
+If macOS blocks the unsigned app after setup, prefer running `./install.sh` again from this copied folder. If you manually open it, Control-click `SWinyDLSafariApp.app`, choose `Open`, then confirm the warning. Do not open the app from inside the mounted DMG.
+
 The normal release install does not require Xcode, xcodegen, Swift, source code, or local compilation.
 
 ## Enable Safari
@@ -55,7 +59,15 @@ After the installer finishes:
 5. Open Safari `Settings > Extensions`.
 6. Enable `SWinyDL Safari`.
 7. Open your Canvas or Echo360 page in Safari.
-8. Open the `SWinyDL Safari` extension and start a job.
+8. Open the `SWinyDL Safari` extension.
+9. Use `Open App` in the extension popup if you need to bring the full SWinyDL app window forward.
+10. Start a job.
+
+The full app entry point is either the popup's `Open App` button or `SWinyDLSafariApp.app` inside this copied `SWinyDL` folder.
+
+If the full app says Parakeet or speaker diarizer files are missing, click `Download Models` in the app's `Readiness` panel. That runs the same bootstrapper as `./install.sh`, then refreshes the app's model check.
+
+If course discovery fails, click `Export Debug Log` in the Safari extension popup. It saves one sanitized JSON file with page/discovery state and excludes cookies, storage values, hidden input values, and full raw HTML.
 
 Safari resets `Allow unsigned extensions` when Safari quits, so repeat the Developer and Extensions steps after each Safari restart while SWinyDL is unsigned.
 

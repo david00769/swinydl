@@ -2,12 +2,19 @@ import json
 import unittest
 from pathlib import Path
 
+from swinydl.version import __version__
+
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 WEBEXTENSION = REPO_ROOT / "safari" / "SWinyDLSafariExtension" / "Resources" / "WebExtension"
 
 
 class WebExtensionSourceTests(unittest.TestCase):
+    def test_manifest_version_matches_package_version(self):
+        manifest = json.loads((WEBEXTENSION / "manifest.json").read_text(encoding="utf-8"))
+
+        self.assertEqual(__version__, manifest["version"])
+
     def test_manifest_covers_echo360_australia_iframes(self):
         manifest = json.loads((WEBEXTENSION / "manifest.json").read_text(encoding="utf-8"))
         content_script = manifest["content_scripts"][0]
@@ -57,7 +64,13 @@ class WebExtensionSourceTests(unittest.TestCase):
         self.assertIn('id="selection-count"', html)
         self.assertIn('id="export-debug"', html)
         self.assertIn("First run", html)
+        self.assertIn("Repair Setup", html)
+        self.assertIn("access data from other apps", html)
+        self.assertIn("Debug Log", html)
         self.assertIn("open-app", script)
+        self.assertIn("appOpened", script)
+        self.assertIn("SWinyDL is opening", script)
+        self.assertIn("did not open", script)
         self.assertIn("export-debug-log", script)
         self.assertIn("Discovering course content", script)
 

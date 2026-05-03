@@ -14,13 +14,20 @@ struct ModelBootstrapStatus {
     let isRunning: Bool
     let message: String?
     let error: String?
+    let logDirectoryPath: String?
 
-    static let idle = ModelBootstrapStatus(isRunning: false, message: nil, error: nil)
+    static let idle = ModelBootstrapStatus(
+        isRunning: false,
+        message: nil,
+        error: nil,
+        logDirectoryPath: nil
+    )
 }
 
 final class JobStore: ObservableObject {
     @Published private(set) var jobs: [JobEnvelope] = []
     @Published private(set) var modelReadiness = ModelReadiness.detect(bundle: .main)
+    @Published private(set) var handoffReady = SWinyDLBridge.sharedContainerAvailable()
     @Published private(set) var modelBootstrapStatus = ModelBootstrapStatus.idle
     @Published var preview: TranscriptPreview?
 
@@ -37,6 +44,7 @@ final class JobStore: ObservableObject {
 
     func refresh() {
         modelReadiness = ModelReadiness.detect(bundle: .main)
+        handoffReady = SWinyDLBridge.sharedContainerAvailable()
         let manifestsDir = SWinyDLBridge.manifestsDirectory()
         let manifestURLs = (try? FileManager.default.contentsOfDirectory(
             at: manifestsDir,
@@ -177,6 +185,21 @@ final class JobStore: ObservableObject {
         NSWorkspace.shared.open(url)
     }
 
+    var outputRootPath: String {
+        jobs.compactMap { job in
+            guard let outputRoot = job.status?.outputRoot, !outputRoot.isEmpty else {
+                return nil
+            }
+            return outputRoot
+        }.first ?? SWinyDLRuntime.defaultOutputRoot(bundle: .main).path
+    }
+
+    func openDefaultOutputRoot() {
+        let url = URL(fileURLWithPath: outputRootPath, isDirectory: true)
+        try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        NSWorkspace.shared.open(url)
+    }
+
     func previewTranscript(path: String) {
         let url = URL(fileURLWithPath: path)
         guard let contents = try? String(contentsOf: url, encoding: .utf8) else { return }
@@ -184,13 +207,18 @@ final class JobStore: ObservableObject {
     }
 
     func bootstrapModels() {
+        repairSetup()
+    }
+
+    func repairSetup() {
         guard !modelBootstrapStatus.isRunning else { return }
         modelBootstrapStatus = ModelBootstrapStatus(
             isRunning: true,
-            message: "Downloading local CoreML model bundles...",
-            error: nil
+            message: "Running SWinyDL setup repair...",
+            error: nil,
+            logDirectoryPath: modelBootstrapStatus.logDirectoryPath
         )
-        let launcher = ModelBootstrapLauncher()
+        let launcher = SetupRepairLauncher()
         DispatchQueue.global(qos: .userInitiated).async { [weak self] in
             let result = launcher.run()
             DispatchQueue.main.async {
@@ -200,18 +228,30 @@ final class JobStore: ObservableObject {
                     self.modelBootstrapStatus = ModelBootstrapStatus(
                         isRunning: false,
                         message: result.message,
-                        error: nil
+                        error: nil,
+                        logDirectoryPath: result.logDirectoryPath
                     )
                 } else {
                     self.modelBootstrapStatus = ModelBootstrapStatus(
                         isRunning: false,
                         message: nil,
-                        error: result.message
+                        error: result.message,
+                        logDirectoryPath: result.logDirectoryPath
                     )
                 }
                 self.refresh()
             }
         }
+    }
+
+    func openSetupRepairLogs() {
+        let url: URL
+        if let logDirectoryPath = modelBootstrapStatus.logDirectoryPath, !logDirectoryPath.isEmpty {
+            url = URL(fileURLWithPath: logDirectoryPath, isDirectory: true)
+        } else {
+            url = SWinyDLBridge.logsDirectory()
+        }
+        NSWorkspace.shared.open(url)
     }
 
     private func launch(job: JobEnvelope) {
@@ -285,7 +325,7 @@ struct ModelReadiness {
         if !diarizerReady {
             missing.append("speaker diarizer")
         }
-        return "Missing model files: \(missing.joined(separator: " and ")). Use Download Models in this app or run install.sh."
+        return "Missing model files: \(missing.joined(separator: " and "))."
     }
 
     static func detect(bundle: Bundle) -> ModelReadiness {
@@ -351,50 +391,52 @@ private struct BackendLauncher {
     }
 }
 
-private struct ModelBootstrapResult {
+private struct SetupRepairResult {
     let success: Bool
     let message: String
+    let logDirectoryPath: String?
 }
 
-private struct ModelBootstrapLauncher {
-    func run(bundle: Bundle = .main) -> ModelBootstrapResult {
+private struct SetupRepairLauncher {
+    func run(bundle: Bundle = .main) -> SetupRepairResult {
         guard let repoRoot = SWinyDLRuntime.installRoot(bundle: bundle) else {
-            return ModelBootstrapResult(
+            return SetupRepairResult(
                 success: false,
-                message: "SWinyDL could not find the install folder. Copy the SWinyDL folder out of the DMG, then run install.sh from that copied folder."
+                message: "SWinyDL could not find the install folder. Copy the SWinyDL folder out of the DMG, then run install.sh from that copied folder.",
+                logDirectoryPath: nil
             )
         }
 
-        let envPython = ProcessInfo.processInfo.environment["SWINYDL_PYTHON"]
-        let pythonBinary = envPython ?? SWinyDLRuntime.pythonPath(bundle: bundle)
-        guard FileManager.default.isExecutableFile(atPath: pythonBinary) else {
-            return ModelBootstrapResult(
+        let installScript = repoRoot.appendingPathComponent("install.sh")
+        guard FileManager.default.fileExists(atPath: installScript.path) else {
+            return SetupRepairResult(
                 success: false,
-                message: "SWinyDL could not find an executable Python runtime at \(pythonBinary). Run install.sh once from the copied SWinyDL folder."
+                message: "SWinyDL could not find install.sh. Download the latest release or run ./install.sh from the copied SWinyDL folder.",
+                logDirectoryPath: nil
             )
         }
 
         let process = Process()
-        let tempDir = FileManager.default.temporaryDirectory
-        let outputURL = tempDir.appendingPathComponent("swinydl-bootstrap-\(UUID().uuidString)-stdout.log")
-        let errorURL = tempDir.appendingPathComponent("swinydl-bootstrap-\(UUID().uuidString)-stderr.log")
+        let logsDir = SWinyDLBridge.logsDirectory()
+        let stamp = Self.logTimestamp()
+        let outputURL = logsDir.appendingPathComponent("setup-repair-\(stamp)-stdout.log")
+        let errorURL = logsDir.appendingPathComponent("setup-repair-\(stamp)-stderr.log")
         FileManager.default.createFile(atPath: outputURL.path, contents: nil)
         FileManager.default.createFile(atPath: errorURL.path, contents: nil)
         guard let outputHandle = try? FileHandle(forWritingTo: outputURL),
               let errorHandle = try? FileHandle(forWritingTo: errorURL) else {
-            return ModelBootstrapResult(
+            return SetupRepairResult(
                 success: false,
-                message: "SWinyDL could not create temporary log files for model download."
+                message: "SWinyDL could not create setup repair log files.",
+                logDirectoryPath: nil
             )
         }
         defer {
             try? outputHandle.close()
             try? errorHandle.close()
-            try? FileManager.default.removeItem(at: outputURL)
-            try? FileManager.default.removeItem(at: errorURL)
         }
-        process.executableURL = URL(fileURLWithPath: pythonBinary)
-        process.arguments = ["-m", "swinydl.main", "bootstrap-models"]
+        process.executableURL = URL(fileURLWithPath: "/bin/bash")
+        process.arguments = [installScript.path, "--repair", "--non-interactive", "--skip-open"]
         process.currentDirectoryURL = repoRoot
         process.standardOutput = outputHandle
         process.standardError = errorHandle
@@ -407,9 +449,10 @@ private struct ModelBootstrapLauncher {
             try process.run()
             process.waitUntilExit()
         } catch {
-            return ModelBootstrapResult(
+            return SetupRepairResult(
                 success: false,
-                message: "SWinyDL could not start the model downloader: \(error.localizedDescription)"
+                message: "SWinyDL could not start setup repair: \(error.localizedDescription)",
+                logDirectoryPath: logsDir.path
             )
         }
 
@@ -418,19 +461,29 @@ private struct ModelBootstrapLauncher {
         let output = (try? String(contentsOf: outputURL, encoding: .utf8)) ?? ""
         let stderr = (try? String(contentsOf: errorURL, encoding: .utf8)) ?? ""
         if process.terminationStatus == 0 {
-            return ModelBootstrapResult(
+            return SetupRepairResult(
                 success: true,
-                message: "Model download finished. Parakeet and speaker diarizer readiness has been refreshed."
+                message: "Setup repair finished.",
+                logDirectoryPath: logsDir.path
             )
         }
 
         let detail = ([stderr, output].filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty })
             .joined(separator: "\n")
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        return ModelBootstrapResult(
+        return SetupRepairResult(
             success: false,
-            message: detail.isEmpty ? "Model download failed with exit code \(process.terminationStatus)." : detail
+            message: detail.isEmpty
+                ? "Setup repair failed with exit code \(process.terminationStatus). Open Logs for details."
+                : "Setup repair failed. Open Logs for details.",
+            logDirectoryPath: logsDir.path
         )
+    }
+
+    private static func logTimestamp() -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyyMMdd-HHmmss"
+        return formatter.string(from: Date())
     }
 }
 
@@ -455,6 +508,13 @@ private enum SWinyDLRuntime {
         }
 
         return "/usr/bin/python3"
+    }
+
+    static func defaultOutputRoot(bundle: Bundle) -> URL {
+        if let root = installRoot(bundle: bundle) {
+            return root.appendingPathComponent("swinydl-output", isDirectory: true)
+        }
+        return FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("swinydl-output", isDirectory: true)
     }
 
     private static func installRootCandidates(bundle: Bundle) -> [URL] {

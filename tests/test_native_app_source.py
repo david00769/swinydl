@@ -35,7 +35,7 @@ class NativeAppSourceTests(unittest.TestCase):
         self.assertNotIn("MelSpectrogram.mlmodelc", contents)
         self.assertNotIn("SpeakerSegmentation.mlmodelc", contents)
 
-    def test_native_app_can_repair_missing_models_from_python_bootstrapper(self):
+    def test_native_app_can_run_setup_repair_from_installer(self):
         app_contents = APP_SOURCE.read_text(encoding="utf-8")
         ui_contents = (
             REPO_ROOT
@@ -45,18 +45,37 @@ class NativeAppSourceTests(unittest.TestCase):
             / "SWinyDLSafariApp.swift"
         ).read_text(encoding="utf-8")
 
+        self.assertIn("func repairSetup()", app_contents)
         self.assertIn("func bootstrapModels()", app_contents)
-        self.assertIn("private struct ModelBootstrapLauncher", app_contents)
-        self.assertIn('"bootstrap-models"', app_contents)
-        self.assertIn("Download Models", ui_contents)
-        self.assertIn("Use Download Models", ui_contents)
+        self.assertIn("private struct SetupRepairLauncher", app_contents)
+        self.assertIn('"--repair", "--non-interactive", "--skip-open"', app_contents)
+        self.assertIn('process.executableURL = URL(fileURLWithPath: "/bin/bash")', app_contents)
+        self.assertIn("SWinyDLBridge.logsDirectory()", app_contents)
+        self.assertIn("logDirectoryPath", app_contents)
+        self.assertIn("func openSetupRepairLogs()", app_contents)
+        self.assertIn("handoffReady", app_contents)
+        self.assertIn("sharedContainerAvailable", app_contents)
+        self.assertIn("defaultOutputRoot", app_contents)
+        self.assertIn("openDefaultOutputRoot", app_contents)
+        self.assertIn("Repair Setup", ui_contents)
+        self.assertIn("Open Logs", ui_contents)
+        self.assertIn("Safari handoff", ui_contents)
+        self.assertIn("Needs Allow", ui_contents)
+
+        repair_button_index = ui_contents.index('title: store.modelBootstrapStatus.isRunning ? "Repairing..." : "Repair Setup"')
+        model_missing_branch_index = ui_contents.index("if !store.modelReadiness.ready {")
+        self.assertGreater(repair_button_index, model_missing_branch_index)
+        self.assertIn("} else {", ui_contents[model_missing_branch_index:repair_button_index])
+        self.assertIn("if store.modelBootstrapStatus.logDirectoryPath != nil", ui_contents)
 
     def test_native_bridge_supports_open_app(self):
         contents = EXTENSION_HANDLER.read_text(encoding="utf-8")
 
         self.assertIn('case "open_app"', contents)
+        self.assertIn('"appOpened": appOpened', contents)
         self.assertIn("private func openApp()", contents)
         self.assertIn("Safari could not find the SWinyDL app", contents)
+        self.assertIn("Repair Setup", contents)
 
 
 if __name__ == "__main__":

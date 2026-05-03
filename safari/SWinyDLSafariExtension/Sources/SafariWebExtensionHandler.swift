@@ -80,11 +80,12 @@ final class SafariWebExtensionHandler: NSObject, NSExtensionRequestHandling {
         let statusData = try JSONEncoder.bridgeEncoder().encode(initialStatus)
         try statusData.write(to: statusURL, options: .atomic)
 
-        _ = launchHostApplication()
+        let appOpened = launchHostApplication()
 
         return [
             "ok": true,
             "jobId": jobID,
+            "appOpened": appOpened,
             "manifestPath": manifestURL.path,
             "statusPath": statusURL.path,
         ]
@@ -120,7 +121,7 @@ final class SafariWebExtensionHandler: NSObject, NSExtensionRequestHandling {
         }
         return [
             "ok": false,
-            "error": "Safari could not find the SWinyDL app. Run ./install.sh from the copied SWinyDL folder, then try Open App again."
+            "error": "Safari could not find the SWinyDL app. Open SWinyDL and run Repair Setup, or run ./install.sh from the copied SWinyDL folder, then try Open App again."
         ]
     }
 

@@ -23,8 +23,13 @@ def logs_dir() -> Path:
 
 
 def cache_dir() -> Path:
-    """Return the directory used for temporary downloads and run caches."""
-    return app_support_dir() / "cache"
+    """Return the package-local directory used for temporary downloads and run caches."""
+    return temp_dir()
+
+
+def temp_dir() -> Path:
+    """Return the package-local temp directory for runtime scratch files."""
+    return Path.cwd() / "temp"
 
 
 def default_output_root() -> Path:

@@ -119,7 +119,11 @@ async function launchJob(requestedAction) {
     setStatus(response?.error || "Unable to queue the job in the native wrapper.");
     return;
   }
-  setStatus(`Queued job ${response.jobId}. The native SWinyDL app will show progress.`);
+  if (response.appOpened === false) {
+    setStatus(`Queued ${selectedLessonIds.length} lessons, but SWinyDL did not open. Click Open App to watch progress.`);
+  } else {
+    setStatus(`Queued ${selectedLessonIds.length} lessons. SWinyDL is opening and will show progress.`);
+  }
   await pollJobStatuses();
 }
 
@@ -148,7 +152,7 @@ async function openNativeApp() {
   setStatus("Opening the native SWinyDL app…");
   const response = await browser.runtime.sendMessage({ type: "open-app" });
   if (!response?.ok) {
-    setStatus(response?.error || "Unable to open the native SWinyDL app. Run ./install.sh from the copied SWinyDL folder.");
+    setStatus(response?.error || "Unable to open the native SWinyDL app. Open SWinyDL and run Repair Setup, or run ./install.sh from the copied folder.");
     return;
   }
   setStatus("Opened the native SWinyDL app.");

@@ -5,15 +5,16 @@ from __future__ import annotations
 from contextlib import suppress
 from dataclasses import asdict
 from http.cookiejar import MozillaCookieJar
-import tempfile
+from pathlib import Path
 import time
+import uuid
 
 import requests
 from selenium import webdriver
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 
-from .app_paths import browser_profile_dir, ensure_runtime_dirs, logs_dir
+from .app_paths import browser_profile_dir, ensure_runtime_dirs, logs_dir, temp_dir
 from .echo_exceptions import BrowserSetupError
 from .models import BrowserCookie
 from .system import find_chrome_binary
@@ -114,9 +115,8 @@ class BrowserSession(AuthenticatedSession):
     def cookie_file(self) -> str:
         """Write browser cookies to a Netscape-format file for `yt-dlp`."""
         assert self.driver is not None
-        temp = tempfile.NamedTemporaryFile(prefix="swinydl-cookies-", suffix=".txt", delete=False)
-        temp.close()
-        jar = MozillaCookieJar(temp.name)
+        cookie_path = _cookie_file_path()
+        jar = MozillaCookieJar(str(cookie_path))
         for cookie in self.driver.get_cookies():
             domain = cookie.get("domain", "")
             path = cookie.get("path", "/")
@@ -133,7 +133,7 @@ class BrowserSession(AuthenticatedSession):
                 )
             )
         jar.save(ignore_discard=True, ignore_expires=True)
-        return temp.name
+        return str(cookie_path)
 
     def _looks_like_login_page(self) -> bool:
         """Heuristically detect an Echo360 or institution login page."""
@@ -166,9 +166,8 @@ class CookieSession(AuthenticatedSession):
 
     def cookie_file(self) -> str:
         """Write exported cookies to a Netscape-format file for yt-dlp."""
-        temp = tempfile.NamedTemporaryFile(prefix="swinydl-cookies-", suffix=".txt", delete=False)
-        temp.close()
-        jar = MozillaCookieJar(temp.name)
+        cookie_path = _cookie_file_path()
+        jar = MozillaCookieJar(str(cookie_path))
         for cookie in self.cookies:
             payload = asdict(cookie)
             jar.set_cookie(
@@ -186,4 +185,10 @@ class CookieSession(AuthenticatedSession):
                 )
             )
         jar.save(ignore_discard=True, ignore_expires=True)
-        return temp.name
+        return str(cookie_path)
+
+
+def _cookie_file_path() -> Path:
+    directory = temp_dir() / "cookies"
+    directory.mkdir(parents=True, exist_ok=True)
+    return directory / f"swinydl-cookies-{uuid.uuid4().hex}.txt"

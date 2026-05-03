@@ -83,8 +83,10 @@ for path in \
 do
   [ -e "$path" ] && ditto "$path" "$STAGE_ROOT/$path"
 done
+[ -f "$STAGE_ROOT/install.sh" ] && chmod +x "$STAGE_ROOT/install.sh"
 
 ditto docs/release-install.md "$STAGE_ROOT/README.md"
+ditto docs/user-guide.md "$STAGE_ROOT/USER-GUIDE.md"
 ditto safari/SWinyDLSafariExtension/Resources/WebExtension "$STAGE_ROOT/WebExtension"
 (
   cd "$STAGE_ROOT"

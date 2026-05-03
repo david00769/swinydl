@@ -6,6 +6,10 @@ enum SWinyDLBridge {
     static let pendingStatus = "queued"
     static let retryStatus = "retry_requested"
 
+    static func sharedContainerAvailable() -> Bool {
+        FileManager.default.containerURL(forSecurityApplicationGroupIdentifier: appGroupIdentifier) != nil
+    }
+
     static func containerURL() -> URL {
         guard let url = FileManager.default.containerURL(
             forSecurityApplicationGroupIdentifier: appGroupIdentifier
@@ -17,6 +21,12 @@ enum SWinyDLBridge {
 
     static func manifestsDirectory() -> URL {
         let url = containerURL().appendingPathComponent("Jobs", isDirectory: true)
+        try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        return url
+    }
+
+    static func logsDirectory() -> URL {
+        let url = containerURL().appendingPathComponent("Logs", isDirectory: true)
         try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
         return url
     }

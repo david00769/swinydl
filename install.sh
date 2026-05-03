@@ -6,19 +6,36 @@ REPO_ROOT="$(cd "$(dirname "$0")" && pwd)"
 BUILD_SCRIPT="$REPO_ROOT/scripts/build_app.sh"
 PREBUILT_APP_PATH="$REPO_ROOT/SWinyDLSafariApp.app"
 BUILD_FROM_SOURCE=0
+REPAIR_ONLY=0
+NON_INTERACTIVE=0
+SKIP_OPEN=0
 
 for arg in "$@"; do
   case "$arg" in
     --build-from-source)
       BUILD_FROM_SOURCE=1
       ;;
+    --repair)
+      REPAIR_ONLY=1
+      ;;
+    --non-interactive)
+      NON_INTERACTIVE=1
+      ;;
+    --skip-open)
+      SKIP_OPEN=1
+      ;;
     -h|--help)
       cat <<EOF
-Usage: ./install.sh [--build-from-source]
+Usage: ./install.sh [--build-from-source] [--repair] [--non-interactive] [--skip-open]
 
 Without --build-from-source, this installer requires a prebuilt
 SWinyDLSafariApp.app in the install folder. To compile the Safari app wrapper,
 run ./scripts/build_app.sh first, or use ./install.sh --build-from-source.
+
+Options:
+  --repair           Refresh runtime setup without compiling from source.
+  --non-interactive  Do not prompt; print exact commands for missing tools.
+  --skip-open        Do not open the app or Safari when setup finishes.
 EOF
       exit 0
       ;;
@@ -28,6 +45,12 @@ EOF
       ;;
   esac
 done
+
+if [ "$REPAIR_ONLY" -eq 1 ] && [ "$BUILD_FROM_SOURCE" -eq 1 ]; then
+  error_msg="--repair uses the bundled prebuilt app and cannot be combined with --build-from-source."
+  printf 'Error: %s\n' "$error_msg" >&2
+  exit 1
+fi
 
 if [ "$BUILD_FROM_SOURCE" -eq 0 ] && [ -d "$PREBUILT_APP_PATH" ]; then
   USE_PREBUILT_APP=1
@@ -83,6 +106,7 @@ EOF
 }
 
 confirm_continue() {
+  [ "$NON_INTERACTIVE" -eq 1 ] && return 0
   if [ -t 0 ]; then
     show_install_plan
     read -r
@@ -116,7 +140,7 @@ confirm_yes() {
   prompt="$1"
   default_yes="$2"
 
-  if [ ! -t 0 ]; then
+  if [ "$NON_INTERACTIVE" -eq 1 ] || [ ! -t 0 ]; then
     return 1
   fi
 
@@ -213,6 +237,23 @@ register_safari_extension() {
 }
 
 require_prebuilt_or_explicit_build() {
+  if [ "$REPAIR_ONLY" -eq 1 ]; then
+    if [ -d "$PREBUILT_APP_PATH" ]; then
+      return 0
+    fi
+    cat >&2 <<EOF
+Error: Repair setup requires a prebuilt SWinyDLSafariApp.app in this folder.
+
+Normal repair:
+  Download the latest SWinyDL-vX.Y.Z.dmg from GitHub Releases, open it, drag the
+  SWinyDL folder out of the DMG, then run ./install.sh from that copied folder.
+
+Developer source build:
+  Clone https://github.com/david00769/swinydl, then run ./scripts/build_app.sh.
+EOF
+    exit 1
+  fi
+
   if [ "$BUILD_FROM_SOURCE" -eq 1 ]; then
     if [ ! -x "$BUILD_SCRIPT" ]; then
       cat >&2 <<EOF
@@ -327,10 +368,14 @@ register_safari_extension
 note "Running SWinyDL doctor..."
 "$VENV_PYTHON" -m swinydl.main doctor
 
-note "Opening the SWinyDL Safari app..."
-open "$APP_PATH"
-note "Opening Safari..."
-open -a Safari
+if [ "$SKIP_OPEN" -eq 0 ]; then
+  note "Opening the SWinyDL Safari app..."
+  open "$APP_PATH"
+  note "Opening Safari..."
+  open -a Safari
+else
+  note "Skipping app and Safari open because --skip-open was provided."
+fi
 
 cat <<EOF
 
@@ -340,7 +385,7 @@ Next steps:
 1. In Safari, open Settings > Advanced and turn on "Show features for web developers".
 2. Open Settings > Developer and turn on "Allow unsigned extensions". macOS will ask for your password.
 3. Open Settings > Extensions and enable "SWinyDL Safari".
-4. If the extension does not appear, quit and reopen the SWinyDL Safari app from this folder, or run ./install.sh again.
+4. If the extension does not appear, quit and reopen the SWinyDL Safari app from this folder, then click Repair Setup in the Readiness panel.
 5. Open a logged-in Canvas or Echo360 page in Safari.
 6. Use the SWinyDL extension popup to load the course and launch jobs.
 
@@ -353,7 +398,9 @@ through the containing SWinyDLSafariApp.app after that app has been opened.
 The app is at:
   $APP_PATH
 
-If you later update from GitHub Releases, download the newer DMG and run:
+If you later update from GitHub Releases, download the newer DMG, replace the
+copied SWinyDL folder, open the app, and click Repair Setup in the Readiness panel.
+If the app cannot open, run:
   ./install.sh
 
 To rebuild locally from source, run:

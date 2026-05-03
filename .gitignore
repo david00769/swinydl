@@ -1,6 +1,7 @@
 _swinydlvenv
 .venv/
 swinydl-output/
+temp/
 vendor/parakeet-tdt-0.6b-v3/
 vendor/parakeet-tdt-0.6b-v3-coreml/
 vendor/speaker-diarization-coreml/

@@ -200,7 +200,7 @@ private struct ContentView: View {
                         }
                     }
                     InspectorActionRow(title: "Open Outputs", systemImage: "folder") {
-                        store.openOutput(path: jobOutputRoot)
+                        store.openDefaultOutputRoot()
                     }
                     InspectorActionRow(title: updates.isChecking ? "Checking..." : "Check for Updates", systemImage: "arrow.down.circle") {
                         Task {
@@ -225,6 +225,7 @@ private struct ContentView: View {
                         .textCase(.uppercase)
                     InfoRow(title: "Primary output", value: ".txt")
                     InfoRow(title: "Also written", value: ".srt, .json")
+                    InfoRow(title: "Output folder", value: "swinydl-output")
                     InfoRow(title: "Speaker separation", value: "On by default")
                     InfoRow(title: "Media cleanup", value: "Delete after transcription")
                 }
@@ -255,10 +256,19 @@ private struct ContentView: View {
                         .foregroundStyle(AppTheme.mutedText)
                         .textCase(.uppercase)
                     Spacer()
-                    StatusBadge(status: store.modelReadiness.ready ? "success" : "failed", compact: true)
+                    StatusBadge(status: store.modelReadiness.ready && store.handoffReady ? "success" : "failed", compact: true)
                 }
+                ReadinessRow(title: "Safari handoff", ready: store.handoffReady, missingLabel: "Needs Allow")
                 ReadinessRow(title: "Parakeet ASR", ready: store.modelReadiness.parakeetReady)
                 ReadinessRow(title: "Speaker diarizer", ready: store.modelReadiness.diarizerReady)
+                if !store.handoffReady {
+                    InlineMessage(
+                        icon: "square.and.arrow.down.on.square.fill",
+                        text: "Safari handoff needs the macOS app-data permission. If prompted, click Allow so the extension and app can share queued jobs.",
+                        tint: AppTheme.warning,
+                        compact: true
+                    )
+                }
                 if !store.modelReadiness.ready {
                     InlineMessage(
                         icon: "shippingbox.fill",
@@ -266,23 +276,28 @@ private struct ContentView: View {
                         tint: AppTheme.warning,
                         compact: true
                     )
-                    HStack(spacing: 8) {
-                        SecondaryActionButton(
-                            title: store.modelBootstrapStatus.isRunning ? "Downloading..." : "Download Models",
-                            systemImage: "arrow.down.circle",
-                            compact: true
-                        ) {
-                            store.bootstrapModels()
-                        }
-                        .disabled(store.modelBootstrapStatus.isRunning)
-                        SecondaryActionButton(title: "Refresh", systemImage: "arrow.clockwise", compact: true) {
-                            store.refresh()
-                        }
-                    }
                 } else {
                     Text(store.modelReadiness.summary)
                         .font(.caption)
                         .foregroundStyle(AppTheme.secondaryText)
+                }
+                HStack(spacing: 8) {
+                    SecondaryActionButton(
+                        title: store.modelBootstrapStatus.isRunning ? "Repairing..." : "Repair Setup",
+                        systemImage: "wrench.and.screwdriver",
+                        compact: true
+                    ) {
+                        store.repairSetup()
+                    }
+                    .disabled(store.modelBootstrapStatus.isRunning)
+                    SecondaryActionButton(title: "Refresh", systemImage: "arrow.clockwise", compact: true) {
+                        store.refresh()
+                    }
+                    if store.modelBootstrapStatus.logDirectoryPath != nil {
+                        SecondaryActionButton(title: "Open Logs", systemImage: "doc.text.magnifyingglass", compact: true) {
+                            store.openSetupRepairLogs()
+                        }
+                    }
                 }
                 if let message = store.modelBootstrapStatus.message, !message.isEmpty {
                     InlineMessage(
@@ -343,7 +358,7 @@ private struct ContentView: View {
     }
 
     private var jobOutputRoot: String {
-        store.jobs.compactMap { $0.status?.outputRoot }.first ?? FileManager.default.homeDirectoryForCurrentUser.path
+        store.outputRootPath
     }
 
     private var activeRunningJob: JobEnvelope? {
@@ -365,7 +380,16 @@ private struct ContentView: View {
             banners.append(
                 AppBanner(
                     icon: "shippingbox",
-                    text: "\(store.modelReadiness.summary) Use Download Models in the Readiness panel to repair this from the app.",
+                    text: "\(store.modelReadiness.summary) Use Repair Setup in the Readiness panel.",
+                    tint: AppTheme.warning
+                )
+            )
+        }
+        if !store.handoffReady {
+            banners.append(
+                AppBanner(
+                    icon: "square.and.arrow.down.on.square",
+                    text: "Safari handoff needs macOS app-data permission. If prompted, click Allow so the extension and app can share queued jobs.",
                     tint: AppTheme.warning
                 )
             )
@@ -374,7 +398,7 @@ private struct ContentView: View {
             banners.append(
                 AppBanner(
                     icon: "bolt.trianglebadge.exclamationmark",
-                    text: "One or more jobs failed before the Python backend could launch. Re-run install.sh or check the configured Python path.",
+                    text: "The Python backend could not launch. Use Repair Setup, or run ./install.sh if the app cannot repair setup.",
                     tint: .red
                 )
             )
@@ -386,7 +410,7 @@ private struct ContentView: View {
             banners.append(
                 AppBanner(
                     icon: "shippingbox",
-                    text: "Required local CoreML model artifacts are missing. Use Download Models in the Readiness panel, then retry the failed lessons.",
+                    text: "Required local CoreML model artifacts are missing. Use Repair Setup in the Readiness panel, then retry the failed lessons.",
                     tint: AppTheme.warning
                 )
             )
@@ -1322,13 +1346,14 @@ private struct InspectorActionRow: View {
 private struct ReadinessRow: View {
     let title: String
     let ready: Bool
+    var missingLabel: String = "Missing"
 
     var body: some View {
         HStack {
             Text(title)
                 .foregroundStyle(AppTheme.primaryText)
             Spacer()
-            Label(ready ? "Ready" : "Missing", systemImage: ready ? "checkmark.circle.fill" : "shippingbox.fill")
+            Label(ready ? "Ready" : missingLabel, systemImage: ready ? "checkmark.circle.fill" : "shippingbox.fill")
                 .font(.caption.weight(.semibold))
                 .foregroundStyle(ready ? AppTheme.success : AppTheme.warning)
         }

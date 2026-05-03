@@ -20,6 +20,9 @@ class InstallScriptTests(unittest.TestCase):
         self.assertIn("uv sync", contents)
         self.assertIn("bootstrap-models", contents)
         self.assertIn("--build-from-source", contents)
+        self.assertIn("--repair", contents)
+        self.assertIn("--non-interactive", contents)
+        self.assertIn("--skip-open", contents)
         self.assertIn("USE_PREBUILT_APP", contents)
         self.assertIn("Using prebuilt SWinyDLSafariApp", contents)
         self.assertIn("scrub_app_metadata", contents)
@@ -42,6 +45,8 @@ class InstallScriptTests(unittest.TestCase):
         self.assertIn("xcodebuild -checkFirstLaunchStatus", contents)
         self.assertIn("Allow unsigned extensions", contents)
         self.assertIn("Press Enter to continue, or Ctrl-C to cancel.", contents)
+        self.assertIn('if [ "$NON_INTERACTIVE" -eq 1 ]', contents)
+        self.assertIn('if [ "$SKIP_OPEN" -eq 0 ]; then', contents)
 
     def test_install_script_has_dmg_no_compile_path(self):
         contents = (REPO_ROOT / "install.sh").read_text(encoding="utf-8")
@@ -50,6 +55,31 @@ class InstallScriptTests(unittest.TestCase):
         self.assertIn("ensure_homebrew_tools uv ffmpeg", contents)
         self.assertIn("ensure_homebrew_tools uv ffmpeg xcodegen", contents)
         self.assertIn('if [ "$USE_PREBUILT_APP" -eq 1 ]; then', contents)
+
+    def test_install_script_repair_mode_does_not_build_from_source(self):
+        contents = (REPO_ROOT / "install.sh").read_text(encoding="utf-8")
+
+        self.assertIn("--repair uses the bundled prebuilt app", contents)
+        self.assertIn("Repair setup requires a prebuilt SWinyDLSafariApp.app", contents)
+
+    def test_install_script_repair_mode_fails_before_prompt_without_prebuilt_app(self):
+        result = subprocess.run(
+            ["bash", str(REPO_ROOT / "install.sh"), "--repair", "--non-interactive", "--skip-open"],
+            check=False,
+            cwd=REPO_ROOT,
+            text=True,
+            capture_output=True,
+        )
+
+        self.assertNotEqual(result.returncode, 0)
+        combined = result.stdout + result.stderr
+        self.assertIn("Repair setup requires a prebuilt SWinyDLSafariApp.app", combined)
+        self.assertNotIn("Press Enter to continue", combined)
+
+    def test_install_script_is_tracked_executable(self):
+        mode = (REPO_ROOT / "install.sh").stat().st_mode
+
+        self.assertTrue(mode & 0o111)
 
     def test_build_app_script_has_valid_shell_syntax(self):
         subprocess.run(

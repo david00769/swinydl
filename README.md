@@ -61,7 +61,9 @@ For most people, the best path is:
 2. Open the DMG
 3. Drag the `SWinyDL` folder out of the DMG and put it somewhere you want to keep it, such as `Documents` or `Applications`
 4. Do not run anything from inside the mounted DMG
-5. Control-click `SWinyDLSafariApp.app` in the copied folder, choose `Open`, then confirm the unsigned-app warning
+5. Open the unsigned app from Finder:
+   - Control-click or right-click `SWinyDLSafariApp.app` in the copied folder, choose `Open`, then confirm the warning
+   - if that is awkward on the trackpad, select `SWinyDLSafariApp.app`, then use Finder `File > Open`
 6. Click `Repair Setup` in the app's `Readiness` panel if setup, Safari registration, or model checks need repair
 7. If macOS asks whether `SWinyDLSafariApp` can access data from other apps, click `Allow`. That lets the Safari extension and app share queued jobs.
 8. If `Repair Setup` reports missing Homebrew, `uv`, or `ffmpeg`, or if macOS will not open the unsigned app at all, use the Terminal fallback below
@@ -86,7 +88,9 @@ chmod +x install.sh
 
 If Homebrew, `uv`, or `ffmpeg` are missing, approve the installer prompts.
 
-If macOS blocks the unsigned app after setup, prefer Control-clicking `SWinyDLSafariApp.app`, choosing `Open`, then confirming the warning. Do not open the app from inside the mounted DMG.
+If macOS blocks the unsigned app after setup, use Finder to open it: Control-click or right-click `SWinyDLSafariApp.app`, choose `Open`, then confirm the warning. The equivalent keyboard/menu path is to select `SWinyDLSafariApp.app` in Finder and choose `File > Open`. Do not open the app from inside the mounted DMG.
+
+If Finder still will not open the app, run `./install.sh` from Terminal in the copied `SWinyDL` folder. The installer clears quarantine, repairs local signing, registers the Safari extension, then opens the app.
 
 `Repair Setup` in the app runs the non-interactive repair path from `install.sh`. The Terminal installer remains the fallback when the app cannot launch or dependencies need interactive installation. `./install.sh` does the setup for you:
 - offers to install Homebrew if it is missing
@@ -130,7 +134,7 @@ Build instructions remain on this GitHub page for developers who clone the repos
 
 You do not need to download the Parakeet model manually.
 
-Do not open `SWinyDLSafariApp.app` from inside the mounted DMG. This first release is unsigned, so macOS may block the first launch. Copy the folder out first, then Control-click `SWinyDLSafariApp.app` and choose `Open`. If macOS still says the app is damaged, run `./install.sh` from the copied `SWinyDL` folder to clear quarantine and repair local signing.
+Do not open `SWinyDLSafariApp.app` from inside the mounted DMG. This first release is unsigned, so macOS may block the first launch. Copy the folder out first, then Control-click or right-click `SWinyDLSafariApp.app` and choose `Open`. You can also select the app in Finder and choose `File > Open`. If macOS still blocks it or says the app is damaged, run `./install.sh` from the copied `SWinyDL` folder to clear quarantine and repair local signing.
 
 Do not double-click the embedded `.appex` extension bundle. Safari does not install Safari Web Extensions that way; it discovers the extension through the containing `SWinyDLSafariApp.app`.
 

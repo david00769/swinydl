@@ -10,7 +10,9 @@ First download checklist:
 2. Open the DMG.
 3. Drag the `SWinyDL` folder out of the DMG to a normal folder such as `Documents` or `Applications`.
 4. Do not run anything from inside the mounted DMG.
-5. Control-click `SWinyDLSafariApp.app`, choose `Open`, then confirm the unsigned-app warning.
+5. Open the unsigned app from Finder:
+   - Control-click or right-click `SWinyDLSafariApp.app`, choose `Open`, then confirm the warning.
+   - if that is awkward on the trackpad, select `SWinyDLSafariApp.app`, then use Finder `File > Open`.
 6. Click `Repair Setup` in the app's `Readiness` panel if setup, Safari registration, or model checks need repair.
 7. If macOS asks whether `SWinyDLSafariApp` can access data from other apps, click `Allow`. That permission lets the Safari extension and app share queued jobs.
 
@@ -35,7 +37,7 @@ chmod +x install.sh
 
 Approve the installer prompts if Homebrew, `uv`, or `ffmpeg` are missing. The installer uses the prebuilt app and prebuilt CoreML runner binaries from the DMG.
 
-If macOS blocks the unsigned app after setup, Control-click `SWinyDLSafariApp.app`, choose `Open`, then confirm the warning. If macOS says the app is damaged, run `./install.sh` from the copied folder.
+If macOS blocks the unsigned app after setup, use Finder to open it: Control-click or right-click `SWinyDLSafariApp.app`, choose `Open`, then confirm the warning. The equivalent menu path is to select `SWinyDLSafariApp.app` in Finder and choose `File > Open`. If macOS still blocks it or says the app is damaged, run `./install.sh` from the copied folder.
 
 If `./install.sh` says the folder is missing runtime files, or `uv` reports `No module named 'swinydl'`, delete the copied `SWinyDL` folder and download the latest DMG again. A complete runtime folder includes the `swinydl` Python runtime package and the `bin/` runner binaries.
 

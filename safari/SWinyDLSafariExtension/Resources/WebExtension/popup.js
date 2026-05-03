@@ -38,7 +38,7 @@ async function loadCourse() {
   startDiscoveryStatus();
   let response;
   try {
-    response = await browser.runtime.sendMessage({ type: "load-course" });
+    response = await sendRuntimeMessage({ type: "load-course" }, "Unable to load course");
   } finally {
     stopDiscoveryStatus();
   }
@@ -106,7 +106,7 @@ async function launchJob(requestedAction) {
   }
 
   setStatus("Launching job in the native SWinyDL app…");
-  const response = await browser.runtime.sendMessage({
+  const response = await sendRuntimeMessage({
     type: "launch-job",
     payload: {
       sourcePageUrl: state.sourcePageUrl,
@@ -122,7 +122,7 @@ async function launchJob(requestedAction) {
         lessons: state.course.lessons.filter((lesson) => selectedLessonIds.includes(lesson.lesson_id))
       }
     }
-  });
+  }, "Unable to queue the job");
 
   if (!response?.ok) {
     setStatus(response?.error || "Unable to queue the job in the native wrapper.");
@@ -140,7 +140,7 @@ async function launchJob(requestedAction) {
 }
 
 async function pollJobStatuses() {
-  const response = await browser.runtime.sendMessage({ type: "job-status" });
+  const response = await sendRuntimeMessage({ type: "job-status" }, "Unable to refresh jobs");
   if (!response?.ok) {
     return;
   }
@@ -162,9 +162,9 @@ async function pollJobStatuses() {
 
 async function openNativeApp() {
   setStatus("Opening the native SWinyDL app…");
-  const response = await browser.runtime.sendMessage({ type: "open-app" });
+  const response = await sendRuntimeMessage({ type: "open-app" }, "Unable to open the native SWinyDL app");
   if (!response?.ok) {
-    setStatus(response?.error || "Unable to open the native SWinyDL app. Open SWinyDL and run Repair Setup, or run ./install.sh from the copied folder.");
+    setStatus(response?.error || "Unable to open the native SWinyDL app. Open SWinyDL manually, or copy the Terminal repair command from the app if setup needs repair.");
     return;
   }
   setStatus("Opened the native SWinyDL app.");
@@ -172,14 +172,25 @@ async function openNativeApp() {
 
 async function exportDebugLog() {
   setStatus("Preparing sanitized debug log…");
-  const response = await browser.runtime.sendMessage({ type: "export-debug-log" });
+  const filename = `swinydl-debug-${timestampForFilename()}.json`;
+  const response = await sendRuntimeMessage({ type: "export-debug-log", filename }, "Unable to export a debug log");
   if (!response?.ok) {
     setStatus(response?.error || "Unable to export a debug log from this page.");
     return;
   }
-  const filename = `swinydl-debug-${timestampForFilename()}.json`;
-  downloadJson(filename, response.debugLog);
-  setStatus(`Saved ${filename}.`);
+  const location = response.directory || response.savedPath || "the SWinyDL Logs folder";
+  setStatus(`Saved ${response.filename || filename} in ${location}.`);
+}
+
+async function sendRuntimeMessage(message, fallbackMessage) {
+  try {
+    return await browser.runtime.sendMessage(message);
+  } catch (error) {
+    return {
+      ok: false,
+      error: `${fallbackMessage}: ${String(error?.message || error)}`
+    };
+  }
 }
 
 async function loadSettings() {
@@ -252,18 +263,6 @@ function timestampForFilename() {
     pad(now.getMinutes()),
     pad(now.getSeconds())
   ].join("");
-}
-
-function downloadJson(filename, payload) {
-  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
-  const url = URL.createObjectURL(blob);
-  const anchor = document.createElement("a");
-  anchor.href = url;
-  anchor.download = filename;
-  document.body.appendChild(anchor);
-  anchor.click();
-  anchor.remove();
-  URL.revokeObjectURL(url);
 }
 
 function escapeHtml(value) {

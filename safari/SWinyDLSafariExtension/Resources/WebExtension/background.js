@@ -2,7 +2,20 @@ const CAPTION_EXTENSIONS = new Set(["vtt", "srt"]);
 const MEDIA_EXTENSIONS = new Set(["m3u8", "mp4", "m4a", "aac", "mp3", "mov", "webm"]);
 const tabContextCache = new Map();
 
-browser.runtime.onMessage.addListener((message, sender) => {
+browser.runtime.onMessage.addListener((message, sender) => handleMessage(message, sender));
+
+async function handleMessage(message, sender) {
+  try {
+    return await handleMessageUnsafe(message, sender);
+  } catch (error) {
+    return {
+      ok: false,
+      error: `SWinyDL Safari extension failed: ${String(error?.message || error)}`
+    };
+  }
+}
+
+function handleMessageUnsafe(message, sender) {
   switch (message?.type) {
     case "page-context-updated":
       rememberPageContext(sender, message.context);
@@ -18,11 +31,11 @@ browser.runtime.onMessage.addListener((message, sender) => {
     case "open-app":
       return sendNative("open_app", {});
     case "export-debug-log":
-      return exportDebugLogForActiveTab();
+      return exportDebugLogForActiveTab(message.filename);
     default:
       return false;
   }
-});
+}
 
 if (browser.tabs?.onRemoved) {
   browser.tabs.onRemoved.addListener((tabId) => {
@@ -78,7 +91,7 @@ async function collectActiveTabContext() {
   return { ok: true, tab, context, courseUrl };
 }
 
-async function exportDebugLogForActiveTab() {
+async function exportDebugLogForActiveTab(filename) {
   const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
   if (!tab?.id || !tab.url) {
     return { ok: false, error: "No active Safari tab was found." };
@@ -103,7 +116,21 @@ async function exportDebugLogForActiveTab() {
     courseUrl,
     error: error || (active?.ok === false ? active.error : null)
   });
-  return { ok: true, debugLog };
+  const saveResponse = await sendNative("save_debug_log", {
+    filename: filename || `swinydl-debug-${Date.now()}.json`,
+    debug_log: debugLog
+  });
+  if (!saveResponse?.ok) {
+    return {
+      ok: false,
+      error: saveResponse?.error || "Unable to save the debug log. Open SWinyDL, then use Export Diagnostics from the app if debug export still fails."
+    };
+  }
+  return {
+    ok: true,
+    filename: saveResponse.filename,
+    savedPath: saveResponse.path
+  };
 }
 
 async function launchJob(payload) {

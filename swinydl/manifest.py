@@ -33,6 +33,8 @@ def load_process_manifest(path: Path | str) -> ProcessManifest:
         cookies=[_cookie_from_dict(item) for item in payload.get("cookies", [])],
         course=_course_from_dict(course_payload) if course_payload else None,
         output_root=Path(payload["output_root"]).expanduser() if payload.get("output_root") else None,
+        temp_root=Path(payload["temp_root"]).expanduser() if payload.get("temp_root") else None,
+        log_root=Path(payload["log_root"]).expanduser() if payload.get("log_root") else None,
         keep_audio=bool(payload.get("keep_audio", False)),
         keep_video=bool(payload.get("keep_video", False)),
         transcript_source=payload.get("transcript_source", "auto"),

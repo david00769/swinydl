@@ -13,12 +13,13 @@ First download checklist:
 5. Open the unsigned app from Finder:
    - Control-click or right-click `SWinyDLSafariApp.app`, choose `Open`, then confirm the warning.
    - if that is awkward on the trackpad, select `SWinyDLSafariApp.app`, then use Finder `File > Open`.
-6. Click `Repair Setup` in the app's `Readiness` panel if setup, Safari registration, or model checks need repair.
-7. If macOS asks whether `SWinyDLSafariApp` can access data from other apps, click `Allow`. That permission lets the Safari extension and app share queued jobs.
+6. Choose an output folder in the app if the `Readiness` panel asks for one.
+7. If setup, Safari registration, signing, or models need repair, click `Copy Repair Command`, paste the command into Terminal, and press `Enter`.
+8. If macOS asks whether `SWinyDLSafariApp` can access data from other apps, click `Allow`. That permission lets the Safari extension and app share queued jobs.
 
 Terminal fallback:
 
-Use this if macOS will not open the unsigned app, or if `Repair Setup` reports missing Homebrew, `uv`, or `ffmpeg`.
+Use this if macOS will not open the unsigned app, if command-line tools are missing, or if setup needs repair.
 
 1. Open Terminal.
 2. Type `cd `, drag the copied `SWinyDL` folder into Terminal, then press `Enter`.
@@ -74,17 +75,18 @@ Safari removes temporary extensions after 24 hours or when Safari quits. Safari 
 ## First Transcript
 
 1. Open `SWinyDLSafariApp.app` from the copied `SWinyDL` folder.
-2. Click `Repair Setup` in the `Readiness` panel if setup or models need repair.
-3. Confirm the `Safari handoff` row is ready. If macOS asks whether SWinyDL can access data from other apps, click `Allow`.
-4. Open Safari and sign in to Canvas or EchoVideo.
-5. Open the course page or EchoVideo page that lists lectures.
-6. Click the `SWinyDL Safari` extension button in Safari.
-7. Click `Reload` if the popup has stale page state.
-8. Use `Check All` or `Uncheck All`, then choose the lessons you want.
-9. Leave `Delete downloaded media after transcription` on unless you want to keep the downloaded media files.
-10. Click `Transcribe` for transcripts only, or `Download + Transcribe` if you also want SWinyDL to retain the media during the run.
-11. The popup shows `Queued for transcription. Progress appears in SWinyDL.`
-12. If the app does not appear, the popup says `Queued, but SWinyDL did not open. Click Open App.`
+2. Choose an output folder if one is not already selected.
+3. Click `Copy Repair Command` and run the copied Terminal command only if setup or models need repair.
+4. Confirm the `Safari handoff` row is ready. If macOS asks whether SWinyDL can access data from other apps, click `Allow`.
+5. Open Safari and sign in to Canvas or EchoVideo.
+6. Open the course page or EchoVideo page that lists lectures.
+7. Click the `SWinyDL Safari` extension button in Safari.
+8. Click `Reload` if the popup has stale page state.
+9. Use `Check All` or `Uncheck All`, then choose the lessons you want.
+10. Leave `Delete downloaded media after transcription` on unless you want to keep the downloaded media files.
+11. Click `Transcribe` for transcripts only, or `Download + Transcribe` if you also want SWinyDL to retain the media during the run.
+12. The popup shows `Queued for transcription. Progress appears in SWinyDL.`
+13. If the app does not appear, the popup says `Queued, but SWinyDL did not open. Click Open App.`
 
 The app window shows Safari handoff readiness, shared queue status, queued jobs, running progress, current stage, elapsed time, errors, and links to finished transcript files.
 
@@ -96,15 +98,15 @@ For each completed lesson, SWinyDL writes:
 - `.srt` for timed captions
 - `.json` for structured transcript data
 
-The default output folder is `swinydl-output` inside the copied `SWinyDL` folder. To choose a different transcript folder, use `Defaults > Output folder > Choose` in the native app. SWinyDL saves that folder for future Safari-launched jobs. The `Open Outputs` row shows the current folder name and opens that saved folder. Use `Open Transcript` or `Open Folder` from completed job rows to get to specific files.
+Choose a transcript folder with `Defaults > Output folder > Choose` in the native app. SWinyDL saves that folder for future Safari-launched jobs. Jobs stay pending until an output folder is selected. The `Open Outputs` row shows the current folder name and opens that saved folder. Use `Open Transcript` or `Open Folder` from completed job rows to get to specific files.
 
-Temporary downloads, converted audio, and cookie handoff files use the `temp` folder inside the same copied `SWinyDL` folder. SWinyDL removes per-lesson temporary media after transcription unless you choose to retain media.
+Temporary downloads, converted audio, backend logs, job manifests, debug exports, and cookie handoff files use the app-group container. SWinyDL removes per-lesson temporary media after transcription unless you choose to retain media.
 
 ## Debug Export
 
 If SWinyDL does not recognize a course page or cannot discover lessons, click `Export Debug Log` in the Safari extension popup.
 
-That saves one sanitized JSON file named like `swinydl-debug-YYYYMMDD-HHMMSS.json`. It includes page/discovery state and excludes cookies, storage values, hidden input values, bearer/session tokens, and full raw HTML.
+That saves one sanitized JSON file named like `swinydl-debug-YYYYMMDD-HHMMSS.json` in the app-group `DebugExports` folder, with a Downloads fallback only if macOS permits it. It includes page/discovery state and excludes cookies, storage values, hidden input values, bearer/session tokens, and full raw HTML.
 
 ## Updating
 
@@ -115,18 +117,17 @@ That saves one sanitized JSON file named like `swinydl-debug-YYYYMMDD-HHMMSS.jso
 5. Drag the new `SWinyDL` folder out of the DMG.
 6. Replace the older copied `SWinyDL` folder.
 7. Open `SWinyDLSafariApp.app` from the new copied folder.
-8. Click `Repair Setup` in the `Readiness` panel if setup or models need repair.
-9. If the app cannot open, use Terminal in the new copied folder and run:
+8. Run setup from Terminal in the new copied folder:
 
 ```bash
 ./install.sh
 ```
 
-Replacing the folder is not enough for a clean update. Use `Repair Setup` in the app, or run `./install.sh` manually if the app cannot open, so the local Python environment, app signing, quarantine cleanup, and Safari registration are refreshed.
+Replacing the folder is not enough for a clean update. Run `./install.sh` from Terminal in the new copied folder so the local Python environment, app signing, quarantine cleanup, and Safari registration are refreshed.
 
 ## Quick Fixes
 
-`Repair Setup` is always available in the `Readiness` panel. If repair fails, click `Open Logs` in the same panel to inspect setup output.
+`Copy Repair Command` is always available in the `Readiness` panel. It copies a Terminal command for the real copied `SWinyDL` folder; the app does not run `install.sh` inside the sandbox. Use `Copy Log Path` to copy the app-group logs folder path, or `Export Diagnostics` to create a sanitized diagnostics zip.
 
 Terminal fallback:
 
@@ -141,5 +142,7 @@ If macOS says the app is damaged, make sure the `SWinyDL` folder was copied out 
 ```bash
 ./install.sh
 ```
+
+If Terminal shows `Library/Containers/.../Data/Desktop/SWinyDL/install.sh: Operation not permitted`, the command is using a sandbox-rewritten path. Open Terminal yourself, type `cd `, drag the real copied `SWinyDL` folder from Finder into Terminal, press `Enter`, then run `./install.sh`.
 
 If course discovery fails, export a debug log from the Safari popup and use the latest release before troubleshooting older extension behavior.

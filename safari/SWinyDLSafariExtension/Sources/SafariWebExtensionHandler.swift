@@ -9,38 +9,80 @@ final class SafariWebExtensionHandler: NSObject, NSExtensionRequestHandling {
         let operation = payload["operation"] as? String ?? ""
         let response = NSExtensionItem()
 
-        do {
-            let body = try handle(operation: operation, payload: payload)
-            response.userInfo = [SFExtensionMessageKey: body]
-        } catch {
-            response.userInfo = [SFExtensionMessageKey: ["ok": false, "error": String(describing: error)]]
+        if operation == "launch_job" {
+            completeLaunchJob(payload: payload, context: context, response: response)
+            return
         }
 
-        context.completeRequest(returningItems: [response], completionHandler: nil)
+        if operation == "open_app" {
+            openHostApplication(context: context) { appLaunch in
+                if appLaunch.succeeded {
+                    self.complete(response: response, context: context, body: ["ok": true])
+                } else {
+                    self.complete(
+                        response: response,
+                        context: context,
+                        body: [
+                            "ok": false,
+                            "error": appLaunch.error ?? "Safari could not open SWinyDL. Open SWinyDLSafariApp.app from the copied SWinyDL folder."
+                        ]
+                    )
+                }
+            }
+            return
+        }
+
+        do {
+            let body = try handle(operation: operation, payload: payload)
+            complete(response: response, context: context, body: body)
+        } catch {
+            complete(response: response, context: context, body: ["ok": false, "error": String(describing: error)])
+        }
     }
 
     private func handle(operation: String, payload: [String: Any]) throws -> [String: Any] {
         switch operation {
-        case "launch_job":
-            return try launchJob(payload: payload)
         case "job_status":
             return loadJobStatuses()
         case "open_output":
             return try openOutput(payload: payload)
-        case "open_app":
-            return openApp()
+        case "save_debug_log":
+            return try saveDebugLog(payload: payload)
         default:
             return ["ok": false, "error": "Unsupported operation '\(operation)'."]
         }
     }
 
-    private func launchJob(payload: [String: Any]) throws -> [String: Any] {
+    private func complete(response: NSExtensionItem, context: NSExtensionContext, body: [String: Any]) {
+        response.userInfo = [SFExtensionMessageKey: body]
+        context.completeRequest(returningItems: [response], completionHandler: nil)
+    }
+
+    private func completeLaunchJob(payload: [String: Any], context: NSExtensionContext, response: NSExtensionItem) {
+        do {
+            var body = try queueJob(payload: payload)
+            openHostApplication(context: context) { appLaunch in
+                body["appOpened"] = appLaunch.succeeded
+                body["app_launch"] = [
+                    "attempted": appLaunch.attempted,
+                    "succeeded": appLaunch.succeeded,
+                    "error": appLaunch.error.map { $0 as Any } ?? NSNull(),
+                ]
+                self.complete(response: response, context: context, body: body)
+            }
+        } catch {
+            complete(response: response, context: context, body: ["ok": false, "error": String(describing: error)])
+        }
+    }
+
+    private func queueJob(payload: [String: Any]) throws -> [String: Any] {
         guard var manifestPayload = payload["manifest"] as? [String: Any] else {
             return ["ok": false, "error": "Missing manifest payload."]
         }
-        if (manifestPayload["output_root"] as? String)?.isEmpty != false {
-            manifestPayload["output_root"] = SWinyDLBridge.savedOutputRoot(bundle: .main).path
-        }
+        let outputRoot = SWinyDLBridge.selectedOutputRoot()
+        manifestPayload["output_root"] = outputRoot?.path ?? ""
+        manifestPayload["temp_root"] = SWinyDLBridge.tempDirectory().path
+        manifestPayload["log_root"] = SWinyDLBridge.logsDirectory().path
         let jobID = UUID().uuidString.lowercased()
         let manifestsDir = SWinyDLBridge.manifestsDirectory()
         let manifestURL = manifestsDir.appendingPathComponent("\(jobID).json")
@@ -57,7 +99,7 @@ final class SafariWebExtensionHandler: NSObject, NSExtensionRequestHandling {
             overallStatus: SWinyDLBridge.pendingStatus,
             courseTitle: ((manifestPayload["course"] as? [String: Any])?["course_title"] as? String) ?? "SWinyDL Safari Job",
             sourcePageURL: manifestPayload["source_page_url"] as? String ?? "",
-            outputRoot: manifestPayload["output_root"] as? String ?? "",
+            outputRoot: outputRoot?.path ?? "",
             totalLessons: selectedLessons.count,
             completedLessons: 0,
             startedAt: nil,
@@ -65,7 +107,9 @@ final class SafariWebExtensionHandler: NSObject, NSExtensionRequestHandling {
             elapsedSeconds: 0,
             activeLessonID: nil,
             activeLessonTitle: nil,
-            detail: "Queued in Safari. Waiting for the native wrapper to launch the backend.",
+            detail: outputRoot == nil
+                ? "Queued. Choose an output folder in SWinyDL to start this job."
+                : "Queued in Safari. Waiting for the native wrapper to launch the backend.",
             requestedAction: manifestPayload["requested_action"] as? String,
             diarizationMode: manifestPayload["diarization_mode"] as? String,
             deleteDownloadedMedia: manifestPayload["delete_downloaded_media"] as? Bool,
@@ -74,7 +118,9 @@ final class SafariWebExtensionHandler: NSObject, NSExtensionRequestHandling {
                 JobStatusEventPayload(
                     timestamp: timestamp,
                     level: "info",
-                    message: "Queued \(selectedLessons.count) lessons from Safari."
+                    message: outputRoot == nil
+                        ? "Queued \(selectedLessons.count) lessons from Safari. Waiting for an output folder."
+                        : "Queued \(selectedLessons.count) lessons from Safari."
                 )
             ],
             summaryPath: nil,
@@ -83,17 +129,9 @@ final class SafariWebExtensionHandler: NSObject, NSExtensionRequestHandling {
         let statusData = try JSONEncoder.bridgeEncoder().encode(initialStatus)
         try statusData.write(to: statusURL, options: .atomic)
 
-        let appLaunch = launchHostApplication()
-
         return [
             "ok": true,
             "jobId": jobID,
-            "appOpened": appLaunch.succeeded,
-            "app_launch": [
-                "attempted": true,
-                "succeeded": appLaunch.succeeded,
-                "error": appLaunch.error.map { $0 as Any } ?? NSNull(),
-            ],
             "manifestPath": manifestURL.path,
             "statusPath": statusURL.path,
         ]
@@ -116,50 +154,93 @@ final class SafariWebExtensionHandler: NSObject, NSExtensionRequestHandling {
     }
 
     private func openOutput(payload: [String: Any]) throws -> [String: Any] {
-        guard let path = payload["path"] as? String, !path.isEmpty else {
-            return ["ok": false, "error": "Missing output path."]
-        }
-        NSWorkspace.shared.open(URL(fileURLWithPath: path, isDirectory: true))
-        return ["ok": true]
-    }
-
-    private func openApp() -> [String: Any] {
-        let appLaunch = launchHostApplication()
-        if appLaunch.succeeded {
-            return ["ok": true]
-        }
         return [
             "ok": false,
-            "error": appLaunch.error ?? "Safari could not find the SWinyDL app. Open SWinyDL and run Repair Setup, or run ./install.sh from the copied SWinyDL folder, then try Open App again."
+            "error": "Open transcript folders from the SWinyDL app. Safari extension sandboxing does not allow this popup to open local folders directly."
         ]
     }
 
-    private func launchHostApplication() -> (succeeded: Bool, error: String?) {
-        guard let appURL = NSWorkspace.shared.urlForApplication(withBundleIdentifier: "com.davidsiroky.swinydl.SafariApp") else {
-            return (
-                false,
-                "Safari could not find the SWinyDL app. Open SWinyDL and run Repair Setup, or run ./install.sh from the copied SWinyDL folder, then try Open App again."
-            )
+    private func saveDebugLog(payload: [String: Any]) throws -> [String: Any] {
+        guard let debugLog = payload["debug_log"] else {
+            return ["ok": false, "error": "Missing debug log payload."]
         }
-        let configuration = NSWorkspace.OpenConfiguration()
-        configuration.activates = true
-        let semaphore = DispatchSemaphore(value: 0)
-        var succeeded = false
-        var errorMessage: String?
-        NSWorkspace.shared.openApplication(at: appURL, configuration: configuration) { app, error in
-            if let error {
-                errorMessage = "Safari queued the job but macOS could not open SWinyDL: \(error.localizedDescription)"
-            } else if app == nil {
-                errorMessage = "Safari queued the job but macOS did not confirm SWinyDL opened."
-            } else {
-                succeeded = true
+        guard JSONSerialization.isValidJSONObject(debugLog) else {
+            return ["ok": false, "error": "Debug log payload could not be converted to JSON."]
+        }
+
+        let filename = sanitizedDebugFilename(payload["filename"] as? String)
+        let directory = try debugExportDirectory()
+        let url = directory.appendingPathComponent(filename, isDirectory: false)
+        let data = try JSONSerialization.data(withJSONObject: debugLog, options: [.prettyPrinted, .sortedKeys])
+        try data.write(to: url, options: .atomic)
+        return [
+            "ok": true,
+            "filename": filename,
+            "path": url.path,
+            "directory": directory.path
+        ]
+    }
+
+    private func debugExportDirectory() throws -> URL {
+        let candidates = [
+            SWinyDLBridge.debugExportsDirectory(),
+            FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first?
+                .appendingPathComponent("SWinyDL Debug Logs", isDirectory: true)
+        ].compactMap { $0 }
+
+        for directory in candidates {
+            do {
+                try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+                let probe = directory.appendingPathComponent(".swinydl-debug-probe-\(UUID().uuidString)")
+                try Data().write(to: probe, options: .atomic)
+                try? FileManager.default.removeItem(at: probe)
+                return directory
+            } catch {
+                continue
             }
-            semaphore.signal()
         }
-        if semaphore.wait(timeout: .now() + 3.0) == .timedOut {
-            return (false, "Safari queued the job but could not confirm SWinyDL opened. Click Open App.")
+        throw NSError(
+            domain: "SWinyDLDebugExport",
+            code: 1,
+            userInfo: [NSLocalizedDescriptionKey: "SWinyDL could not create a debug export file. Check Downloads folder permissions and try again."]
+        )
+    }
+
+    private func sanitizedDebugFilename(_ rawValue: String?) -> String {
+        let fallback = "swinydl-debug-\(Int(Date().timeIntervalSince1970)).json"
+        let raw = rawValue?.isEmpty == false ? rawValue! : fallback
+        let allowedCharacters = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: ".-_"))
+        let sanitizedScalars = raw.unicodeScalars.map { scalar -> String in
+            allowedCharacters.contains(scalar) ? String(scalar) : "_"
         }
-        return (succeeded, errorMessage)
+        var filename = sanitizedScalars.joined()
+        if filename.isEmpty || filename == "." || filename == ".." {
+            filename = fallback
+        }
+        if !filename.lowercased().hasSuffix(".json") {
+            filename += ".json"
+        }
+        return filename
+    }
+
+    private func openHostApplication(context: NSExtensionContext, completion: @escaping (AppLaunchAttempt) -> Void) {
+        guard let appURL = URL(string: "swinydl://open") else {
+            completion(AppLaunchAttempt(attempted: false, succeeded: false, error: "SWinyDL could not build its app-open URL."))
+            return
+        }
+        context.open(appURL) { succeeded in
+            if succeeded {
+                completion(AppLaunchAttempt(attempted: true, succeeded: true, error: nil))
+            } else {
+                completion(
+                    AppLaunchAttempt(
+                        attempted: true,
+                        succeeded: false,
+                        error: "Safari queued the job but macOS did not allow the extension to open SWinyDL. Open SWinyDLSafariApp.app from the copied SWinyDL folder."
+                    )
+                )
+            }
+        }
     }
 
     private func extractSelectedLessons(from manifestPayload: [String: Any]) -> [JobLessonStatus] {
@@ -183,4 +264,10 @@ final class SafariWebExtensionHandler: NSObject, NSExtensionRequestHandling {
             )
         }
     }
+}
+
+private struct AppLaunchAttempt {
+    let attempted: Bool
+    let succeeded: Bool
+    let error: String?
 }

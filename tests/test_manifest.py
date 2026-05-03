@@ -53,6 +53,8 @@ def manifest_payload(temp_dir: str) -> dict[str, object]:
             ],
         },
         "output_root": temp_dir,
+        "temp_root": str(Path(temp_dir) / "bridge-temp"),
+        "log_root": str(Path(temp_dir) / "bridge-logs"),
         "keep_audio": False,
         "keep_video": False,
         "transcript_source": "auto",
@@ -73,6 +75,8 @@ class ManifestTests(unittest.TestCase):
         self.assertEqual(manifest.course.course_title, "Cloud Course")
         self.assertEqual(manifest.cookies[0].name, "sessionid")
         self.assertTrue(manifest.delete_downloaded_media)
+        self.assertEqual(manifest.temp_root, Path(temp_dir) / "bridge-temp")
+        self.assertEqual(manifest.log_root, Path(temp_dir) / "bridge-logs")
 
     def test_cookie_session_exports_cookie_file(self):
         session = CookieSession(

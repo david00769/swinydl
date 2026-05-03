@@ -42,12 +42,12 @@ enum SWinyDLBridge {
         UserDefaults(suiteName: appGroupIdentifier) ?? .standard
     }
 
-    static func savedOutputRoot(bundle: Bundle) -> URL {
+    static func selectedOutputRoot() -> URL? {
         let defaults = sharedDefaults()
         if let path = defaults.string(forKey: outputRootDefaultsKey), !path.isEmpty {
             return URL(fileURLWithPath: path, isDirectory: true)
         }
-        return defaultOutputRoot(bundle: bundle)
+        return nil
     }
 
     static func setSavedOutputRoot(_ url: URL) {
@@ -63,12 +63,11 @@ enum SWinyDLBridge {
         defaults.synchronize()
     }
 
-    static func resetSavedOutputRoot(bundle: Bundle) -> URL {
+    static func clearSavedOutputRoot() {
         let defaults = sharedDefaults()
         defaults.removeObject(forKey: outputRootDefaultsKey)
         defaults.removeObject(forKey: outputRootBookmarkDefaultsKey)
         defaults.synchronize()
-        return defaultOutputRoot(bundle: bundle)
     }
 
     static func startAccessingSavedOutputRoot(path: String) -> URL? {
@@ -131,6 +130,18 @@ enum SWinyDLBridge {
         return url
     }
 
+    static func tempDirectory() -> URL {
+        let url = containerURL().appendingPathComponent("Temp", isDirectory: true)
+        try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        return url
+    }
+
+    static func debugExportsDirectory() -> URL {
+        let url = containerURL().appendingPathComponent("DebugExports", isDirectory: true)
+        try? FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        return url
+    }
+
     static func statusURL(for manifestURL: URL) -> URL {
         manifestURL.deletingPathExtension().appendingPathExtension("status.json")
     }
@@ -145,37 +156,33 @@ enum SWinyDLBridge {
             }
         }
 
-        if let configured = bundle.object(forInfoDictionaryKey: "SWINYDLRepoRoot") as? String,
-           !configured.isEmpty {
-            appendCandidate(URL(fileURLWithPath: configured, isDirectory: true))
-        }
-
         var current = bundle.bundleURL
         for _ in 0..<6 {
             current = current.deletingLastPathComponent()
             appendCandidate(current)
         }
 
-        let home = FileManager.default.homeDirectoryForCurrentUser
-        for parent in ["Desktop", "Downloads", "Applications"] {
-            for folder in ["SWinyDL", "swinydl"] {
-                appendCandidate(
-                    home
-                        .appendingPathComponent(parent, isDirectory: true)
-                        .appendingPathComponent(folder, isDirectory: true)
-                )
-            }
+        if let configured = bundle.object(forInfoDictionaryKey: "SWINYDLRepoRoot") as? String,
+           !configured.isEmpty {
+            appendCandidate(URL(fileURLWithPath: configured, isDirectory: true))
         }
         return candidates
     }
 
     private static func isInstallRoot(_ url: URL) -> Bool {
+        guard !isSandboxContainerPath(url) else {
+            return false
+        }
         let fileManager = FileManager.default
         let pyproject = url.appendingPathComponent("pyproject.toml").path
         let installer = url.appendingPathComponent("install.sh").path
         let appBundle = url.appendingPathComponent("SWinyDLSafariApp.app", isDirectory: true).path
         return fileManager.fileExists(atPath: pyproject)
             && (fileManager.fileExists(atPath: installer) || fileManager.fileExists(atPath: appBundle))
+    }
+
+    static func isSandboxContainerPath(_ url: URL) -> Bool {
+        url.standardizedFileURL.path.contains("/Library/Containers/com.davidsiroky.swinydl.SafariApp/Data/")
     }
 }
 
@@ -200,6 +207,8 @@ struct LaunchJobMessage: Codable {
     let cookies: [BrowserCookiePayload]
     let course: [String: AnyCodable]
     let outputRoot: String?
+    let tempRoot: String?
+    let logRoot: String?
     let keepAudio: Bool
     let keepVideo: Bool
     let transcriptSource: String

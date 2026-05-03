@@ -36,6 +36,20 @@ class AppPathTests(unittest.TestCase):
             finally:
                 os.chdir(original_cwd)
 
+    def test_app_launched_jobs_can_override_temp_and_log_roots(self):
+        with tempfile.TemporaryDirectory() as temp_root, tempfile.TemporaryDirectory() as log_root:
+            try:
+                os.environ["SWINYDL_TEMP_ROOT"] = temp_root
+                os.environ["SWINYDL_LOG_ROOT"] = log_root
+                self.assertEqual(temp_dir(), Path(temp_root))
+                self.assertEqual(cache_dir(), Path(temp_root))
+                from swinydl.app_paths import logs_dir
+
+                self.assertEqual(logs_dir(), Path(log_root))
+            finally:
+                os.environ.pop("SWINYDL_TEMP_ROOT", None)
+                os.environ.pop("SWINYDL_LOG_ROOT", None)
+
 
 if __name__ == "__main__":
     unittest.main()

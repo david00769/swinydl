@@ -84,6 +84,8 @@ class ProcessOptions(SelectionOptions):
     """Options for the end-to-end Echo360 transcript workflow."""
 
     output_root: Path = Path("swinydl-output")
+    temp_root: Path | None = None
+    log_root: Path | None = None
     transcript_source: str = "auto"
     asr_backend: str = "auto"
     diarization_mode: str = "on"
@@ -130,6 +132,8 @@ class ProcessManifest:
     cookies: list[BrowserCookie] = field(default_factory=list)
     course: CourseManifest | None = None
     output_root: Path | None = None
+    temp_root: Path | None = None
+    log_root: Path | None = None
     keep_audio: bool = False
     keep_video: bool = False
     transcript_source: str = "auto"

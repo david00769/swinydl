@@ -65,7 +65,7 @@ class WebExtensionSourceTests(unittest.TestCase):
         self.assertIn('id="selection-count"', html)
         self.assertIn('id="export-debug"', html)
         self.assertIn("First run", html)
-        self.assertIn("Repair Setup", html)
+        self.assertIn("Copy Repair Command", html)
         self.assertIn("access data from other apps", html)
         self.assertIn('id="handoff"', html)
         self.assertIn("Progress appears in SWinyDL", html)
@@ -79,7 +79,11 @@ class WebExtensionSourceTests(unittest.TestCase):
         self.assertIn("Progress appears in SWinyDL", script)
         self.assertIn("did not open", script)
         self.assertIn("export-debug-log", script)
+        self.assertIn("sendRuntimeMessage", script)
+        self.assertIn("Saved ${response.filename || filename} in ${location}.", script)
         self.assertIn("Discovering course content", script)
+        self.assertNotIn("createObjectURL", script)
+        self.assertNotIn("blob", script)
 
         course_index = html.index('id="course"')
         selection_index = html.index('id="selection-controls"')
@@ -96,12 +100,29 @@ class WebExtensionSourceTests(unittest.TestCase):
         contents = (WEBEXTENSION / "background.js").read_text(encoding="utf-8")
 
         self.assertIn("exportDebugLogForActiveTab", contents)
+        self.assertIn('sendNative("save_debug_log"', contents)
         self.assertIn("buildDebugLog", contents)
         self.assertIn("sanitizeDebugValue", contents)
         self.assertIn("sanitizeUrl", contents)
         self.assertIn("full raw HTML", contents)
         self.assertIn("[REDACTED]", contents)
         self.assertNotIn("outerHTML", contents)
+
+    def test_native_bridge_saves_debug_export_to_logs(self):
+        contents = (
+            REPO_ROOT
+            / "safari"
+            / "SWinyDLSafariExtension"
+            / "Sources"
+            / "SafariWebExtensionHandler.swift"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn('case "save_debug_log"', contents)
+        self.assertIn("saveDebugLog", contents)
+        self.assertIn("debugExportsDirectory", contents)
+        self.assertIn("SWinyDL Debug Logs", contents)
+        self.assertNotIn("activateFileViewerSelecting", contents)
+        self.assertIn("sanitizedDebugFilename", contents)
 
     def test_course_title_fallback_avoids_untitled_course(self):
         contents = (WEBEXTENSION / "background.js").read_text(encoding="utf-8")

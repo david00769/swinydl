@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 import SafariServices
 
@@ -27,6 +28,10 @@ struct SWinyDLSafariApp: App {
                 .environmentObject(store)
                 .environmentObject(updates)
                 .frame(minWidth: 960, minHeight: 640)
+                .onOpenURL { _ in
+                    NSApp.activate(ignoringOtherApps: true)
+                    store.refresh()
+                }
         }
         .commands {
             CommandGroup(after: .appInfo) {
@@ -148,9 +153,9 @@ private struct ContentView: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                 VStack(alignment: .leading, spacing: 12) {
-                    EmptyStateStep(number: "1", title: "Enable the extension", detail: "Safari Settings > Extensions > SWinyDL Safari")
+                    EmptyStateStep(number: "1", title: "Choose an output folder", detail: "Use Defaults > Output folder")
                     EmptyStateStep(number: "2", title: "Open your course page", detail: "Use a logged-in Canvas or Echo360 page")
-                    EmptyStateStep(number: "3", title: "Launch the run", detail: "Pick lessons in the popup and start transcription")
+                    EmptyStateStep(number: "3", title: "Launch the run", detail: "Pick lessons in the popup; progress appears here")
                 }
             }
         }
@@ -182,7 +187,7 @@ private struct ContentView: View {
 
     private var inspectorPanel: some View {
         VStack(alignment: .leading, spacing: 12) {
-            if !store.modelReadiness.ready {
+            if !store.modelReadiness.ready || !store.outputFolderReady || !store.handoffReady {
                 readinessPanel(emphasized: true)
             }
 
@@ -200,7 +205,7 @@ private struct ContentView: View {
                         }
                     }
                     InspectorActionRow(
-                        title: "Open Outputs",
+                        title: store.outputFolderReady ? "Open Outputs" : "Choose Output Folder",
                         systemImage: "folder",
                         subtitle: store.outputRootDisplayName
                     ) {
@@ -217,7 +222,7 @@ private struct ContentView: View {
                 }
             }
 
-            if store.modelReadiness.ready {
+            if store.modelReadiness.ready && store.outputFolderReady && store.handoffReady {
                 readinessPanel(emphasized: false)
             }
 
@@ -246,9 +251,9 @@ private struct ContentView: View {
                         .font(.caption.weight(.bold))
                         .foregroundStyle(AppTheme.mutedText)
                         .textCase(.uppercase)
-                    Text("1. Enable the SWinyDL Safari extension.")
-                    Text("2. Open a logged-in Canvas or Echo360 page.")
-                    Text("3. Select lessons in the popup and launch the run.")
+                    Text("1. Choose an output folder.")
+                    Text("2. Enable the SWinyDL Safari extension.")
+                    Text("3. Select lessons in the popup; progress appears here.")
                 }
                 .font(.subheadline)
                 .foregroundStyle(AppTheme.primaryText)
@@ -265,7 +270,7 @@ private struct ContentView: View {
                         .foregroundStyle(AppTheme.mutedText)
                         .textCase(.uppercase)
                     Spacer()
-                    StatusBadge(status: store.modelReadiness.ready && store.handoffReady ? "success" : "failed", compact: true)
+                    StatusBadge(status: store.modelReadiness.ready && store.handoffReady && store.outputFolderReady ? "success" : "failed", compact: true)
                 }
                 ReadinessRow(
                     title: "Safari handoff",
@@ -275,6 +280,20 @@ private struct ContentView: View {
                 )
                 ReadinessRow(title: "Parakeet ASR", ready: store.modelReadiness.parakeetReady)
                 ReadinessRow(title: "Speaker diarizer", ready: store.modelReadiness.diarizerReady)
+                ReadinessRow(
+                    title: "Output folder",
+                    ready: store.outputFolderReady,
+                    readyLabel: store.outputRootDisplayName,
+                    missingLabel: "Choose"
+                )
+                if !store.outputFolderReady {
+                    InlineMessage(
+                        icon: "folder.badge.plus",
+                        text: "Choose an output folder before queued Safari jobs can start.",
+                        tint: AppTheme.warning,
+                        compact: true
+                    )
+                }
                 if !store.handoffReady {
                     InlineMessage(
                         icon: "square.and.arrow.down.on.square.fill",
@@ -297,20 +316,25 @@ private struct ContentView: View {
                 }
                 HStack(spacing: 8) {
                     SecondaryActionButton(
-                        title: store.modelBootstrapStatus.isRunning ? "Repairing..." : "Repair Setup",
-                        systemImage: "wrench.and.screwdriver",
+                        title: "Copy Repair Command",
+                        systemImage: "terminal",
                         compact: true
                     ) {
-                        store.repairSetup()
+                        store.copyRepairCommand()
                     }
-                    .disabled(store.modelBootstrapStatus.isRunning)
+                    if !store.outputFolderReady {
+                        SecondaryActionButton(title: "Choose Output", systemImage: "folder.badge.plus", compact: true) {
+                            store.chooseOutputDirectory()
+                        }
+                    }
                     SecondaryActionButton(title: "Refresh", systemImage: "arrow.clockwise", compact: true) {
                         store.refresh()
                     }
-                    if store.modelBootstrapStatus.logDirectoryPath != nil {
-                        SecondaryActionButton(title: "Open Logs", systemImage: "doc.text.magnifyingglass", compact: true) {
-                            store.openSetupRepairLogs()
-                        }
+                    SecondaryActionButton(title: "Copy Log Path", systemImage: "doc.on.doc", compact: true) {
+                        store.copySetupRepairLogPath()
+                    }
+                    SecondaryActionButton(title: "Export Diagnostics", systemImage: "square.and.arrow.up", compact: true) {
+                        store.exportDiagnostics()
                     }
                 }
                 if let message = store.modelBootstrapStatus.message, !message.isEmpty {
@@ -394,7 +418,16 @@ private struct ContentView: View {
             banners.append(
                 AppBanner(
                     icon: "shippingbox",
-                    text: "\(store.modelReadiness.summary) Use Repair Setup in the Readiness panel.",
+                    text: "\(store.modelReadiness.summary) Copy the Terminal repair command from the Readiness panel if setup needs repair.",
+                    tint: AppTheme.warning
+                )
+            )
+        }
+        if !store.outputFolderReady {
+            banners.append(
+                AppBanner(
+                    icon: "folder.badge.plus",
+                    text: "Choose an output folder in SWinyDL before queued Safari jobs can start.",
                     tint: AppTheme.warning
                 )
             )
@@ -412,7 +445,7 @@ private struct ContentView: View {
             banners.append(
                 AppBanner(
                     icon: "bolt.trianglebadge.exclamationmark",
-                    text: "The Python backend could not launch. Use Repair Setup, or run ./install.sh if the app cannot repair setup.",
+                    text: "The Python backend could not launch. Copy the Terminal repair command from Readiness and run it from the copied SWinyDL folder.",
                     tint: .red
                 )
             )
@@ -424,7 +457,7 @@ private struct ContentView: View {
             banners.append(
                 AppBanner(
                     icon: "shippingbox",
-                    text: "Required local CoreML model artifacts are missing. Use Repair Setup in the Readiness panel, then retry the failed lessons.",
+                    text: "Required CoreML model artifacts are missing. Copy the Terminal repair command from Readiness, then retry failed lessons.",
                     tint: AppTheme.warning
                 )
             )
@@ -1464,6 +1497,9 @@ private struct OutputFolderControl: View {
     }
 
     private var displayName: String {
+        if path == "Choose an output folder" {
+            return path
+        }
         let name = URL(fileURLWithPath: path, isDirectory: true).lastPathComponent
         return name.isEmpty ? path : name
     }

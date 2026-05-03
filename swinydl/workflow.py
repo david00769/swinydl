@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime
 from pathlib import Path
 import json
+import os
 import shutil
 import uuid
 
@@ -68,29 +69,43 @@ def process_course(url: str, options: ProcessOptions) -> RunSummary:
 
 def process_manifest(path: Path | str) -> RunSummary:
     """Run a manifest-launched Safari or native-wrapper job without Selenium."""
-    ensure_runtime_dirs()
     manifest = load_process_manifest(path)
-    options = ProcessOptions(
-        output_root=Path(manifest.output_root or default_output_root()),
-        lesson_ids=manifest.selected_lesson_ids,
-        transcript_source=manifest.transcript_source,
-        asr_backend=manifest.asr_backend,
-        diarization_mode=manifest.diarization_mode,
-        requested_action=manifest.requested_action,
-        delete_downloaded_media=manifest.delete_downloaded_media,
-        keep_audio=manifest.keep_audio,
-        keep_video=manifest.keep_video,
-    )
-    session = CookieSession(manifest.cookies)
-    course = _course_from_manifest(session, manifest, options)
-    return _process_course_with_session(
-        session=session,
-        source_page_url=manifest.source_page_url,
-        course=course,
-        options=options,
-        command="process-manifest",
-        status_path=status_path_for_manifest(manifest.manifest_path or path),
-    )
+    previous_temp_root = os.environ.get("SWINYDL_TEMP_ROOT")
+    previous_log_root = os.environ.get("SWINYDL_LOG_ROOT")
+    try:
+        if manifest.temp_root:
+            os.environ["SWINYDL_TEMP_ROOT"] = str(manifest.temp_root)
+        if manifest.log_root:
+            os.environ["SWINYDL_LOG_ROOT"] = str(manifest.log_root)
+        ensure_runtime_dirs()
+        if manifest.output_root is None:
+            raise ValueError("Process manifest is missing output_root. Choose an output folder in SWinyDL before launching this job.")
+        options = ProcessOptions(
+            output_root=Path(manifest.output_root or default_output_root()),
+            temp_root=manifest.temp_root,
+            log_root=manifest.log_root,
+            lesson_ids=manifest.selected_lesson_ids,
+            transcript_source=manifest.transcript_source,
+            asr_backend=manifest.asr_backend,
+            diarization_mode=manifest.diarization_mode,
+            requested_action=manifest.requested_action,
+            delete_downloaded_media=manifest.delete_downloaded_media,
+            keep_audio=manifest.keep_audio,
+            keep_video=manifest.keep_video,
+        )
+        session = CookieSession(manifest.cookies)
+        course = _course_from_manifest(session, manifest, options)
+        return _process_course_with_session(
+            session=session,
+            source_page_url=manifest.source_page_url,
+            course=course,
+            options=options,
+            command="process-manifest",
+            status_path=status_path_for_manifest(manifest.manifest_path or path),
+        )
+    finally:
+        _restore_env("SWINYDL_TEMP_ROOT", previous_temp_root)
+        _restore_env("SWINYDL_LOG_ROOT", previous_log_root)
 
 
 def download_course(url: str, options: DownloadOptions) -> DownloadSummary:
@@ -351,7 +366,7 @@ def _process_lesson(
             downloaded_media_paths: list[Path] = []
             diarized = False
         else:
-            temp_dir = ensure_dir(cache_dir() / "runs" / f"{key}-{uuid.uuid4().hex[:8]}")
+            temp_dir = ensure_dir(_job_cache_dir(options) / "runs" / f"{key}-{uuid.uuid4().hex[:8]}")
             if status_callback is not None:
                 status_callback(
                     lesson_id=lesson.lesson_id,
@@ -490,7 +505,7 @@ def _process_local_media(
             audio_path = None
             diarized = False
         else:
-            temp_dir = ensure_dir(cache_dir() / "runs" / f"{key}-{uuid.uuid4().hex[:8]}")
+            temp_dir = ensure_dir(_job_cache_dir(options) / "runs" / f"{key}-{uuid.uuid4().hex[:8]}")
             normalized_audio = temp_dir / f"{key}.wav"
             normalize_media_to_wav(source, normalized_audio)
             segments, words, language, diarized, asr_backend, model_name = transcribe_audio(
@@ -593,6 +608,17 @@ def _write_run_manifest(
         json_dumps(export_dataclass(summary)),
         encoding="utf-8",
     )
+
+
+def _job_cache_dir(options: ProcessOptions | TranscribeOptions) -> Path:
+    return getattr(options, "temp_root", None) or cache_dir()
+
+
+def _restore_env(name: str, previous_value: str | None) -> None:
+    if previous_value is None:
+        os.environ.pop(name, None)
+    else:
+        os.environ[name] = previous_value
 
 
 def _write_status_snapshot(

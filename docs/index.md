@@ -16,9 +16,9 @@ Run those commands from the source checkout or copied `SWinyDL` folder after set
 
 For day-to-day use, the simplest entrypoint is:
 
-Open `SWinyDLSafariApp.app` from the copied GitHub DMG folder, then use `Repair Setup` in the app's `Readiness` panel if readiness checks show missing setup.
+Open `SWinyDLSafariApp.app` from the copied GitHub DMG folder, choose an output folder, then use Safari to queue jobs.
 
-`install.sh` remains the primary fallback and repair implementation. In a GitHub DMG release it uses the prebuilt `SWinyDLSafariApp.app` and prebuilt transcription helper programs, verifies the Safari extension files, runs `uv sync`, downloads the local speech models if they are missing, locally re-signs and verifies the app bundle, registers the app and extension with macOS, runs the doctor check, and opens the app plus Safari. The app's always-available `Repair Setup` button runs `install.sh --repair --non-interactive --skip-open`; use Terminal `./install.sh` if the app cannot launch or if Homebrew, `uv`, or `ffmpeg` need interactive installation. `Open Logs` in the app opens setup repair output. In a source checkout, `./install.sh` does not compile the Safari wrapper by default; use `./scripts/build_app.sh` first, or use `./install.sh --build-from-source` as a compatibility shortcut. For unsigned DMG installs, it also clears downloaded-file quarantine from the bundled app before opening it.
+`install.sh` remains the Terminal-owned setup and repair implementation. In a GitHub DMG release it uses the prebuilt `SWinyDLSafariApp.app` and prebuilt transcription helper programs, verifies the Safari extension files, runs `uv sync`, downloads the local speech models if they are missing, locally re-signs and verifies the app bundle, registers the app and extension with macOS, runs the doctor check, and opens the app plus Safari. The app's `Copy Repair Command` button copies the Terminal command; it does not run `install.sh` inside the sandbox. Use Terminal `./install.sh` if the app cannot launch, if Homebrew, `uv`, or `ffmpeg` need interactive installation, or if setup needs repair. `Copy Log Path` copies the app-group logs folder path, and `Export Diagnostics` creates a sanitized diagnostics zip. In a source checkout, `./install.sh` does not compile the Safari wrapper by default; use `./scripts/build_app.sh` first, or use `./install.sh --build-from-source` as a compatibility shortcut. For unsigned DMG installs, it also clears downloaded-file quarantine from the bundled app before opening it.
 
 The GitHub DMG is runtime-only. It includes install/runtime files, the prebuilt app, the WebExtension resources needed for Safari's temporary-extension fallback, the Python runtime package, an empty/staging `vendor/` folder for local speech models, and license notices. It intentionally does not include the Safari Xcode project, Swift package source, test suite, or build scripts. Developer build instructions remain in the GitHub repository.
 
@@ -28,17 +28,20 @@ First download checklist for a non-technical Mac user:
 2. open the DMG
 3. drag the `SWinyDL` folder out of the DMG and put it somewhere writable, such as `Desktop` or `Documents`
 4. Open the unsigned app from Finder: Control-click or right-click `SWinyDLSafariApp.app`, choose `Open`, and confirm the warning. If that is awkward on the trackpad, select the app and choose Finder `File > Open`.
-5. click `Repair Setup` in the app's `Readiness` panel if setup, Safari registration, or model checks need repair
-6. if macOS asks whether `SWinyDLSafariApp` can access data from other apps, click `Allow` so the Safari handoff queue works
-7. if the app cannot open or repair reports missing Homebrew, `uv`, or `ffmpeg`, open Terminal in the copied folder and run `./install.sh`
-8. if Terminal says permission is denied, run `chmod +x install.sh` and then `./install.sh` again
-9. enable `SWinyDL Safari` in Safari Settings
+5. choose an output folder in the app if the Readiness panel asks for one
+6. if setup, Safari registration, signing, or models need repair, click `Copy Repair Command`, paste the command into Terminal, and press `Enter`
+7. if macOS asks whether `SWinyDLSafariApp` can access data from other apps, click `Allow` so the Safari handoff queue works
+8. if the app cannot open, open Terminal in the copied folder and run `./install.sh`
+9. if Terminal says permission is denied, run `chmod +x install.sh` and then `./install.sh` again
+10. enable `SWinyDL Safari` in Safari Settings
 
-Terminal fallback is only for cases where the unsigned app will not open or app repair needs interactive command-line dependency setup.
+Terminal fallback is for unsigned-app launch failures, command-line dependencies, signing or Safari registration repair, and model setup.
 
 If macOS blocks the unsigned app, use Finder to open it: Control-click or right-click `SWinyDLSafariApp.app`, choose `Open`, and confirm the warning. The equivalent menu path is to select `SWinyDLSafariApp.app` and choose Finder `File > Open`. If macOS still blocks it or says the app is damaged, run `./install.sh` from the copied folder.
 
 If `./install.sh` says the folder is missing runtime files, or `uv` reports `No module named 'swinydl'`, delete the copied `SWinyDL` folder and download the latest DMG again. A complete runtime folder includes the `swinydl` Python runtime package and the `bin/` runner binaries.
+
+If Terminal shows `Library/Containers/.../Data/Desktop/SWinyDL/install.sh: Operation not permitted`, the command is using a sandbox-rewritten path. Open Terminal yourself, type `cd `, drag the real copied `SWinyDL` folder from Finder into Terminal, press `Enter`, then run `./install.sh`.
 
 After that:
 
@@ -53,15 +56,15 @@ After that:
 9. Use `Open App` in the extension popup to bring the native wrapper window forward
 10. Use the extension popup to load the course, choose whether downloaded media should be deleted after transcription, and launch the transcription job into the native app window
 
-The normal first-transcript flow is documented in [docs/user-guide.md](user-guide.md). In short: open the app, run `Repair Setup` if needed, click `Allow` if macOS asks whether SWinyDL can access data from other apps, use `Open Logs` if repair fails, open a logged-in Canvas or EchoVideo page, use the Safari popup's `Reload`, `Check All`, `Uncheck All`, `Transcribe`, and `Download + Transcribe` controls, then watch the persistent popup handoff: `Queued for transcription. Progress appears in SWinyDL.` If the app does not open, the popup says `Queued, but SWinyDL did not open. Click Open App.`
+The normal first-transcript flow is documented in [docs/user-guide.md](user-guide.md). In short: open the app, choose an output folder, click `Allow` if macOS asks whether SWinyDL can access data from other apps, run the copied Terminal repair command only if setup needs repair, open a logged-in Canvas or EchoVideo page, use the Safari popup's `Reload`, `Check All`, `Uncheck All`, `Transcribe`, and `Download + Transcribe` controls, then watch the persistent popup handoff: `Queued for transcription. Progress appears in SWinyDL.` If the app does not open, the popup says `Queued, but SWinyDL did not open. Click Open App.`
 
 Do not double-click `SWinyDLSafariExtension.appex`. Safari discovers the extension through the containing `SWinyDLSafariApp.app`; `./install.sh` also re-registers that containing app and extension with macOS.
 
 The temporary extension fallback is not permanent. Safari removes temporary extensions after 24 hours or when Safari quits, and Safari's `Allow unsigned extensions` setting also resets when Safari quits. If you rely on `Add Temporary Extension...`, repeat that step after each Safari restart until SWinyDL ships as a signed/notarized app.
 
-The native wrapper window shows whether Safari handoff is ready, shared queue status, whether the Parakeet ASR model bundle and speaker diarizer bundle are ready, per-lesson transcript files, and the saved output folder. The default output folder is `swinydl-output` inside the copied `SWinyDL` folder. To choose a different transcript folder, use `Defaults > Output folder > Choose` in the native app; Safari-launched jobs use that saved native-app setting. `Open Outputs` shows and opens the current saved folder. Runtime scratch files use the sibling `temp` folder in that same copied folder.
+The native wrapper window shows whether Safari handoff is ready, shared queue status, whether the Parakeet ASR model bundle and speaker diarizer bundle are ready, per-lesson transcript files, and the saved output folder. Choose the transcript folder with `Defaults > Output folder > Choose` in the native app; Safari-launched jobs use that saved native-app setting. Jobs stay pending until an output folder is selected. `Open Outputs` shows and opens the current saved folder. Runtime scratch files, backend logs, job manifests, and debug exports live in the app-group container, not in guessed Desktop paths.
 
-If course discovery fails, click `Export Debug Log` in the Safari extension popup and share the saved sanitized JSON file. It includes page/discovery state but excludes cookies, storage values, hidden input values, and full raw HTML.
+If course discovery fails, click `Export Debug Log` in the Safari extension popup. SWinyDL saves a sanitized JSON file in the app-group `DebugExports` folder, with a Downloads fallback only if macOS permits it. Share that JSON file; it includes page/discovery state but excludes cookies, storage values, hidden input values, and full raw HTML.
 
 The backend has also been verified non-interactively on public sample media:
 
@@ -131,7 +134,7 @@ Dependency ranges live in `pyproject.toml`, the tested resolution lives in `uv.l
 
 GitHub Releases are the update source of truth. Each tagged release should include an unsigned `SWinyDL-v...dmg` built by `.github/workflows/release-dmg.yaml`.
 
-For non-technical users, the preferred update path is to use the app's update check, download the newer DMG, drag the new `SWinyDL` folder out of the DMG, replace the older `SWinyDL` folder, open the app, and click `Repair Setup` in the `Readiness` panel if readiness checks show missing setup. `./install.sh` remains the fallback if the app cannot launch; `git pull` remains a technical-user fallback only.
+For non-technical users, the preferred update path is to use the app's update check, download the newer DMG, drag the new `SWinyDL` folder out of the DMG, replace the older `SWinyDL` folder, then run `./install.sh` from Terminal in the copied folder. `git pull` remains a technical-user fallback only.
 
 If no GitHub release has been published yet, or if the latest release has no DMG asset, the wrapper app will report that clearly.
 
@@ -170,7 +173,7 @@ The supported staging path is:
 uv run swinydl bootstrap-models
 ```
 
-Run that command from the copied `SWinyDL` folder or source checkout after setup. It downloads the local speech model bundles from the public Hugging Face sources documented below. The Safari app exposes the broader repair path as an always-available `Repair Setup` button in the `Readiness` panel, so missing model files, local signing, and Safari registration can be repaired without starting in Terminal when the app can launch.
+Run that command from the copied `SWinyDL` folder or source checkout after setup. It downloads the local speech model bundles from the public Hugging Face sources documented below. The Safari app exposes `Copy Repair Command` in the `Readiness` panel so users can paste the correct Terminal repair command without learning the copied-folder path.
 
 ## Model Provenance
 

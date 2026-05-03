@@ -428,9 +428,10 @@ Next steps:
 1. In Safari, open Settings > Advanced and turn on "Show features for web developers".
 2. Open Settings > Developer and turn on "Allow unsigned extensions". macOS will ask for your password.
 3. Open Settings > Extensions and enable "SWinyDL Safari".
-4. If the extension does not appear, quit and reopen the SWinyDL Safari app from this folder, then click Repair Setup in the Readiness panel.
-5. Open a logged-in Canvas or Echo360 page in Safari.
-6. Use the SWinyDL extension popup to load the course and launch jobs.
+4. Open SWinyDL and choose an output folder if the Readiness panel asks for one.
+5. If the extension does not appear, quit and reopen the SWinyDL Safari app from this folder, then rerun ./install.sh from Terminal if needed.
+6. Open a logged-in Canvas or Echo360 page in Safari.
+7. Use the SWinyDL extension popup to load the course and launch jobs.
 
 Safari resets "Allow unsigned extensions" when Safari quits, so repeat steps 2
 and 3 after each Safari restart while SWinyDL is unsigned.
@@ -442,8 +443,7 @@ The app is at:
   $APP_PATH
 
 If you later update from GitHub Releases, download the newer DMG, replace the
-copied SWinyDL folder, open the app, and click Repair Setup in the Readiness panel.
-If the app cannot open, run:
+copied SWinyDL folder, then run Terminal setup from that copied folder:
   ./install.sh
 
 To rebuild locally from source, run:

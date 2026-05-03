@@ -1,6 +1,7 @@
 import AppKit
 import Combine
 import Foundation
+import UniformTypeIdentifiers
 
 struct TranscriptPreview: Identifiable {
     let path: String
@@ -29,7 +30,7 @@ final class JobStore: ObservableObject {
     @Published private(set) var modelReadiness = ModelReadiness.detect(bundle: .main)
     @Published private(set) var handoffReady = SWinyDLBridge.sharedQueueAvailable()
     @Published private(set) var modelBootstrapStatus = ModelBootstrapStatus.idle
-    @Published private(set) var outputRootURL = SWinyDLBridge.savedOutputRoot(bundle: .main)
+    @Published private(set) var outputRootURL = SWinyDLBridge.selectedOutputRoot()
     @Published var preview: TranscriptPreview?
 
     private var timer: Timer?
@@ -47,7 +48,7 @@ final class JobStore: ObservableObject {
     func refresh() {
         modelReadiness = ModelReadiness.detect(bundle: .main)
         handoffReady = SWinyDLBridge.sharedQueueAvailable()
-        outputRootURL = SWinyDLBridge.savedOutputRoot(bundle: .main)
+        outputRootURL = SWinyDLBridge.selectedOutputRoot()
         let manifestsDir = SWinyDLBridge.manifestsDirectory()
         let manifestURLs = (try? FileManager.default.contentsOfDirectory(
             at: manifestsDir,
@@ -67,11 +68,15 @@ final class JobStore: ObservableObject {
 
         for job in jobs {
             guard let status = job.status else {
-                launch(job: job)
+                if prepareJobForLaunchIfPossible(job) {
+                    launch(job: job)
+                }
                 continue
             }
             if [SWinyDLBridge.pendingStatus, SWinyDLBridge.retryStatus].contains(status.overallStatus) {
-                launch(job: job)
+                if prepareJobForLaunchIfPossible(job) {
+                    launch(job: job)
+                }
             }
             if ["success", "failed"].contains(status.overallStatus) {
                 runningJobs.remove(job.id)
@@ -192,12 +197,19 @@ final class JobStore: ObservableObject {
     }
 
     var outputRootPath: String {
-        outputRootURL.path
+        outputRootURL?.path ?? "Choose an output folder"
     }
 
     var outputRootDisplayName: String {
+        guard let outputRootURL else {
+            return "Choose output folder"
+        }
         let name = outputRootURL.lastPathComponent
         return name.isEmpty ? outputRootURL.path : name
+    }
+
+    var outputFolderReady: Bool {
+        outputRootURL != nil
     }
 
     var handoffStatusLabel: String {
@@ -225,6 +237,10 @@ final class JobStore: ObservableObject {
     }
 
     func openDefaultOutputRoot() {
+        guard let outputRootURL else {
+            chooseOutputDirectory()
+            return
+        }
         try? FileManager.default.createDirectory(at: outputRootURL, withIntermediateDirectories: true)
         NSWorkspace.shared.open(outputRootURL)
     }
@@ -238,17 +254,20 @@ final class JobStore: ObservableObject {
         panel.canChooseDirectories = true
         panel.canCreateDirectories = true
         panel.allowsMultipleSelection = false
-        panel.directoryURL = outputRootURL
+        panel.directoryURL = outputRootURL ?? FileManager.default.homeDirectoryForCurrentUser
 
         guard panel.runModal() == .OK, let url = panel.url else {
             return
         }
         SWinyDLBridge.setSavedOutputRoot(url)
         outputRootURL = url
+        repairQueuedJobsMissingOutputRoot(outputRoot: url)
+        refresh()
     }
 
     func resetOutputDirectory() {
-        outputRootURL = SWinyDLBridge.resetSavedOutputRoot(bundle: .main)
+        SWinyDLBridge.clearSavedOutputRoot()
+        outputRootURL = nil
     }
 
     func previewTranscript(path: String) {
@@ -258,59 +277,223 @@ final class JobStore: ObservableObject {
     }
 
     func bootstrapModels() {
-        repairSetup()
+        copyRepairCommand()
     }
 
-    func repairSetup() {
-        guard !modelBootstrapStatus.isRunning else { return }
+    func copyRepairCommand() {
+        let command: String
+        if let repoRoot = SWinyDLRuntime.installRoot(bundle: .main) {
+            command = "cd \(Self.shellQuoted(repoRoot.path)) && chmod +x install.sh && ./install.sh"
+        } else {
+            command = "cd /path/to/SWinyDL && chmod +x install.sh && ./install.sh"
+        }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(command, forType: .string)
         modelBootstrapStatus = ModelBootstrapStatus(
-            isRunning: true,
-            message: "Running SWinyDL setup repair...",
+            isRunning: false,
+            message: "Copied Terminal repair command to clipboard.",
             error: nil,
-            logDirectoryPath: modelBootstrapStatus.logDirectoryPath
+            logDirectoryPath: SWinyDLBridge.logsDirectory().path
         )
-        let launcher = SetupRepairLauncher()
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            let result = launcher.run()
-            DispatchQueue.main.async {
-                guard let self else { return }
-                self.modelReadiness = ModelReadiness.detect(bundle: .main)
-                if result.success {
-                    self.modelBootstrapStatus = ModelBootstrapStatus(
-                        isRunning: false,
-                        message: result.message,
-                        error: nil,
-                        logDirectoryPath: result.logDirectoryPath
-                    )
-                } else {
-                    self.modelBootstrapStatus = ModelBootstrapStatus(
-                        isRunning: false,
-                        message: nil,
-                        error: result.message,
-                        logDirectoryPath: result.logDirectoryPath
-                    )
+    }
+
+    func copySetupRepairLogPath() {
+        let path: String
+        if let logDirectoryPath = modelBootstrapStatus.logDirectoryPath, !logDirectoryPath.isEmpty {
+            path = logDirectoryPath
+        } else {
+            path = SWinyDLBridge.logsDirectory().path
+        }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(path, forType: .string)
+        modelBootstrapStatus = ModelBootstrapStatus(
+            isRunning: false,
+            message: "Copied Logs folder path to clipboard.",
+            error: nil,
+            logDirectoryPath: path
+        )
+    }
+
+    func exportDiagnostics() {
+        let panel = NSSavePanel()
+        panel.title = "Export SWinyDL Diagnostics"
+        panel.nameFieldStringValue = "swinydl-diagnostics-\(Self.timestamp()).zip"
+        panel.allowedContentTypes = [.zip]
+        guard panel.runModal() == .OK, let destination = panel.url else {
+            return
+        }
+
+        do {
+            let staging = try buildDiagnosticsStagingDirectory()
+            defer { try? FileManager.default.removeItem(at: staging) }
+            try createZip(from: staging, to: destination)
+            modelBootstrapStatus = ModelBootstrapStatus(
+                isRunning: false,
+                message: "Exported diagnostics to \(destination.lastPathComponent).",
+                error: nil,
+                logDirectoryPath: SWinyDLBridge.logsDirectory().path
+            )
+        } catch {
+            modelBootstrapStatus = ModelBootstrapStatus(
+                isRunning: false,
+                message: nil,
+                error: "Diagnostics export failed. Copy Log Path for details.",
+                logDirectoryPath: SWinyDLBridge.logsDirectory().path
+            )
+        }
+    }
+
+    private func prepareJobForLaunchIfPossible(_ job: JobEnvelope) -> Bool {
+        guard let outputRootURL else {
+            markNeedsOutputFolder(job)
+            return false
+        }
+        guard (job.status?.outputRoot ?? "").isEmpty else {
+            return true
+        }
+        updateManifest(job.manifestURL) { manifest in
+            manifest["output_root"] = outputRootURL.path
+            manifest["temp_root"] = SWinyDLBridge.tempDirectory().path
+            manifest["log_root"] = SWinyDLBridge.logsDirectory().path
+        }
+        repairStatusOutputRoot(job, outputRoot: outputRootURL)
+        return true
+    }
+
+    private func repairQueuedJobsMissingOutputRoot(outputRoot: URL) {
+        let manifestsDir = SWinyDLBridge.manifestsDirectory()
+        let manifestURLs = (try? FileManager.default.contentsOfDirectory(
+            at: manifestsDir,
+            includingPropertiesForKeys: nil
+        ))?
+            .filter { $0.pathExtension == "json" && !$0.lastPathComponent.hasSuffix(".status.json") } ?? []
+        for manifestURL in manifestURLs {
+            let statusURL = SWinyDLBridge.statusURL(for: manifestURL)
+            let envelope = JobEnvelope(manifestURL: manifestURL, statusURL: statusURL, status: loadStatus(from: statusURL))
+            if (envelope.status?.outputRoot ?? "").isEmpty {
+                updateManifest(manifestURL) { manifest in
+                    manifest["output_root"] = outputRoot.path
+                    manifest["temp_root"] = SWinyDLBridge.tempDirectory().path
+                    manifest["log_root"] = SWinyDLBridge.logsDirectory().path
                 }
-                self.refresh()
+                repairStatusOutputRoot(envelope, outputRoot: outputRoot)
             }
         }
     }
 
-    func openSetupRepairLogs() {
-        let url: URL
-        if let logDirectoryPath = modelBootstrapStatus.logDirectoryPath, !logDirectoryPath.isEmpty {
-            url = URL(fileURLWithPath: logDirectoryPath, isDirectory: true)
-        } else {
-            url = SWinyDLBridge.logsDirectory()
+    private func repairStatusOutputRoot(_ job: JobEnvelope, outputRoot: URL) {
+        guard let status = job.status else { return }
+        let repaired = JobStatusPayload(
+            jobID: status.jobID,
+            command: status.command,
+            overallStatus: status.overallStatus,
+            courseTitle: status.courseTitle,
+            sourcePageURL: status.sourcePageURL,
+            outputRoot: outputRoot.path,
+            totalLessons: status.totalLessons,
+            completedLessons: status.completedLessons,
+            startedAt: status.startedAt,
+            updatedAt: ISO8601DateFormatter().string(from: Date()),
+            elapsedSeconds: status.elapsedSeconds,
+            activeLessonID: status.activeLessonID,
+            activeLessonTitle: status.activeLessonTitle,
+            detail: "Queued in Safari. Waiting for the native wrapper to launch the backend.",
+            requestedAction: status.requestedAction,
+            diarizationMode: status.diarizationMode,
+            deleteDownloadedMedia: status.deleteDownloadedMedia,
+            lessons: status.lessons,
+            events: status.events,
+            summaryPath: status.summaryPath,
+            error: nil
+        )
+        saveStatus(repaired, to: job.statusURL)
+    }
+
+    private func markNeedsOutputFolder(_ job: JobEnvelope) {
+        guard let status = job.status else { return }
+        let detail = "Choose an output folder in SWinyDL to start this job."
+        if status.detail == detail && status.outputRoot.isEmpty {
+            return
         }
-        NSWorkspace.shared.open(url)
+        let blocked = JobStatusPayload(
+            jobID: status.jobID,
+            command: status.command,
+            overallStatus: SWinyDLBridge.pendingStatus,
+            courseTitle: status.courseTitle,
+            sourcePageURL: status.sourcePageURL,
+            outputRoot: "",
+            totalLessons: status.totalLessons,
+            completedLessons: status.completedLessons,
+            startedAt: status.startedAt,
+            updatedAt: ISO8601DateFormatter().string(from: Date()),
+            elapsedSeconds: status.elapsedSeconds,
+            activeLessonID: status.activeLessonID,
+            activeLessonTitle: status.activeLessonTitle,
+            detail: detail,
+            requestedAction: status.requestedAction,
+            diarizationMode: status.diarizationMode,
+            deleteDownloadedMedia: status.deleteDownloadedMedia,
+            lessons: status.lessons,
+            events: status.events,
+            summaryPath: status.summaryPath,
+            error: nil
+        )
+        saveStatus(blocked, to: job.statusURL)
+    }
+
+    private func markNeedsOutputFolderPermission(_ job: JobEnvelope) {
+        guard let status = job.status else { return }
+        SWinyDLBridge.clearSavedOutputRoot()
+        outputRootURL = nil
+        let blocked = JobStatusPayload(
+            jobID: status.jobID,
+            command: status.command,
+            overallStatus: SWinyDLBridge.pendingStatus,
+            courseTitle: status.courseTitle,
+            sourcePageURL: status.sourcePageURL,
+            outputRoot: "",
+            totalLessons: status.totalLessons,
+            completedLessons: status.completedLessons,
+            startedAt: status.startedAt,
+            updatedAt: ISO8601DateFormatter().string(from: Date()),
+            elapsedSeconds: status.elapsedSeconds,
+            activeLessonID: status.activeLessonID,
+            activeLessonTitle: status.activeLessonTitle,
+            detail: "Choose Output Folder again so SWinyDL has permission to write transcripts.",
+            requestedAction: status.requestedAction,
+            diarizationMode: status.diarizationMode,
+            deleteDownloadedMedia: status.deleteDownloadedMedia,
+            lessons: status.lessons,
+            events: status.events,
+            summaryPath: status.summaryPath,
+            error: nil
+        )
+        saveStatus(blocked, to: job.statusURL)
+    }
+
+    private func updateManifest(_ url: URL, mutate: (inout [String: Any]) -> Void) {
+        guard var manifest = try? loadManifestPayload(from: url) else { return }
+        mutate(&manifest)
+        guard let data = try? JSONSerialization.data(withJSONObject: manifest, options: [.prettyPrinted, .sortedKeys]) else {
+            return
+        }
+        try? data.write(to: url, options: .atomic)
     }
 
     private func launch(job: JobEnvelope) {
         guard !runningJobs.contains(job.id) else { return }
         runningJobs.insert(job.id)
-        if let path = job.status?.outputRoot, !path.isEmpty,
-           outputAccessURLs[job.id] == nil,
-           let accessURL = SWinyDLBridge.startAccessingSavedOutputRoot(path: path) {
+        guard let outputRootURL else {
+            markNeedsOutputFolder(job)
+            runningJobs.remove(job.id)
+            return
+        }
+        if outputAccessURLs[job.id] == nil {
+            guard let accessURL = SWinyDLBridge.startAccessingSavedOutputRoot(path: outputRootURL.path) else {
+                markNeedsOutputFolderPermission(job)
+                runningJobs.remove(job.id)
+                return
+            }
             outputAccessURLs[job.id] = accessURL
         }
         let launcher = BackendLauncher()
@@ -322,7 +505,7 @@ final class JobStore: ObservableObject {
                 overallStatus: "failed",
                 courseTitle: job.status?.courseTitle ?? job.manifestURL.lastPathComponent,
                 sourcePageURL: job.status?.sourcePageURL ?? "",
-                outputRoot: job.status?.outputRoot ?? "",
+                outputRoot: outputRootURL.path,
                 totalLessons: job.status?.totalLessons ?? 0,
                 completedLessons: job.status?.completedLessons ?? 0,
                 startedAt: job.status?.startedAt,
@@ -360,6 +543,83 @@ final class JobStore: ObservableObject {
             throw CocoaError(.coderReadCorrupt)
         }
         return payload
+    }
+
+    private func buildDiagnosticsStagingDirectory() throws -> URL {
+        let fileManager = FileManager.default
+        let root = fileManager.temporaryDirectory
+            .appendingPathComponent("swinydl-diagnostics-\(UUID().uuidString)", isDirectory: true)
+        try fileManager.createDirectory(at: root, withIntermediateDirectories: true)
+
+        try writeSanitizedJobs(to: root.appendingPathComponent("Jobs", isDirectory: true))
+        try copyDirectoryIfPresent(SWinyDLBridge.logsDirectory(), to: root.appendingPathComponent("Logs", isDirectory: true))
+        try copyDirectoryIfPresent(SWinyDLBridge.debugExportsDirectory(), to: root.appendingPathComponent("DebugExports", isDirectory: true))
+
+        let metadata: [String: Any] = [
+            "created_at": ISO8601DateFormatter().string(from: Date()),
+            "app_version": Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "",
+            "handoff_ready": handoffReady,
+            "output_folder_configured": outputRootURL != nil,
+            "model_readiness": [
+                "parakeet": modelReadiness.parakeetReady,
+                "diarizer": modelReadiness.diarizerReady,
+            ],
+        ]
+        let data = try JSONSerialization.data(withJSONObject: metadata, options: [.prettyPrinted, .sortedKeys])
+        try data.write(to: root.appendingPathComponent("environment.json"), options: .atomic)
+        return root
+    }
+
+    private func writeSanitizedJobs(to destination: URL) throws {
+        let fileManager = FileManager.default
+        try fileManager.createDirectory(at: destination, withIntermediateDirectories: true)
+        let jobsDir = SWinyDLBridge.manifestsDirectory()
+        let urls = (try? fileManager.contentsOfDirectory(at: jobsDir, includingPropertiesForKeys: nil)) ?? []
+        for url in urls where url.pathExtension == "json" {
+            guard
+                let data = try? Data(contentsOf: url),
+                var payload = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+            else {
+                continue
+            }
+            if payload["cookies"] != nil {
+                payload["cookies"] = "[REDACTED]"
+            }
+            let output = try JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted, .sortedKeys])
+            try output.write(to: destination.appendingPathComponent(url.lastPathComponent), options: .atomic)
+        }
+    }
+
+    private func copyDirectoryIfPresent(_ source: URL, to destination: URL) throws {
+        guard FileManager.default.fileExists(atPath: source.path) else { return }
+        if FileManager.default.fileExists(atPath: destination.path) {
+            try FileManager.default.removeItem(at: destination)
+        }
+        try FileManager.default.copyItem(at: source, to: destination)
+    }
+
+    private func createZip(from staging: URL, to destination: URL) throws {
+        if FileManager.default.fileExists(atPath: destination.path) {
+            try FileManager.default.removeItem(at: destination)
+        }
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
+        process.arguments = ["-c", "-k", "--sequesterRsrc", "--keepParent", staging.path, destination.path]
+        try process.run()
+        process.waitUntilExit()
+        if process.terminationStatus != 0 {
+            throw CocoaError(.fileWriteUnknown)
+        }
+    }
+
+    private static func timestamp() -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyyMMdd-HHmmss"
+        return formatter.string(from: Date())
+    }
+
+    private static func shellQuoted(_ value: String) -> String {
+        "'\(value.replacingOccurrences(of: "'", with: "'\\''"))'"
     }
 }
 
@@ -447,110 +707,6 @@ private struct BackendLauncher {
     }
 }
 
-private struct SetupRepairResult {
-    let success: Bool
-    let message: String
-    let logDirectoryPath: String?
-}
-
-private struct SetupRepairLauncher {
-    func run(bundle: Bundle = .main) -> SetupRepairResult {
-        guard let repoRoot = SWinyDLRuntime.installRoot(bundle: bundle) else {
-            return SetupRepairResult(
-                success: false,
-                message: "SWinyDL could not find the install folder. Copy the SWinyDL folder out of the DMG, then run install.sh from that copied folder.",
-                logDirectoryPath: nil
-            )
-        }
-
-        let installScript = repoRoot.appendingPathComponent("install.sh")
-        guard FileManager.default.fileExists(atPath: installScript.path) else {
-            return SetupRepairResult(
-                success: false,
-                message: "SWinyDL could not find install.sh. Download the latest release or run ./install.sh from the copied SWinyDL folder.",
-                logDirectoryPath: nil
-            )
-        }
-        let missingRuntimePayload = SWinyDLRuntime.missingRuntimePayload(in: repoRoot, requirePrebuiltApp: true)
-        if !missingRuntimePayload.isEmpty {
-            return SetupRepairResult(
-                success: false,
-                message: "This SWinyDL folder is incomplete. Missing: \(missingRuntimePayload.joined(separator: ", ")). Download the latest DMG and copy the SWinyDL folder again.",
-                logDirectoryPath: nil
-            )
-        }
-
-        let process = Process()
-        let logsDir = SWinyDLBridge.logsDirectory()
-        let stamp = Self.logTimestamp()
-        let outputURL = logsDir.appendingPathComponent("setup-repair-\(stamp)-stdout.log")
-        let errorURL = logsDir.appendingPathComponent("setup-repair-\(stamp)-stderr.log")
-        FileManager.default.createFile(atPath: outputURL.path, contents: nil)
-        FileManager.default.createFile(atPath: errorURL.path, contents: nil)
-        guard let outputHandle = try? FileHandle(forWritingTo: outputURL),
-              let errorHandle = try? FileHandle(forWritingTo: errorURL) else {
-            return SetupRepairResult(
-                success: false,
-                message: "SWinyDL could not create setup repair log files.",
-                logDirectoryPath: nil
-            )
-        }
-        defer {
-            try? outputHandle.close()
-            try? errorHandle.close()
-        }
-        process.executableURL = URL(fileURLWithPath: "/bin/bash")
-        process.arguments = [installScript.path, "--repair", "--non-interactive", "--skip-open"]
-        process.currentDirectoryURL = repoRoot
-        process.standardOutput = outputHandle
-        process.standardError = errorHandle
-        process.environment = (process.environment ?? ProcessInfo.processInfo.environment).merging(
-            ["PYTHONPATH": repoRoot.path],
-            uniquingKeysWith: { _, new in new }
-        )
-
-        do {
-            try process.run()
-            process.waitUntilExit()
-        } catch {
-            return SetupRepairResult(
-                success: false,
-                message: "SWinyDL could not start setup repair: \(error.localizedDescription)",
-                logDirectoryPath: logsDir.path
-            )
-        }
-
-        try? outputHandle.synchronize()
-        try? errorHandle.synchronize()
-        let output = (try? String(contentsOf: outputURL, encoding: .utf8)) ?? ""
-        let stderr = (try? String(contentsOf: errorURL, encoding: .utf8)) ?? ""
-        if process.terminationStatus == 0 {
-            return SetupRepairResult(
-                success: true,
-                message: "Setup repair finished.",
-                logDirectoryPath: logsDir.path
-            )
-        }
-
-        let detail = ([stderr, output].filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty })
-            .joined(separator: "\n")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        return SetupRepairResult(
-            success: false,
-            message: detail.isEmpty
-                ? "Setup repair failed with exit code \(process.terminationStatus). Open Logs for details."
-                : "Setup repair failed. Open Logs for details.",
-            logDirectoryPath: logsDir.path
-        )
-    }
-
-    private static func logTimestamp() -> String {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyyMMdd-HHmmss"
-        return formatter.string(from: Date())
-    }
-}
-
 private enum SWinyDLRuntime {
     static func installRoot(bundle: Bundle) -> URL? {
         let candidates = installRootCandidates(bundle: bundle)
@@ -612,29 +768,21 @@ private enum SWinyDLRuntime {
             }
         }
 
-        if let configured = bundle.object(forInfoDictionaryKey: "SWINYDLRepoRoot") as? String,
-           !configured.isEmpty {
-            appendCandidate(URL(fileURLWithPath: configured, isDirectory: true))
-        }
-
         let appParent = bundle.bundleURL.deletingLastPathComponent()
         appendCandidate(appParent)
         appendCandidate(appParent.deletingLastPathComponent())
 
-        let home = FileManager.default.homeDirectoryForCurrentUser
-        for parent in ["Desktop", "Downloads", "Applications"] {
-            for folder in ["SWinyDL", "swinydl"] {
-                appendCandidate(
-                    home
-                        .appendingPathComponent(parent, isDirectory: true)
-                        .appendingPathComponent(folder, isDirectory: true)
-                )
-            }
+        if let configured = bundle.object(forInfoDictionaryKey: "SWINYDLRepoRoot") as? String,
+           !configured.isEmpty {
+            appendCandidate(URL(fileURLWithPath: configured, isDirectory: true))
         }
         return candidates
     }
 
     private static func isInstallRoot(_ url: URL) -> Bool {
+        guard !SWinyDLBridge.isSandboxContainerPath(url) else {
+            return false
+        }
         let fileManager = FileManager.default
         let pyproject = url.appendingPathComponent("pyproject.toml").path
         let installer = url.appendingPathComponent("install.sh").path

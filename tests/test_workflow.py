@@ -239,6 +239,8 @@ class WorkflowTests(unittest.TestCase):
                             ],
                         },
                         "output_root": temp_dir,
+                        "temp_root": str(Path(temp_dir) / "bridge-temp"),
+                        "log_root": str(Path(temp_dir) / "bridge-logs"),
                         "keep_audio": False,
                         "keep_video": False,
                         "transcript_source": "asr",

@@ -7,10 +7,11 @@ CONFIGURATION="Debug"
 BUILD_ROOT="$REPO_ROOT/safari/.build"
 OUTPUT_APP_PATH="$REPO_ROOT/SWinyDLSafariApp.app"
 APP_VERSION=""
+REGISTER_OUTPUT_APP=1
 
 usage() {
   cat <<EOF
-Usage: ./scripts/build_app.sh [--configuration Debug|Release] [--build-root PATH] [--output PATH] [--version X.Y.Z]
+Usage: ./scripts/build_app.sh [--configuration Debug|Release] [--build-root PATH] [--output PATH] [--version X.Y.Z] [--skip-register]
 
 Builds SWinyDLSafariApp.app and its embedded Safari extension from source.
 The default output is:
@@ -51,6 +52,10 @@ while [ "$#" -gt 0 ]; do
       }
       APP_VERSION="${2#v}"
       shift 2
+      ;;
+    --skip-register)
+      REGISTER_OUTPUT_APP=0
+      shift
       ;;
     -h|--help)
       usage
@@ -177,5 +182,38 @@ EXTENSION_APP_PATH="$BUILT_APP_PATH/Contents/PlugIns/SWinyDLSafariExtension.appe
 rm -rf "$OUTPUT_APP_PATH"
 mkdir -p "$(dirname "$OUTPUT_APP_PATH")"
 ditto "$BUILT_APP_PATH" "$OUTPUT_APP_PATH"
+
+register_output_app() {
+  LSREGISTER="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
+  [ -x "$LSREGISTER" ] || return 0
+
+  unregister_swinydl_app() {
+    local app_path="$1"
+    [ -n "$app_path" ] || return 0
+    [ "$app_path" != "$OUTPUT_APP_PATH" ] || return 0
+    "$LSREGISTER" -u "$app_path" 2>/dev/null || true
+  }
+
+  if [ "$REGISTER_OUTPUT_APP" -ne 1 ]; then
+    "$LSREGISTER" -u "$BUILT_APP_PATH" 2>/dev/null || true
+    "$LSREGISTER" -u "$OUTPUT_APP_PATH" 2>/dev/null || true
+    return 0
+  fi
+
+  printf 'Registering output app as the SWinyDL URL handler...\n'
+  while IFS= read -r registered_path; do
+    app_path="${registered_path%%.app*}.app"
+    unregister_swinydl_app "$app_path"
+  done < <(
+    "$LSREGISTER" -dump 2>/dev/null |
+      awk '/^path: .*SWinyDLSafariApp\.app/ { sub(/^path:[[:space:]]*/, "", $0); sub(/[[:space:]]\\(0x[0-9a-fA-F]+\\)$/, "", $0); print }'
+  )
+  while IFS= read -r app_path; do
+    unregister_swinydl_app "$app_path"
+  done < <(find "$REPO_ROOT" -path '*/SWinyDLSafariApp.app' -type d -prune)
+  "$LSREGISTER" -f -R -trusted "$OUTPUT_APP_PATH" 2>/dev/null || true
+}
+
+register_output_app
 
 printf '%s\n' "$OUTPUT_APP_PATH"

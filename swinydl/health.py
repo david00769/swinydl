@@ -199,8 +199,6 @@ def _check_xcodegen(env: dict[str, object]) -> dict[str, object]:
 
 
 def _check_safari_project() -> dict[str, object]:
-    if _runtime_release_app_available():
-        return _check("safari-project", "pass", "Runtime release does not include the Safari source project; prebuilt app is present.")
     project_spec = safari_project_spec_path()
     project_file = safari_project_path() / "project.pbxproj"
     if project_file.exists():
@@ -212,6 +210,8 @@ def _check_safari_project() -> dict[str, object]:
             f"Safari XcodeGen spec is present at {project_spec}, but the generated project is missing.",
             fix="Run `xcodegen generate --spec safari/project.yml` to regenerate the Safari wrapper project.",
         )
+    if _runtime_release_app_available():
+        return _check("safari-project", "pass", "Runtime release does not include the Safari source project; prebuilt app is present.")
     return _check(
         "safari-project",
         "fail",
@@ -221,11 +221,6 @@ def _check_safari_project() -> dict[str, object]:
 
 
 def _check_safari_build() -> dict[str, object]:
-    release_app = _runtime_release_app_path()
-    release_extension = release_app / "Contents" / "PlugIns" / "SWinyDLSafariExtension.appex"
-    if release_app.exists() and release_extension.exists():
-        return _check("safari-app-build", "pass", f"Prebuilt Safari wrapper app is present at {release_app}.")
-
     app_bundle = safari_built_app_path()
     extension_bundle = safari_extension_bundle_path()
     if app_bundle.exists() and extension_bundle.exists():
@@ -237,6 +232,9 @@ def _check_safari_build() -> dict[str, object]:
             f"Built app exists at {app_bundle}, but the embedded Safari extension bundle is missing.",
             fix="Rebuild the app with `./install.sh` or `xcodebuild` so the extension is embedded in the wrapper app.",
         )
+    if _runtime_release_app_available() and not _is_explicit_safari_build_path(app_bundle):
+        release_app = _runtime_release_app_path()
+        return _check("safari-app-build", "pass", f"Prebuilt Safari wrapper app is present at {release_app}.")
     return _check(
         "safari-app-build",
         "warn",
@@ -357,6 +355,12 @@ def _runtime_release_app_available() -> bool:
     app = _runtime_release_app_path()
     extension = app / "Contents" / "PlugIns" / "SWinyDLSafariExtension.appex"
     return app.exists() and extension.exists()
+
+
+def _is_explicit_safari_build_path(path: Path) -> bool:
+    """Return whether a test/caller supplied a non-default Safari build path."""
+    default_path = Path.cwd().resolve() / "safari" / ".build" / "Debug" / "SWinyDLSafariApp.app"
+    return path.resolve() != default_path
 
 
 def _short_error(message: str) -> str:

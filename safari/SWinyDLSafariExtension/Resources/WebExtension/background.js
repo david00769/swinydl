@@ -1,6 +1,8 @@
 const CAPTION_EXTENSIONS = new Set(["vtt", "srt"]);
 const MEDIA_EXTENSIONS = new Set(["m3u8", "mp4", "m4a", "aac", "mp3", "mov", "webm"]);
 const tabContextCache = new Map();
+let lastAppLaunchResult = null;
+let lastQueuedSelection = null;
 
 browser.runtime.onMessage.addListener((message, sender) => handleMessage(message, sender));
 
@@ -29,7 +31,7 @@ function handleMessageUnsafe(message, sender) {
     case "open-output":
       return sendNative("open_output", { path: message.path });
     case "open-app":
-      return sendNative("open_app", {});
+      return openNativeApp();
     case "export-debug-log":
       return exportDebugLogForActiveTab(message.filename);
     default:
@@ -136,11 +138,13 @@ async function exportDebugLogForActiveTab(filename) {
 async function launchJob(payload) {
   const hosts = new Set([new URL(payload.courseUrl).hostname, new URL(payload.sourcePageUrl).hostname]);
   const cookies = await exportCookies(Array.from(hosts));
+  const selectedLessonAssetCounts = selectedLessonAssetSummary(payload.course, payload.selectedLessonIds);
   const manifest = {
     source_page_url: payload.sourcePageUrl,
     course_url: payload.courseUrl,
     host: new URL(payload.courseUrl).origin,
     selected_lesson_ids: payload.selectedLessonIds,
+    selected_lesson_asset_counts: selectedLessonAssetCounts,
     requested_action: payload.requestedAction,
     delete_downloaded_media: payload.deleteDownloadedMediaAfterTranscription !== false,
     cookies,
@@ -153,7 +157,21 @@ async function launchJob(payload) {
     diarization_mode: "on"
   };
 
-  return sendNative("launch_job", { manifest });
+  lastQueuedSelection = {
+    timestamp: new Date().toISOString(),
+    courseTitle: payload.course?.course_title || null,
+    selectedLessonCount: payload.selectedLessonIds.length,
+    selectedLessonAssetCounts
+  };
+  const response = await sendNative("launch_job", { manifest });
+  recordNativeLaunchResponse(response, { operation: "launch_job", jobId: response?.jobId || null });
+  return response;
+}
+
+async function openNativeApp() {
+  const response = await sendNative("open_app", {});
+  recordNativeLaunchResponse(response, { operation: "open_app", jobId: null });
+  return response;
 }
 
 async function sendNative(operation, payload) {
@@ -165,6 +183,36 @@ async function sendNative(operation, payload) {
   } catch (error) {
     return { ok: false, error: String(error) };
   }
+}
+
+function recordNativeLaunchResponse(response, context) {
+  if (!response?.app_launch && response?.appOpened === undefined) {
+    return;
+  }
+  lastAppLaunchResult = {
+    timestamp: new Date().toISOString(),
+    operation: context.operation,
+    jobId: context.jobId,
+    appOpened: response?.appOpened ?? response?.app_launch?.succeeded ?? null,
+    appLaunch: response?.app_launch || null,
+    error: response?.error || response?.app_launch?.error || null
+  };
+}
+
+function selectedLessonAssetSummary(course, selectedLessonIds) {
+  const selected = new Set(selectedLessonIds || []);
+  return (course?.lessons || [])
+    .filter((lesson) => selected.has(lesson.lesson_id))
+    .map((lesson) => {
+      const assets = Array.isArray(lesson.assets) ? lesson.assets : [];
+      return {
+        lesson_id: lesson.lesson_id,
+        title: lesson.title || lesson.lesson_id,
+        caption_count: assets.filter((asset) => asset.kind === "caption").length,
+        media_count: assets.filter((asset) => asset.kind === "media").length,
+        total_assets: assets.length
+      };
+    });
 }
 
 function deriveCourseUrl(context) {
@@ -566,6 +614,10 @@ function buildDebugLog({ tab, context, courseUrl, error }) {
       titleCandidates: context.titleCandidates,
       textSnippets: context.textSnippets,
       lessonCandidates: context.lessonCandidates
+    },
+    launch: {
+      lastAppLaunchResult,
+      lastQueuedSelection
     },
     privacy: {
       sanitized: true,

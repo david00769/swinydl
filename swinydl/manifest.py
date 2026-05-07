@@ -30,7 +30,7 @@ def load_process_manifest(path: Path | str) -> ProcessManifest:
         selected_lesson_ids=tuple(payload.get("selected_lesson_ids") or ()),
         requested_action=payload.get("requested_action", "transcribe"),
         delete_downloaded_media=bool(payload.get("delete_downloaded_media", True)),
-        cookies=[_cookie_from_dict(item) for item in payload.get("cookies", [])],
+        cookies=_cookies_from_payload(payload.get("cookies", [])),
         course=_course_from_dict(course_payload) if course_payload else None,
         output_root=Path(payload["output_root"]).expanduser() if payload.get("output_root") else None,
         temp_root=Path(payload["temp_root"]).expanduser() if payload.get("temp_root") else None,
@@ -139,6 +139,20 @@ def _cookie_from_dict(payload: dict[str, object]) -> BrowserCookie:
             str(payload["sameSite"]) if payload.get("sameSite") else None
         ),
     )
+
+
+def _cookies_from_payload(payload: object) -> list[BrowserCookie]:
+    """Normalize exported cookies and tolerate redacted diagnostic manifests."""
+    if not isinstance(payload, list):
+        return []
+    cookies: list[BrowserCookie] = []
+    for item in payload:
+        if isinstance(item, dict):
+            try:
+                cookies.append(_cookie_from_dict(item))
+            except KeyError:
+                continue
+    return cookies
 
 
 def _course_from_dict(payload: dict[str, object]) -> CourseManifest:

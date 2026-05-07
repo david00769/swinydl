@@ -16,15 +16,17 @@ final class SafariWebExtensionHandler: NSObject, NSExtensionRequestHandling {
 
         if operation == "open_app" {
             openHostApplication(context: context) { appLaunch in
+                let launchPayload = appLaunch.payload()
                 if appLaunch.succeeded {
-                    self.complete(response: response, context: context, body: ["ok": true])
+                    self.complete(response: response, context: context, body: ["ok": true, "app_launch": launchPayload])
                 } else {
                     self.complete(
                         response: response,
                         context: context,
                         body: [
                             "ok": false,
-                            "error": appLaunch.error ?? "Safari could not open SWinyDL. Open SWinyDLSafariApp.app from the copied SWinyDL folder."
+                            "error": appLaunch.error ?? "Safari could not open SWinyDL. Open SWinyDLSafariApp.app from the copied SWinyDL folder.",
+                            "app_launch": launchPayload
                         ]
                     )
                 }
@@ -62,12 +64,12 @@ final class SafariWebExtensionHandler: NSObject, NSExtensionRequestHandling {
         do {
             var body = try queueJob(payload: payload)
             openHostApplication(context: context) { appLaunch in
+                let launchPayload = appLaunch.payload()
                 body["appOpened"] = appLaunch.succeeded
-                body["app_launch"] = [
-                    "attempted": appLaunch.attempted,
-                    "succeeded": appLaunch.succeeded,
-                    "error": appLaunch.error.map { $0 as Any } ?? NSNull(),
-                ]
+                body["app_launch"] = launchPayload
+                if let statusPath = body["statusPath"] as? String {
+                    self.recordLaunchAttempt(statusURL: URL(fileURLWithPath: statusPath), appLaunch: appLaunch)
+                }
                 self.complete(response: response, context: context, body: body)
             }
         } catch {
@@ -135,6 +137,46 @@ final class SafariWebExtensionHandler: NSObject, NSExtensionRequestHandling {
             "manifestPath": manifestURL.path,
             "statusPath": statusURL.path,
         ]
+    }
+
+    private func recordLaunchAttempt(statusURL: URL, appLaunch: AppLaunchAttempt) {
+        guard
+            let data = try? Data(contentsOf: statusURL),
+            let status = try? JSONDecoder.bridgeDecoder().decode(JobStatusPayload.self, from: data)
+        else {
+            return
+        }
+        let timestamp = ISO8601DateFormatter().string(from: Date())
+        let message = appLaunch.succeeded
+            ? "Safari extension opened SWinyDL."
+            : "Safari extension could not open SWinyDL: \(appLaunch.error ?? "unknown error")."
+        let updated = JobStatusPayload(
+            jobID: status.jobID,
+            command: status.command,
+            overallStatus: status.overallStatus,
+            courseTitle: status.courseTitle,
+            sourcePageURL: status.sourcePageURL,
+            outputRoot: status.outputRoot,
+            totalLessons: status.totalLessons,
+            completedLessons: status.completedLessons,
+            startedAt: status.startedAt,
+            updatedAt: timestamp,
+            elapsedSeconds: status.elapsedSeconds,
+            activeLessonID: status.activeLessonID,
+            activeLessonTitle: status.activeLessonTitle,
+            detail: status.detail,
+            requestedAction: status.requestedAction,
+            diarizationMode: status.diarizationMode,
+            deleteDownloadedMedia: status.deleteDownloadedMedia,
+            lessons: status.lessons,
+            events: status.events + [
+                JobStatusEventPayload(timestamp: timestamp, level: appLaunch.succeeded ? "info" : "error", message: message)
+            ],
+            summaryPath: status.summaryPath,
+            error: status.error
+        )
+        guard let updatedData = try? JSONEncoder.bridgeEncoder().encode(updated) else { return }
+        try? updatedData.write(to: statusURL, options: .atomic)
     }
 
     private func loadJobStatuses() -> [String: Any] {
@@ -270,4 +312,13 @@ private struct AppLaunchAttempt {
     let attempted: Bool
     let succeeded: Bool
     let error: String?
+
+    func payload() -> [String: Any] {
+        [
+            "attempted": attempted,
+            "succeeded": succeeded,
+            "error": error.map { $0 as Any } ?? NSNull(),
+            "timestamp": ISO8601DateFormatter().string(from: Date()),
+        ]
+    }
 }

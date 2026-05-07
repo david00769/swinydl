@@ -19,6 +19,7 @@ private enum AppTheme {
 
 @main
 struct SWinyDLSafariApp: App {
+    @NSApplicationDelegateAdaptor(SWinyDLAppDelegate.self) private var appDelegate
     @StateObject private var store = JobStore()
     @StateObject private var updates = UpdateController()
 
@@ -29,10 +30,11 @@ struct SWinyDLSafariApp: App {
                 .environmentObject(updates)
                 .frame(minWidth: 960, minHeight: 640)
                 .onOpenURL { _ in
-                    NSApp.activate(ignoringOtherApps: true)
+                    SWinyDLAppDelegate.showMainWindow()
                     store.refresh()
                 }
         }
+        .handlesExternalEvents(matching: ["open"])
         .commands {
             CommandGroup(after: .appInfo) {
                 Button("Check for Updates...") {
@@ -40,6 +42,29 @@ struct SWinyDLSafariApp: App {
                         await updates.checkForUpdates(manual: true)
                     }
                 }
+            }
+        }
+    }
+}
+
+@MainActor
+final class SWinyDLAppDelegate: NSObject, NSApplicationDelegate {
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows flag: Bool) -> Bool {
+        Self.showMainWindow()
+        return true
+    }
+
+    func application(_ application: NSApplication, open urls: [URL]) {
+        Self.showMainWindow()
+    }
+
+    static func showMainWindow() {
+        NSApp.setActivationPolicy(.regular)
+        NSApp.unhide(nil)
+        NSApp.activate(ignoringOtherApps: true)
+        DispatchQueue.main.async {
+            if let window = NSApp.windows.first(where: { !$0.isMiniaturized }) ?? NSApp.windows.first {
+                window.makeKeyAndOrderFront(nil)
             }
         }
     }
@@ -146,17 +171,128 @@ private struct ContentView: View {
 
     private var compactEmptyState: some View {
         DashboardCard(padding: 18, cornerRadius: 18) {
-            VStack(alignment: .leading, spacing: 14) {
-                Label("No jobs yet", systemImage: "sparkles")
-                    .font(.title3.weight(.bold))
-                Text("The app is ready. Use Safari to queue the first transcript run, then progress will appear here.")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                VStack(alignment: .leading, spacing: 12) {
-                    EmptyStateStep(number: "1", title: "Choose an output folder", detail: "Use Defaults > Output folder")
-                    EmptyStateStep(number: "2", title: "Open your course page", detail: "Use a logged-in Canvas or Echo360 page")
-                    EmptyStateStep(number: "3", title: "Launch the run", detail: "Pick lessons in the popup; progress appears here")
+            VStack(alignment: .leading, spacing: 18) {
+                VStack(alignment: .leading, spacing: 6) {
+                    Label("Ready for the first transcript run", systemImage: "sparkles")
+                        .font(.title3.weight(.bold))
+                        .foregroundStyle(AppTheme.primaryText)
+                    Text("Choose where transcripts are saved, then open a logged-in Canvas or Echo360 page in Safari.")
+                        .font(.subheadline)
+                        .foregroundStyle(AppTheme.secondaryText)
                 }
+
+                HStack(alignment: .center, spacing: 12) {
+                    PrimaryActionButton(title: "Choose Output Folder", systemImage: "folder.badge.plus") {
+                        store.chooseOutputDirectory()
+                    }
+                    SecondaryActionButton(title: "Open Safari", systemImage: "safari") {
+                        openSafari()
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 8) {
+                    InfoRow(title: "Output folder", value: store.outputRootDisplayName)
+                    Text("Then use the Safari extension to queue lessons. Progress will appear here.")
+                        .font(.caption)
+                        .foregroundStyle(AppTheme.mutedText)
+                    if let message = store.outputFolderPermissionMessage {
+                        InlineMessage(
+                            icon: "folder.badge.questionmark",
+                            text: message,
+                            tint: AppTheme.warning,
+                            compact: true
+                        )
+                    }
+                }
+            }
+        }
+    }
+
+    private func openSafari() {
+        NSWorkspace.shared.openApplication(at: URL(fileURLWithPath: "/Applications/Safari.app"), configuration: .init()) { _, _ in
+        }
+    }
+
+    private var setupGuide: some View {
+        DashboardCard(padding: 14, cornerRadius: 12) {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("How to start")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(AppTheme.mutedText)
+                    .textCase(.uppercase)
+                Text("1. Choose where transcripts are saved.")
+                Text("2. Open a logged-in Canvas or Echo360 page in Safari.")
+                Text("3. Use the Safari extension to queue lessons.")
+            }
+            .font(.subheadline)
+            .foregroundStyle(AppTheme.primaryText)
+        }
+    }
+
+    private var diagnosticsPanel: some View {
+        DashboardCard(padding: 14, cornerRadius: 12) {
+            VStack(alignment: .leading, spacing: 12) {
+                Text("Diagnostics")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(AppTheme.mutedText)
+                    .textCase(.uppercase)
+                InspectorActionRow(title: "Copy Repair Command", systemImage: "terminal") {
+                    store.copyRepairCommand()
+                }
+                InspectorActionRow(title: "Copy Log Path", systemImage: "doc.on.doc") {
+                    store.copySetupRepairLogPath()
+                }
+                InspectorActionRow(title: "Export Diagnostics", systemImage: "square.and.arrow.up") {
+                    store.exportDiagnostics()
+                }
+                InspectorActionRow(title: "Refresh", systemImage: "arrow.clockwise") {
+                    store.refresh()
+                }
+                if let message = store.modelBootstrapStatus.message, !message.isEmpty {
+                    InlineMessage(
+                        icon: store.modelBootstrapStatus.isRunning ? "arrow.down.circle" : "checkmark.circle.fill",
+                        text: message,
+                        tint: store.modelBootstrapStatus.isRunning ? AppTheme.accent : AppTheme.success,
+                        compact: true
+                    )
+                }
+                if let error = store.modelBootstrapStatus.error, !error.isEmpty {
+                    InlineMessage(
+                        icon: "exclamationmark.triangle.fill",
+                        text: error,
+                        tint: AppTheme.danger,
+                        compact: true
+                    )
+                }
+            }
+        }
+    }
+
+    private var defaultsPanel: some View {
+        DashboardCard(padding: 14, cornerRadius: 12) {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("Defaults")
+                    .font(.caption.weight(.bold))
+                    .foregroundStyle(AppTheme.mutedText)
+                    .textCase(.uppercase)
+                InfoRow(title: "Primary output", value: ".txt")
+                InfoRow(title: "Also written", value: ".srt, .json")
+                OutputFolderControl(
+                    path: store.outputRootPath,
+                    chooseAction: { store.chooseOutputDirectory() },
+                    openAction: { store.openDefaultOutputRoot() },
+                    resetAction: { store.resetOutputDirectory() }
+                )
+                if let message = store.outputFolderPermissionMessage {
+                    InlineMessage(
+                        icon: "folder.badge.questionmark",
+                        text: message,
+                        tint: AppTheme.warning,
+                        compact: true
+                    )
+                }
+                InfoRow(title: "Speaker separation", value: "On by default")
+                InfoRow(title: "Media cleanup", value: "Delete after transcription")
             }
         }
     }
@@ -169,7 +305,8 @@ private struct ContentView: View {
                         .font(.title2.weight(.bold))
                         .foregroundStyle(AppTheme.primaryText)
                     Text("Watch active runs, open transcripts, and inspect failures or retained media.")
-                        .foregroundStyle(AppTheme.secondaryText)
+                    .font(.subheadline)
+                    .foregroundStyle(AppTheme.secondaryText)
                 }
                 Spacer()
                 Text("\(store.jobs.count) total")
@@ -201,8 +338,7 @@ private struct ContentView: View {
                         store.refresh()
                     }
                     InspectorActionRow(title: "Open Safari", systemImage: "safari") {
-                        NSWorkspace.shared.openApplication(at: URL(fileURLWithPath: "/Applications/Safari.app"), configuration: .init()) { _, _ in
-                        }
+                        openSafari()
                     }
                     InspectorActionRow(
                         title: store.outputFolderReady ? "Open Outputs" : "Choose Output Folder",
@@ -226,38 +362,9 @@ private struct ContentView: View {
                 readinessPanel(emphasized: false)
             }
 
-            DashboardCard(padding: 14, cornerRadius: 12) {
-                VStack(alignment: .leading, spacing: 10) {
-                    Text("Defaults")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(AppTheme.mutedText)
-                        .textCase(.uppercase)
-                    InfoRow(title: "Primary output", value: ".txt")
-                    InfoRow(title: "Also written", value: ".srt, .json")
-                    OutputFolderControl(
-                        path: store.outputRootPath,
-                        chooseAction: { store.chooseOutputDirectory() },
-                        openAction: { store.openDefaultOutputRoot() },
-                        resetAction: { store.resetOutputDirectory() }
-                    )
-                    InfoRow(title: "Speaker separation", value: "On by default")
-                    InfoRow(title: "Media cleanup", value: "Delete after transcription")
-                }
-            }
-
-            DashboardCard(padding: 14, cornerRadius: 12) {
-                VStack(alignment: .leading, spacing: 8) {
-                    Text("How to start")
-                        .font(.caption.weight(.bold))
-                        .foregroundStyle(AppTheme.mutedText)
-                        .textCase(.uppercase)
-                    Text("1. Choose an output folder.")
-                    Text("2. Enable the SWinyDL Safari extension.")
-                    Text("3. Select lessons in the popup; progress appears here.")
-                }
-                .font(.subheadline)
-                .foregroundStyle(AppTheme.primaryText)
-            }
+            defaultsPanel
+            setupGuide
+            diagnosticsPanel
         }
     }
 
@@ -314,42 +421,11 @@ private struct ContentView: View {
                         .font(.caption)
                         .foregroundStyle(AppTheme.secondaryText)
                 }
-                HStack(spacing: 8) {
-                    SecondaryActionButton(
-                        title: "Copy Repair Command",
-                        systemImage: "terminal",
-                        compact: true
-                    ) {
-                        store.copyRepairCommand()
-                    }
-                    if !store.outputFolderReady {
-                        SecondaryActionButton(title: "Choose Output", systemImage: "folder.badge.plus", compact: true) {
-                            store.chooseOutputDirectory()
-                        }
-                    }
-                    SecondaryActionButton(title: "Refresh", systemImage: "arrow.clockwise", compact: true) {
-                        store.refresh()
-                    }
-                    SecondaryActionButton(title: "Copy Log Path", systemImage: "doc.on.doc", compact: true) {
-                        store.copySetupRepairLogPath()
-                    }
-                    SecondaryActionButton(title: "Export Diagnostics", systemImage: "square.and.arrow.up", compact: true) {
-                        store.exportDiagnostics()
-                    }
-                }
-                if let message = store.modelBootstrapStatus.message, !message.isEmpty {
+                if let message = store.outputFolderPermissionMessage {
                     InlineMessage(
-                        icon: store.modelBootstrapStatus.isRunning ? "arrow.down.circle" : "checkmark.circle.fill",
+                        icon: "folder.badge.questionmark",
                         text: message,
-                        tint: store.modelBootstrapStatus.isRunning ? AppTheme.accent : AppTheme.success,
-                        compact: true
-                    )
-                }
-                if let error = store.modelBootstrapStatus.error, !error.isEmpty {
-                    InlineMessage(
-                        icon: "exclamationmark.triangle.fill",
-                        text: error,
-                        tint: AppTheme.danger,
+                        tint: AppTheme.warning,
                         compact: true
                     )
                 }
@@ -531,10 +607,16 @@ private struct JobCard: View {
             VStack(alignment: .leading, spacing: expanded ? 10 : 7) {
                 HStack(alignment: .top, spacing: 10) {
                     VStack(alignment: .leading, spacing: 6) {
-                        Text(job.status?.courseTitle ?? job.manifestURL.lastPathComponent)
+                        Text(displayInfo.title)
                             .font(.subheadline.weight(.semibold))
                             .foregroundStyle(AppTheme.primaryText)
                             .lineLimit(1)
+                        if let subtitle = displayInfo.subtitle {
+                            Text(subtitle)
+                                .font(.caption)
+                                .foregroundStyle(AppTheme.secondaryText)
+                                .lineLimit(1)
+                        }
                         HStack(spacing: 7) {
                             StatusBadge(status: job.status?.overallStatus ?? SWinyDLBridge.pendingStatus)
                             if let status = job.status, status.totalLessons > 0 {
@@ -562,6 +644,11 @@ private struct JobCard: View {
                         }
                         SecondaryActionButton(title: "Refresh", systemImage: "arrow.clockwise", compact: true) {
                             store.refresh()
+                        }
+                        if canStart {
+                            SecondaryActionButton(title: "Start", systemImage: "play.fill", compact: true) {
+                                store.start(job: job)
+                            }
                         }
                         SecondaryActionButton(title: "Retry", systemImage: "arrow.uturn.backward", compact: true) {
                             store.retry(job: job)
@@ -689,6 +776,17 @@ private struct JobCard: View {
                 .padding(.vertical, 10)
                 .padding(.leading, 7)
         }
+    }
+
+    private var displayInfo: JobDisplayInfo {
+        store.displayInfo(for: job)
+    }
+
+    private var canStart: Bool {
+        guard let status = job.status?.overallStatus else {
+            return true
+        }
+        return [SWinyDLBridge.pendingStatus, SWinyDLBridge.retryStatus].contains(status)
     }
 
     private func color(for status: String) -> Color {
@@ -1139,10 +1237,14 @@ private struct PrimaryActionButton: View {
         Button(action: action) {
             Label(title, systemImage: systemImage)
                 .font(.headline)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 10)
-                .background(Color.white, in: Capsule())
-                .foregroundStyle(Color(red: 0.08, green: 0.23, blue: 0.31))
+                .padding(.horizontal, 18)
+                .padding(.vertical, 11)
+                .background(AppTheme.accent, in: Capsule())
+                .foregroundStyle(.white)
+                .overlay(
+                    Capsule()
+                        .stroke(AppTheme.accent.opacity(0.18), lineWidth: 1)
+                )
         }
         .buttonStyle(.plain)
     }

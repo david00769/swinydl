@@ -36,7 +36,8 @@ APP_PATH="$STAGE_ROOT/SWinyDLSafariApp.app"
   --configuration Release \
   --build-root "$BUILD_ROOT" \
   --output "$APP_PATH" \
-  --version "${VERSION#v}"
+  --version "${VERSION#v}" \
+  --skip-register
 
 [ -d "$APP_PATH" ] || {
   printf 'Expected built app at %s\n' "$APP_PATH" >&2
@@ -166,5 +167,12 @@ hdiutil create \
   -ov \
   -format UDZO \
   "$DMG_PATH"
+
+LSREGISTER="/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister"
+if [ -x "$LSREGISTER" ]; then
+  while IFS= read -r app_path; do
+    "$LSREGISTER" -u "$app_path" 2>/dev/null || true
+  done < <(find "$STAGE_PARENT" "$BUILD_ROOT" -path '*/SWinyDLSafariApp.app' -type d -prune 2>/dev/null)
+fi
 
 printf '%s\n' "$DMG_PATH"

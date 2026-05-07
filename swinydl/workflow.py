@@ -299,11 +299,18 @@ def _course_from_manifest(
 ) -> CourseManifest:
     """Choose the manifest-provided course or discover one from the authenticated session."""
     if manifest.course is not None:
-        return filter_lessons(manifest.course, options)
+        course = filter_lessons(manifest.course, options)
+        if course.lessons and all(lesson.assets for lesson in course.lessons):
+            return course
+        try:
+            discovered = filter_lessons(discover_course(manifest.course_url, session), options)
+        except Exception:
+            return course
+        if discovered.lessons and any(lesson.assets for lesson in discovered.lessons):
+            return discovered
+        return course
     discovered = filter_lessons(discover_course(manifest.course_url, session), options)
-    if all(lesson.assets for lesson in discovered.lessons):
-        return discovered
-    raise DiscoveryError("Manifest-driven processing needs pre-resolved lesson assets when no browser is available.")
+    return discovered
 
 
 def _process_lesson(
@@ -344,6 +351,10 @@ def _process_lesson(
     transcript_source = _resolve_transcript_source(options, lesson)
 
     try:
+        if not lesson.assets:
+            raise DiscoveryError(
+                f"No downloadable media or caption asset was found for this lesson: {lesson.title} ({lesson.lesson_id})."
+            )
         if transcript_source == "native":
             if status_callback is not None:
                 status_callback(

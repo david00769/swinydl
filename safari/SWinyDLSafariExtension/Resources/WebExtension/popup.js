@@ -130,11 +130,13 @@ async function launchJob(requestedAction) {
   }
   const appLaunchFailed = response?.app_launch?.succeeded === false || response.appOpened === false;
   if (appLaunchFailed) {
-    showHandoff("Queued, but SWinyDL did not open.", "Click Open App. Progress appears in SWinyDL.");
-    setStatus(`Queued ${selectedLessonIds.length} lessons, but SWinyDL did not open. Click Open App.`);
+    const launchError = response?.app_launch?.error || response?.error || "Click Open App. Progress appears in SWinyDL.";
+    showHandoff("Queued, but SWinyDL did not open.", launchError);
+    setStatus(`Queued ${selectedLessonIds.length} lessons, but SWinyDL did not open. ${launchError}`);
   } else {
-    showHandoff("Queued for transcription.", "Progress appears in SWinyDL.");
-    setStatus(`Queued ${selectedLessonIds.length} lessons. Progress appears in SWinyDL.`);
+    const approvalHint = "If macOS asks SWinyDL to access data from other apps, click Allow.";
+    showHandoff("Queued for transcription.", `${approvalHint} Progress appears in SWinyDL.`);
+    setStatus(`Queued ${selectedLessonIds.length} lessons. ${approvalHint}`);
   }
   await pollJobStatuses();
 }

@@ -28,7 +28,7 @@ def select_media_asset(lesson: LessonManifest, *, prefer_audio: bool) -> LessonA
     for asset in lesson.assets:
         if asset.kind == "media":
             return asset
-    raise MediaResolutionError(f"No downloadable media asset was found for lesson {lesson.lesson_id}.")
+    raise MediaResolutionError(f"No downloadable media asset was found for {lesson.title} ({lesson.lesson_id}).")
 
 
 def download_with_ytdlp(

@@ -25,16 +25,29 @@ struct ModelBootstrapStatus {
     )
 }
 
+struct JobDisplayInfo {
+    let title: String
+    let subtitle: String?
+}
+
+private enum OutputAccessScope {
+    case notRequired
+    case scoped(URL)
+    case denied
+}
+
 final class JobStore: ObservableObject {
     @Published private(set) var jobs: [JobEnvelope] = []
     @Published private(set) var modelReadiness = ModelReadiness.detect(bundle: .main)
     @Published private(set) var handoffReady = SWinyDLBridge.sharedQueueAvailable()
     @Published private(set) var modelBootstrapStatus = ModelBootstrapStatus.idle
     @Published private(set) var outputRootURL = SWinyDLBridge.selectedOutputRoot()
+    @Published private(set) var outputFolderPermissionMessage: String?
     @Published var preview: TranscriptPreview?
 
     private var timer: Timer?
     private var runningJobs: Set<String> = []
+    private var launchedProcesses: [String: Process] = [:]
     private var outputAccessURLs: [String: URL] = [:]
 
     func start() {
@@ -79,12 +92,26 @@ final class JobStore: ObservableObject {
                 }
             }
             if ["success", "failed"].contains(status.overallStatus) {
-                runningJobs.remove(job.id)
-                if let accessURL = outputAccessURLs.removeValue(forKey: job.id) {
-                    accessURL.stopAccessingSecurityScopedResource()
-                }
+                cleanupLaunchState(for: job.id)
             }
         }
+    }
+
+    func start(job: JobEnvelope) {
+        if let process = launchedProcesses[job.id], process.isRunning {
+            appendStatusEvent(
+                job: job,
+                level: "info",
+                message: "Start requested, but the backend process is already running."
+            )
+            refresh()
+            return
+        }
+        cleanupLaunchState(for: job.id)
+        if prepareJobForLaunchIfPossible(job) {
+            launch(job: job, force: true)
+        }
+        refresh()
     }
 
     func retry(job: JobEnvelope) {
@@ -128,7 +155,7 @@ final class JobStore: ObservableObject {
             error: nil
         )
         saveStatus(status, to: job.statusURL)
-        runningJobs.remove(job.id)
+        cleanupLaunchState(for: job.id)
         refresh()
     }
 
@@ -193,6 +220,18 @@ final class JobStore: ObservableObject {
 
     func openOutput(path: String) {
         let url = URL(fileURLWithPath: path)
+        let access = outputAccessScope(containing: path)
+        if case .denied = access {
+            clearOutputFolderPermission(
+                message: "Choose Output Folder again so SWinyDL can access this folder."
+            )
+            return
+        }
+        defer {
+            if case .scoped(let accessURL) = access {
+                accessURL.stopAccessingSecurityScopedResource()
+            }
+        }
         NSWorkspace.shared.open(url)
     }
 
@@ -209,7 +248,7 @@ final class JobStore: ObservableObject {
     }
 
     var outputFolderReady: Bool {
-        outputRootURL != nil
+        outputRootURL != nil && outputFolderPermissionMessage == nil
     }
 
     var handoffStatusLabel: String {
@@ -236,13 +275,41 @@ final class JobStore: ObservableObject {
         return "Ready - \(queuedCount) queued jobs"
     }
 
+    func displayInfo(for job: JobEnvelope) -> JobDisplayInfo {
+        if let status = job.status {
+            if status.lessons.count == 1, let lesson = status.lessons.first, !lesson.title.isEmpty {
+                return JobDisplayInfo(
+                    title: lesson.title,
+                    subtitle: displaySubtitle(courseTitle: status.courseTitle, lessonCount: status.totalLessons)
+                )
+            }
+            if !status.courseTitle.isEmpty {
+                return JobDisplayInfo(title: status.courseTitle, subtitle: displaySubtitle(courseTitle: nil, lessonCount: status.totalLessons))
+            }
+        }
+        return manifestDisplayInfo(for: job.manifestURL)
+    }
+
     func openDefaultOutputRoot() {
         guard let outputRootURL else {
             chooseOutputDirectory()
             return
         }
-        try? FileManager.default.createDirectory(at: outputRootURL, withIntermediateDirectories: true)
-        NSWorkspace.shared.open(outputRootURL)
+        guard let accessURL = SWinyDLBridge.startAccessingSavedOutputRoot(path: outputRootURL.path) else {
+            clearOutputFolderPermission(
+                message: "Choose Output Folder again so SWinyDL can access this folder."
+            )
+            return
+        }
+        defer { accessURL.stopAccessingSecurityScopedResource() }
+        do {
+            try FileManager.default.createDirectory(at: accessURL, withIntermediateDirectories: true)
+            NSWorkspace.shared.open(accessURL)
+        } catch {
+            clearOutputFolderPermission(
+                message: "Choose Output Folder again so SWinyDL can access this folder."
+            )
+        }
     }
 
     func chooseOutputDirectory() {
@@ -260,7 +327,15 @@ final class JobStore: ObservableObject {
             return
         }
         SWinyDLBridge.setSavedOutputRoot(url)
+        guard let accessURL = SWinyDLBridge.startAccessingSavedOutputRoot(path: url.path) else {
+            clearOutputFolderPermission(
+                message: "Choose Output Folder again so SWinyDL can access this folder."
+            )
+            return
+        }
+        accessURL.stopAccessingSecurityScopedResource()
         outputRootURL = url
+        outputFolderPermissionMessage = nil
         repairQueuedJobsMissingOutputRoot(outputRoot: url)
         refresh()
     }
@@ -268,10 +343,23 @@ final class JobStore: ObservableObject {
     func resetOutputDirectory() {
         SWinyDLBridge.clearSavedOutputRoot()
         outputRootURL = nil
+        outputFolderPermissionMessage = nil
     }
 
     func previewTranscript(path: String) {
         let url = URL(fileURLWithPath: path)
+        let access = outputAccessScope(containing: path)
+        if case .denied = access {
+            clearOutputFolderPermission(
+                message: "Choose Output Folder again so SWinyDL can access this folder."
+            )
+            return
+        }
+        defer {
+            if case .scoped(let accessURL) = access {
+                accessURL.stopAccessingSecurityScopedResource()
+            }
+        }
         guard let contents = try? String(contentsOf: url, encoding: .utf8) else { return }
         preview = TranscriptPreview(path: path, title: url.lastPathComponent, contents: contents)
     }
@@ -443,8 +531,9 @@ final class JobStore: ObservableObject {
 
     private func markNeedsOutputFolderPermission(_ job: JobEnvelope) {
         guard let status = job.status else { return }
-        SWinyDLBridge.clearSavedOutputRoot()
-        outputRootURL = nil
+        clearOutputFolderPermission(
+            message: "Choose Output Folder again so SWinyDL has permission to write transcripts."
+        )
         let blocked = JobStatusPayload(
             jobID: status.jobID,
             command: status.command,
@@ -471,6 +560,29 @@ final class JobStore: ObservableObject {
         saveStatus(blocked, to: job.statusURL)
     }
 
+    private func clearOutputFolderPermission(message: String) {
+        SWinyDLBridge.clearSavedOutputRoot()
+        outputRootURL = nil
+        outputFolderPermissionMessage = message
+    }
+
+    private func outputAccessScope(containing path: String) -> OutputAccessScope {
+        guard let outputRootURL else {
+            return .notRequired
+        }
+        let rootURL = outputRootURL.standardizedFileURL
+        let targetURL = URL(fileURLWithPath: path).standardizedFileURL
+        let rootPath = rootURL.path
+        let targetPath = targetURL.path
+        guard targetPath == rootPath || targetPath.hasPrefix(rootPath + "/") else {
+            return .notRequired
+        }
+        guard let accessURL = SWinyDLBridge.startAccessingSavedOutputRoot(path: outputRootURL.path) else {
+            return .denied
+        }
+        return .scoped(accessURL)
+    }
+
     private func updateManifest(_ url: URL, mutate: (inout [String: Any]) -> Void) {
         guard var manifest = try? loadManifestPayload(from: url) else { return }
         mutate(&manifest)
@@ -480,8 +592,13 @@ final class JobStore: ObservableObject {
         try? data.write(to: url, options: .atomic)
     }
 
-    private func launch(job: JobEnvelope) {
-        guard !runningJobs.contains(job.id) else { return }
+    private func launch(job: JobEnvelope, force: Bool = false) {
+        if !force {
+            guard !runningJobs.contains(job.id) else { return }
+        }
+        if let process = launchedProcesses[job.id], process.isRunning {
+            return
+        }
         runningJobs.insert(job.id)
         guard let outputRootURL else {
             markNeedsOutputFolder(job)
@@ -496,34 +613,193 @@ final class JobStore: ObservableObject {
             }
             outputAccessURLs[job.id] = accessURL
         }
+        writeLaunchingStatus(job: job, outputRoot: outputRootURL)
         let launcher = BackendLauncher()
-        let launchStatus = launcher.launch(manifestURL: job.manifestURL)
-        if !launchStatus {
-            let failed = JobStatusPayload(
-                jobID: job.id.replacingOccurrences(of: ".json", with: ""),
-                command: "process-manifest",
-                overallStatus: "failed",
-                courseTitle: job.status?.courseTitle ?? job.manifestURL.lastPathComponent,
-                sourcePageURL: job.status?.sourcePageURL ?? "",
-                outputRoot: outputRootURL.path,
-                totalLessons: job.status?.totalLessons ?? 0,
-                completedLessons: job.status?.completedLessons ?? 0,
-                startedAt: job.status?.startedAt,
-                updatedAt: ISO8601DateFormatter().string(from: Date()),
-                elapsedSeconds: job.status?.elapsedSeconds ?? 0,
-                activeLessonID: job.status?.activeLessonID,
-                activeLessonTitle: job.status?.activeLessonTitle,
+        let result = launcher.launch(manifestURL: job.manifestURL) { [weak self] process in
+            DispatchQueue.main.async {
+                self?.handleBackendExit(
+                    jobID: job.id,
+                    statusURL: job.statusURL,
+                    outputRootPath: outputRootURL.path,
+                    terminationStatus: process.terminationStatus
+                )
+            }
+        }
+        switch result {
+        case .success(let process):
+            launchedProcesses[job.id] = process
+        case .failure:
+            saveNativeWrapperFailure(
+                job: job,
+                outputRootPath: outputRootURL.path,
                 detail: "The native wrapper could not launch the Python backend.",
-                requestedAction: job.status?.requestedAction,
-                diarizationMode: job.status?.diarizationMode,
-                deleteDownloadedMedia: job.status?.deleteDownloadedMedia,
-                lessons: job.status?.lessons ?? [],
-                events: job.status?.events ?? [],
-                summaryPath: nil,
                 error: "Unable to launch the SWinyDL Python backend from the native wrapper app."
             )
-            saveStatus(failed, to: job.statusURL)
-            runningJobs.remove(job.id)
+            cleanupLaunchState(for: job.id)
+        }
+    }
+
+    private func handleBackendExit(
+        jobID: String,
+        statusURL: URL,
+        outputRootPath: String,
+        terminationStatus: Int32
+    ) {
+        let status = loadStatus(from: statusURL)
+        if let status, ["success", "failed"].contains(status.overallStatus) {
+            cleanupLaunchState(for: jobID)
+            refresh()
+            return
+        }
+        let error = terminationStatus == 0
+            ? "The Python backend exited without writing a completed job status."
+            : "The Python backend exited with status \(terminationStatus) before completing this job."
+        saveNativeWrapperFailure(
+            jobID: jobID,
+            statusURL: statusURL,
+            status: status,
+            outputRootPath: outputRootPath,
+            detail: "The backend stopped before completing the queued job.",
+            error: error
+        )
+        cleanupLaunchState(for: jobID)
+        refresh()
+    }
+
+    private func writeLaunchingStatus(job: JobEnvelope, outputRoot: URL) {
+        let now = ISO8601DateFormatter().string(from: Date())
+        let status = job.status
+        let display = displayInfo(for: job)
+        let lessons = status?.lessons ?? manifestLessons(for: job.manifestURL).map {
+            JobLessonStatus(
+                lessonID: $0.id,
+                title: $0.title,
+                status: SWinyDLBridge.pendingStatus,
+                stage: "queued",
+                detail: "Queued from the Safari popup.",
+                error: nil
+            )
+        }
+        let launching = JobStatusPayload(
+            jobID: status?.jobID ?? job.id.replacingOccurrences(of: ".json", with: ""),
+            command: status?.command ?? "process-manifest",
+            overallStatus: "launching",
+            courseTitle: status?.courseTitle.isEmpty == false ? status!.courseTitle : (manifestCourseTitle(for: job.manifestURL) ?? display.title),
+            sourcePageURL: status?.sourcePageURL ?? manifestString("source_page_url", from: job.manifestURL),
+            outputRoot: outputRoot.path,
+            totalLessons: status?.totalLessons ?? max(lessons.count, 1),
+            completedLessons: status?.completedLessons ?? 0,
+            startedAt: status?.startedAt ?? now,
+            updatedAt: now,
+            elapsedSeconds: status?.elapsedSeconds ?? 0,
+            activeLessonID: status?.activeLessonID,
+            activeLessonTitle: status?.activeLessonTitle,
+            detail: "Launching Python backend from SWinyDL.",
+            requestedAction: status?.requestedAction ?? manifestString("requested_action", from: job.manifestURL),
+            diarizationMode: status?.diarizationMode ?? manifestString("diarization_mode", from: job.manifestURL),
+            deleteDownloadedMedia: status?.deleteDownloadedMedia,
+            lessons: lessons,
+            events: (status?.events ?? []) + [
+                JobStatusEventPayload(
+                    timestamp: now,
+                    level: "info",
+                    message: "Native app launching the Python backend."
+                )
+            ],
+            summaryPath: status?.summaryPath,
+            error: nil
+        )
+        saveStatus(launching, to: job.statusURL)
+    }
+
+    private func appendStatusEvent(job: JobEnvelope, level: String, message: String) {
+        guard let status = loadStatus(from: job.statusURL) ?? job.status else { return }
+        let now = ISO8601DateFormatter().string(from: Date())
+        let updated = JobStatusPayload(
+            jobID: status.jobID,
+            command: status.command,
+            overallStatus: status.overallStatus,
+            courseTitle: status.courseTitle,
+            sourcePageURL: status.sourcePageURL,
+            outputRoot: status.outputRoot,
+            totalLessons: status.totalLessons,
+            completedLessons: status.completedLessons,
+            startedAt: status.startedAt,
+            updatedAt: now,
+            elapsedSeconds: status.elapsedSeconds,
+            activeLessonID: status.activeLessonID,
+            activeLessonTitle: status.activeLessonTitle,
+            detail: status.detail,
+            requestedAction: status.requestedAction,
+            diarizationMode: status.diarizationMode,
+            deleteDownloadedMedia: status.deleteDownloadedMedia,
+            lessons: status.lessons,
+            events: status.events + [JobStatusEventPayload(timestamp: now, level: level, message: message)],
+            summaryPath: status.summaryPath,
+            error: status.error
+        )
+        saveStatus(updated, to: job.statusURL)
+    }
+
+    private func saveNativeWrapperFailure(
+        job: JobEnvelope,
+        outputRootPath: String,
+        detail: String,
+        error: String
+    ) {
+        saveNativeWrapperFailure(
+            jobID: job.id,
+            statusURL: job.statusURL,
+            status: loadStatus(from: job.statusURL) ?? job.status,
+            outputRootPath: outputRootPath,
+            detail: detail,
+            error: error
+        )
+    }
+
+    private func saveNativeWrapperFailure(
+        jobID: String,
+        statusURL: URL,
+        status: JobStatusPayload?,
+        outputRootPath: String,
+        detail: String,
+        error: String
+    ) {
+        let now = ISO8601DateFormatter().string(from: Date())
+        let display = manifestDisplayInfo(for: manifestURL(forStatusURL: statusURL))
+        let failed = JobStatusPayload(
+            jobID: status?.jobID ?? jobID.replacingOccurrences(of: ".json", with: ""),
+            command: status?.command ?? "process-manifest",
+            overallStatus: "failed",
+            courseTitle: status?.courseTitle.isEmpty == false ? status!.courseTitle : display.title,
+            sourcePageURL: status?.sourcePageURL ?? "",
+            outputRoot: status?.outputRoot.isEmpty == false ? status!.outputRoot : outputRootPath,
+            totalLessons: status?.totalLessons ?? 0,
+            completedLessons: status?.completedLessons ?? 0,
+            startedAt: status?.startedAt,
+            updatedAt: now,
+            elapsedSeconds: status?.elapsedSeconds ?? 0,
+            activeLessonID: status?.activeLessonID,
+            activeLessonTitle: status?.activeLessonTitle,
+            detail: detail,
+            requestedAction: status?.requestedAction,
+            diarizationMode: status?.diarizationMode,
+            deleteDownloadedMedia: status?.deleteDownloadedMedia,
+            lessons: status?.lessons ?? [],
+            events: (status?.events ?? []) + [
+                JobStatusEventPayload(timestamp: now, level: "error", message: error)
+            ],
+            summaryPath: status?.summaryPath,
+            error: error
+        )
+        saveStatus(failed, to: statusURL)
+    }
+
+    private func cleanupLaunchState(for jobID: String) {
+        runningJobs.remove(jobID)
+        launchedProcesses.removeValue(forKey: jobID)
+        if let accessURL = outputAccessURLs.removeValue(forKey: jobID) {
+            accessURL.stopAccessingSecurityScopedResource()
         }
     }
 
@@ -545,6 +821,84 @@ final class JobStore: ObservableObject {
         return payload
     }
 
+    private func manifestURL(forStatusURL statusURL: URL) -> URL {
+        let name = statusURL.lastPathComponent
+        let manifestName = name.hasSuffix(".status.json")
+            ? String(name.dropLast(".status.json".count)) + ".json"
+            : name
+        return statusURL.deletingLastPathComponent().appendingPathComponent(manifestName)
+    }
+
+    private func manifestDisplayInfo(for url: URL) -> JobDisplayInfo {
+        let lessons = manifestLessons(for: url)
+        let courseTitle = manifestCourseTitle(for: url)
+        if lessons.count == 1 {
+            return JobDisplayInfo(
+                title: lessons[0].title,
+                subtitle: displaySubtitle(courseTitle: courseTitle, lessonCount: 1)
+            )
+        }
+        if let courseTitle, !courseTitle.isEmpty {
+            return JobDisplayInfo(title: courseTitle, subtitle: displaySubtitle(courseTitle: nil, lessonCount: lessons.count))
+        }
+        return JobDisplayInfo(title: sanitizedManifestName(url), subtitle: lessons.isEmpty ? nil : "\(lessons.count) lessons")
+    }
+
+    private func displaySubtitle(courseTitle: String?, lessonCount: Int) -> String? {
+        let count = lessonCount == 1 ? "1 lesson" : "\(lessonCount) lessons"
+        guard let courseTitle, !courseTitle.isEmpty else {
+            return count
+        }
+        return "\(courseTitle) • \(count)"
+    }
+
+    private func manifestLessons(for url: URL) -> [(id: String, title: String)] {
+        guard let payload = try? loadManifestPayload(from: url) else { return [] }
+        let selectedIDs = (payload["selected_lesson_ids"] as? [String]) ?? []
+        let selected = Set(selectedIDs)
+        guard
+            let course = payload["course"] as? [String: Any],
+            let lessons = course["lessons"] as? [[String: Any]]
+        else {
+            return selectedIDs.map { ($0, $0) }
+        }
+        let selectedLessons = lessons.compactMap { lesson -> (id: String, title: String)? in
+            guard let id = lesson["lesson_id"] as? String else { return nil }
+            if !selected.isEmpty && !selected.contains(id) { return nil }
+            let title = (lesson["title"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+            return (id, title?.isEmpty == false ? title! : id)
+        }
+        if !selectedLessons.isEmpty {
+            return selectedLessons
+        }
+        return selectedIDs.map { ($0, $0) }
+    }
+
+    private func manifestCourseTitle(for url: URL) -> String? {
+        guard
+            let payload = try? loadManifestPayload(from: url),
+            let course = payload["course"] as? [String: Any],
+            let title = course["course_title"] as? String
+        else {
+            return nil
+        }
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? nil : trimmed
+    }
+
+    private func manifestString(_ key: String, from url: URL) -> String {
+        guard let payload = try? loadManifestPayload(from: url) else { return "" }
+        return payload[key] as? String ?? ""
+    }
+
+    private func sanitizedManifestName(_ url: URL) -> String {
+        let name = url.deletingPathExtension().lastPathComponent
+        if name.count >= 24 && name.contains("-") {
+            return "Queued Safari job"
+        }
+        return name.isEmpty ? "Queued Safari job" : name
+    }
+
     private func buildDiagnosticsStagingDirectory() throws -> URL {
         let fileManager = FileManager.default
         let root = fileManager.temporaryDirectory
@@ -560,6 +914,7 @@ final class JobStore: ObservableObject {
             "app_version": Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "",
             "handoff_ready": handoffReady,
             "output_folder_configured": outputRootURL != nil,
+            "status_decode_failures": statusDecodeFailures(),
             "model_readiness": [
                 "parakeet": modelReadiness.parakeetReady,
                 "diarizer": modelReadiness.diarizerReady,
@@ -583,11 +938,43 @@ final class JobStore: ObservableObject {
                 continue
             }
             if payload["cookies"] != nil {
-                payload["cookies"] = "[REDACTED]"
+                payload["cookies"] = redactedCookies(payload["cookies"])
             }
             let output = try JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted, .sortedKeys])
             try output.write(to: destination.appendingPathComponent(url.lastPathComponent), options: .atomic)
         }
+    }
+
+    private func redactedCookies(_ raw: Any?) -> Any {
+        guard let cookies = raw as? [[String: Any]] else {
+            return []
+        }
+        return cookies.map { cookie in
+            var redacted = cookie
+            if redacted["value"] != nil {
+                redacted["value"] = "[REDACTED]"
+            }
+            return redacted
+        }
+    }
+
+    private func statusDecodeFailures() -> [[String: String]] {
+        let jobsDir = SWinyDLBridge.manifestsDirectory()
+        let urls = (try? FileManager.default.contentsOfDirectory(at: jobsDir, includingPropertiesForKeys: nil)) ?? []
+        return urls
+            .filter { $0.lastPathComponent.hasSuffix(".status.json") }
+            .compactMap { url in
+                do {
+                    let data = try Data(contentsOf: url)
+                    _ = try JSONDecoder.bridgeDecoder().decode(JobStatusPayload.self, from: data)
+                    return nil
+                } catch {
+                    return [
+                        "file": url.lastPathComponent,
+                        "error": String(describing: error)
+                    ]
+                }
+            }
     }
 
     private func copyDirectoryIfPresent(_ source: URL, to destination: URL) throws {
@@ -684,13 +1071,17 @@ struct ModelReadiness {
 }
 
 private struct BackendLauncher {
-    func launch(manifestURL: URL) -> Bool {
+    func launch(
+        manifestURL: URL,
+        terminationHandler: @escaping (Process) -> Void
+    ) -> Result<Process, Error> {
         let process = Process()
         let envPython = ProcessInfo.processInfo.environment["SWINYDL_PYTHON"]
         let pythonBinary = envPython ?? SWinyDLRuntime.pythonPath(bundle: .main)
 
         process.executableURL = URL(fileURLWithPath: pythonBinary)
         process.arguments = ["-m", "swinydl.main", "process-manifest", manifestURL.path]
+        process.terminationHandler = terminationHandler
         if let repoRoot = SWinyDLRuntime.installRoot(bundle: .main) {
             process.currentDirectoryURL = repoRoot
             process.environment = (process.environment ?? ProcessInfo.processInfo.environment).merging(
@@ -700,9 +1091,9 @@ private struct BackendLauncher {
         }
         do {
             try process.run()
-            return true
+            return .success(process)
         } catch {
-            return false
+            return .failure(error)
         }
     }
 }

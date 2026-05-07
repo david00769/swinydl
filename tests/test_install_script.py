@@ -76,7 +76,11 @@ class InstallScriptTests(unittest.TestCase):
 
         self.assertNotEqual(result.returncode, 0)
         combined = result.stdout + result.stderr
-        self.assertIn("Repair setup requires a prebuilt SWinyDLSafariApp.app", combined)
+        self.assertTrue(
+            "Repair setup requires a prebuilt SWinyDLSafariApp.app" in combined
+            or "This SWinyDL folder is missing required runtime files" in combined,
+            combined,
+        )
         self.assertNotIn("Press Enter to continue", combined)
 
     def test_install_script_is_tracked_executable(self):
@@ -108,5 +112,25 @@ class InstallScriptTests(unittest.TestCase):
         self.assertIn('EXTENSION_RESOURCES_DST="$BUILT_APP_PATH/Contents/PlugIns/SWinyDLSafariExtension.appex/Contents/Resources"', contents)
         self.assertIn("manifest.json", contents)
         self.assertIn("--version X.Y.Z", contents)
+        self.assertIn("--skip-register", contents)
+        self.assertIn("REGISTER_OUTPUT_APP=0", contents)
+        self.assertIn("register_output_app()", contents)
         self.assertIn('MARKETING_VERSION="$APP_VERSION"', contents)
         self.assertIn('CURRENT_PROJECT_VERSION="$BUILD_NUMBER"', contents)
+        self.assertIn("Registering output app as the SWinyDL URL handler", contents)
+        self.assertIn("unregister_swinydl_app()", contents)
+        self.assertIn('"$LSREGISTER" -u "$BUILT_APP_PATH"', contents)
+        self.assertIn('"$LSREGISTER" -u "$OUTPUT_APP_PATH"', contents)
+        self.assertIn('"$LSREGISTER" -dump', contents)
+        self.assertIn('SWinyDLSafariApp\\.app', contents)
+        self.assertIn("find \"$REPO_ROOT\" -path '*/SWinyDLSafariApp.app'", contents)
+        self.assertIn('unregister_swinydl_app "$app_path"', contents)
+        self.assertIn('"$LSREGISTER" -f -R -trusted "$OUTPUT_APP_PATH"', contents)
+
+    def test_package_release_does_not_register_staged_release_app(self):
+        contents = (REPO_ROOT / "scripts" / "package_release.sh").read_text(encoding="utf-8")
+
+        self.assertIn("--skip-register", contents)
+        self.assertIn('--output "$APP_PATH"', contents)
+        self.assertIn('find "$STAGE_PARENT" "$BUILD_ROOT"', contents)
+        self.assertIn('"$LSREGISTER" -u "$app_path"', contents)

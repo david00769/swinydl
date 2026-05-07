@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 from swinydl.auth import CookieSession
 from swinydl.manifest import load_process_manifest, status_path_for_manifest
-from swinydl.models import BrowserCookie
+from swinydl.models import BrowserCookie, CourseManifest, LessonAsset, LessonManifest
 from swinydl.workflow import process_manifest
 
 
@@ -78,6 +78,18 @@ class ManifestTests(unittest.TestCase):
         self.assertEqual(manifest.temp_root, Path(temp_dir) / "bridge-temp")
         self.assertEqual(manifest.log_root, Path(temp_dir) / "bridge-logs")
 
+    def test_load_process_manifest_tolerates_redacted_diagnostic_cookies(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            payload = manifest_payload(temp_dir)
+            payload["cookies"] = "[REDACTED]"
+            path = Path(temp_dir) / "job.json"
+            path.write_text(json.dumps(payload), encoding="utf-8")
+
+            manifest = load_process_manifest(path)
+
+        self.assertEqual(manifest.cookies, [])
+        self.assertEqual(manifest.course.course_title, "Cloud Course")
+
     def test_cookie_session_exports_cookie_file(self):
         session = CookieSession(
             [BrowserCookie(name="sessionid", value="abc123", domain=".echo360.org.au", secure=True)]
@@ -124,3 +136,86 @@ class ManifestTests(unittest.TestCase):
                 ],
             )
             self.assertTrue(status_payload["lessons"][0]["transcript_folder"].endswith("cloud-course"))
+
+    def test_process_manifest_rediscovers_empty_manifest_assets(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            payload = manifest_payload(temp_dir)
+            payload["course"]["lessons"][0]["assets"] = []
+            manifest_path = Path(temp_dir) / "job.json"
+            manifest_path.write_text(json.dumps(payload), encoding="utf-8")
+            discovered = CourseManifest(
+                source_url="https://echo360.org.au/section/uuid/home",
+                hostname="https://echo360.org.au",
+                platform="cloud",
+                course_uuid="uuid",
+                course_id=None,
+                course_title="Cloud Course",
+                lessons=[
+                    LessonManifest(
+                        lesson_id="lesson-1",
+                        title="Lesson One",
+                        date="2026-04-01",
+                        lesson_url="https://echo360.org.au/lesson/lesson-1/classroom",
+                        index=1,
+                        assets=[
+                            LessonAsset(
+                                kind="caption",
+                                url="https://cdn.example/lesson-1.vtt",
+                                ext="vtt",
+                            )
+                        ],
+                    )
+                ],
+            )
+            with patch("swinydl.workflow.discover_course") as discover, patch(
+                "swinydl.workflow.load_native_caption_segments"
+            ) as load_native:
+                discover.return_value = discovered
+                load_native.return_value = [
+                    __import__("swinydl.models", fromlist=["TranscriptSegment"]).TranscriptSegment(
+                        start=0.0, end=1.0, text="Rediscovered captions"
+                    )
+                ]
+                summary = process_manifest(manifest_path)
+
+            self.assertEqual(summary.results[0].status, "success")
+            discover.assert_called_once()
+            status_payload = json.loads(status_path_for_manifest(manifest_path).read_text(encoding="utf-8"))
+            self.assertEqual(status_payload["overall_status"], "success")
+
+    def test_empty_asset_failure_names_selected_lesson(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            payload = manifest_payload(temp_dir)
+            payload["course"]["lessons"][0]["assets"] = []
+            manifest_path = Path(temp_dir) / "job.json"
+            manifest_path.write_text(json.dumps(payload), encoding="utf-8")
+            discovered = CourseManifest(
+                source_url="https://echo360.org.au/section/uuid/home",
+                hostname="https://echo360.org.au",
+                platform="cloud",
+                course_uuid="uuid",
+                course_id=None,
+                course_title="Cloud Course",
+                lessons=[
+                    LessonManifest(
+                        lesson_id="lesson-1",
+                        title="Lesson One",
+                        date="2026-04-01",
+                        lesson_url="https://echo360.org.au/lesson/lesson-1/classroom",
+                        index=1,
+                        assets=[],
+                    )
+                ],
+            )
+            with patch("swinydl.workflow.discover_course") as discover:
+                discover.return_value = discovered
+                summary = process_manifest(manifest_path)
+
+            self.assertEqual(summary.results[0].status, "failed")
+            self.assertIn(
+                "No downloadable media or caption asset was found for this lesson: Lesson One (lesson-1).",
+                summary.results[0].error,
+            )
+            status_payload = json.loads(status_path_for_manifest(manifest_path).read_text(encoding="utf-8"))
+            self.assertEqual(status_payload["overall_status"], "failed")
+            self.assertIn("No downloadable media or caption asset", status_payload["lessons"][0]["error"])

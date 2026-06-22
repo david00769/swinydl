@@ -19,7 +19,7 @@ from .captions import (
     segments_to_text,
 )
 from .discovery import filter_lessons, inspect_course as discover_course, resolve_lesson_assets
-from .echo_exceptions import DiscoveryError, NativeCaptionError
+from .echo_exceptions import DiscoveryError, Echo360Error, NativeCaptionError
 from .manifest import build_job_status, load_process_manifest, status_path_for_manifest, write_job_status
 from .media import download_lesson_media, select_caption_asset
 from .models import (
@@ -79,9 +79,9 @@ def process_manifest(path: Path | str) -> RunSummary:
             os.environ["SWINYDL_LOG_ROOT"] = str(manifest.log_root)
         ensure_runtime_dirs()
         if manifest.output_root is None:
-            raise ValueError("Process manifest is missing output_root. Choose an output folder in SWinyDL before launching this job.")
+            raise Echo360Error("Process manifest is missing output_root. Choose an output folder in SWinyDL before launching this job.")
         options = ProcessOptions(
-            output_root=Path(manifest.output_root or default_output_root()),
+            output_root=Path(manifest.output_root),
             temp_root=manifest.temp_root,
             log_root=manifest.log_root,
             lesson_ids=manifest.selected_lesson_ids,
@@ -350,6 +350,7 @@ def _process_lesson(
     lesson = _resolve_assets_if_possible(session, lesson)
     transcript_source = _resolve_transcript_source(options, lesson)
 
+    temp_dir: Path | None = None
     try:
         if not lesson.assets:
             raise DiscoveryError(
@@ -438,7 +439,6 @@ def _process_lesson(
                     downloaded_media_paths = stored_paths
                     if options.keep_video:
                         video_paths = [path for path in stored_paths if path.suffix.lower() == ".mp4"]
-            shutil.rmtree(temp_dir, ignore_errors=True)
 
         if status_callback is not None:
             status_callback(
@@ -479,7 +479,7 @@ def _process_lesson(
             transcript_source=transcript_source,
             asr_backend=options.asr_backend if transcript_source == "asr" else None,
             language=None,
-            diarized=options.diarization_mode == "on",
+            diarized=False,
             model_name=None,
             duration=None,
             segments=[],
@@ -489,6 +489,9 @@ def _process_lesson(
         )
         _write_transcript_artifacts(failed)
         return failed
+    finally:
+        if temp_dir is not None:
+            shutil.rmtree(temp_dir, ignore_errors=True)
 
 
 def _process_local_media(
@@ -505,6 +508,7 @@ def _process_local_media(
     json_path = output_root / f"{key}.json"
     transcript_source = "native" if source.suffix.lower() in {".vtt", ".srt"} else "asr"
 
+    temp_dir: Path | None = None
     try:
         if transcript_source == "native":
             caption_text = source.read_text(encoding="utf-8")
@@ -527,7 +531,6 @@ def _process_local_media(
             audio_path = output_root / f"{key}.wav" if options.keep_audio else None
             if audio_path is not None:
                 shutil.copy2(normalized_audio, audio_path)
-            shutil.rmtree(temp_dir, ignore_errors=True)
 
         result = TranscriptResult(
             status="success",
@@ -556,7 +559,7 @@ def _process_local_media(
             transcript_source=transcript_source,
             asr_backend=options.asr_backend if transcript_source == "asr" else None,
             language=None,
-            diarized=options.diarization_mode == "on",
+            diarized=False,
             model_name=None,
             duration=None,
             segments=[],
@@ -570,6 +573,9 @@ def _process_local_media(
         )
         _write_transcript_artifacts(failed)
         return failed
+    finally:
+        if temp_dir is not None:
+            shutil.rmtree(temp_dir, ignore_errors=True)
 
 
 def _resolve_transcript_source(options: ProcessOptions, lesson) -> str:

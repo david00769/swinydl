@@ -14,7 +14,7 @@ from .utils import media_extension
 
 
 TIMESTAMP_PATTERN = re.compile(
-    r"(?P<start>\d{2}:\d{2}:\d{2}[.,]\d{3})\s+-->\s+(?P<end>\d{2}:\d{2}:\d{2}[.,]\d{3})"
+    r"(?P<start>(?:\d{1,2}:)?\d{1,2}:\d{2}[.,]\d{3})\s*-->\s*(?P<end>(?:\d{1,2}:)?\d{1,2}:\d{2}[.,]\d{3})"
 )
 
 
@@ -56,6 +56,17 @@ def parse_webvtt(text: str) -> list[TranscriptSegment]:
             continue
         match = TIMESTAMP_PATTERN.match(stripped)
         if match:
+            if start is not None and buffer:
+                # Flush a cue that was not terminated by a blank line before
+                # starting the next one, so adjacent cues do not merge.
+                segments.append(
+                    TranscriptSegment(
+                        start=_parse_timestamp(start),
+                        end=_parse_timestamp(end),
+                        text=" ".join(buffer).strip(),
+                    )
+                )
+                buffer = []
             start = match.group("start")
             end = match.group("end")
             continue
@@ -76,8 +87,14 @@ def parse_webvtt(text: str) -> list[TranscriptSegment]:
 
 
 def parse_srt(text: str) -> list[TranscriptSegment]:
-    """Parse an SRT payload into normalized transcript segments."""
-    return parse_webvtt(text.replace(",", "."))
+    """Parse an SRT payload into normalized transcript segments.
+
+    SRT uses a comma as the timestamp decimal separator. The shared parser and
+    ``_parse_timestamp`` already accept both ``,`` and ``.`` in timestamps, so
+    the payload is passed through unchanged to avoid corrupting commas that
+    appear inside the spoken caption text.
+    """
+    return parse_webvtt(text)
 
 
 def segments_to_text(segments: list[TranscriptSegment]) -> str:
@@ -102,9 +119,14 @@ def segments_to_srt(segments: list[TranscriptSegment]) -> str:
 def _parse_timestamp(value: str) -> float:
     """Convert a caption timestamp string to seconds."""
     parts = re.split(r"[:.,]", value)
-    if len(parts) != 4:
+    if len(parts) == 4:
+        hours, minutes, seconds, milliseconds = parts
+    elif len(parts) == 3:
+        # WebVTT permits the hours field to be omitted (MM:SS.mmm).
+        hours = "0"
+        minutes, seconds, milliseconds = parts
+    else:
         raise NativeCaptionError(f"Unsupported caption timestamp: {value}")
-    hours, minutes, seconds, milliseconds = parts
     return int(hours) * 3600 + int(minutes) * 60 + int(seconds) + int(milliseconds) / 1000
 
 

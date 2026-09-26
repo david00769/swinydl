@@ -197,4 +197,9 @@ def _coerce_int(value: object) -> int | None:
     """Coerce JSON numeric-like values into integers when present."""
     if value in {None, ""}:
         return None
-    return int(value)
+    # Cookie expiries are frequently exported as floats or float-like strings
+    # (e.g. "1700000000.5"); int() would raise on those, so coerce via float.
+    try:
+        return int(float(value))
+    except (TypeError, ValueError):
+        return None

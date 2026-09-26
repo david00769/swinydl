@@ -9,6 +9,7 @@ import re
 from typing import Any
 
 import requests
+from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
@@ -136,7 +137,9 @@ def resolve_lesson_assets(browser: BrowserSession, lesson: LessonManifest) -> Le
                         ext=media_extension(track_src),
                     )
                 )
-    except Exception:
+    except TimeoutException:
+        # No <video> appeared within the wait window: the page simply has no
+        # embedded media to add. Other errors are intentionally not swallowed.
         pass
     return replace(lesson, assets=_dedupe_assets(assets))
 
@@ -157,9 +160,9 @@ def _fetch_json(session: requests.Session, url: str) -> dict[str, Any]:
 
 def _parse_classic_lessons(payload: dict[str, Any]) -> tuple[list[LessonManifest], str | None, str]:
     """Normalize classic Echo360 section JSON into lesson manifests."""
-    section = payload.get("section", {})
-    course = section.get("course", {})
-    presentations = section.get("presentations", {}).get("pageContents", [])
+    section = payload.get("section") or {}
+    course = section.get("course") or {}
+    presentations = (section.get("presentations") or {}).get("pageContents") or []
     lessons: list[LessonManifest] = []
     for index, item in enumerate(presentations, start=1):
         lesson_id = _extract_lesson_id(item.get("richMedia")) or f"classic-{index}"
@@ -183,7 +186,7 @@ def _parse_cloud_lessons(hostname: str, payload: dict[str, Any]) -> tuple[list[L
     course_title = "Untitled Course"
     for index, item in enumerate(payload.get("data", []), start=1):
         if "lessons" in item:
-            group_name = item.get("groupInfo", {}).get("name") or f"Group {index}"
+            group_name = (item.get("groupInfo") or {}).get("name") or f"Group {index}"
             for sub_index, sub_item in enumerate(item["lessons"], start=1):
                 lesson = _build_cloud_lesson(
                     hostname,
@@ -208,7 +211,8 @@ def _build_cloud_lesson(
     title_prefix: str = "",
 ) -> LessonManifest:
     """Build one normalized lesson manifest from a cloud syllabus item."""
-    lesson_node = item.get("lesson", {}).get("lesson", {})
+    lesson_outer = item.get("lesson") or {}
+    lesson_node = lesson_outer.get("lesson") or {}
     lesson_id = str(lesson_node.get("id") or f"cloud-{index}")
     lesson_title = title_prefix + (lesson_node.get("name") or f"Lesson {index}")
     lesson_url = f"{hostname}/lesson/{lesson_id}/classroom"
@@ -216,9 +220,9 @@ def _build_cloud_lesson(
         lesson_id=lesson_id,
         title=lesson_title,
         date=_normalize_date(
-            item.get("lesson", {}).get("startTimeUTC")
+            lesson_outer.get("startTimeUTC")
             or lesson_node.get("createdAt")
-            or item.get("groupInfo", {}).get("createdAt")
+            or (item.get("groupInfo") or {}).get("createdAt")
         ),
         lesson_url=lesson_url,
         index=index,
@@ -230,12 +234,8 @@ def _build_cloud_lesson(
 def _extract_cloud_course_title(item: dict[str, Any]) -> str:
     """Extract the course title from one cloud syllabus lesson payload."""
     return (
-        item.get("lesson", {})
-        .get("video", {})
-        .get("published", {})
-        .get("courseName")
-        or "Untitled Course"
-    )
+        ((item.get("lesson") or {}).get("video") or {}).get("published") or {}
+    ).get("courseName") or "Untitled Course"
 
 
 def _extract_lesson_id(url: str | None) -> str | None:

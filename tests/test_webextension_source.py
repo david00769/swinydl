@@ -25,6 +25,15 @@ class WebExtensionSourceTests(unittest.TestCase):
         self.assertIn("*://*.echo360.net.au/*", content_script["matches"])
         self.assertTrue(content_script["all_frames"])
 
+    def test_job_cookies_are_the_ones_the_browser_would_send_to_the_course_pages(self):
+        # getAll({ domain }) returns every cookie under a domain (a university's sign-in,
+        # mail, library...), and they are written into the job manifest on disk.
+        contents = (WEBEXTENSION / "background.js").read_text(encoding="utf-8")
+
+        self.assertIn("browser.cookies.getAll({ url:", contents)
+        self.assertNotIn("getAll({ domain", contents)
+        self.assertIn("exportCookies([payload.courseUrl, payload.sourcePageUrl])", contents)
+
     def test_content_script_collects_canvas_lti_launch_forms(self):
         contents = (WEBEXTENSION / "content.js").read_text(encoding="utf-8")
 

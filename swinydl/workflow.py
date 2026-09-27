@@ -9,7 +9,7 @@ import os
 import shutil
 import uuid
 
-from .app_paths import cache_dir, default_output_root, ensure_runtime_dirs
+from .app_paths import cache_dir, ensure_runtime_dirs
 from .auth import AuthenticatedSession, BrowserSession, CookieSession
 from .captions import (
     load_native_caption_segments,

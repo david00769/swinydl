@@ -9,7 +9,7 @@ import re
 from typing import Any
 
 import requests
-from selenium.common.exceptions import TimeoutException
+from selenium.common.exceptions import WebDriverException
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
@@ -137,9 +137,11 @@ def resolve_lesson_assets(browser: BrowserSession, lesson: LessonManifest) -> Le
                         ext=media_extension(track_src),
                     )
                 )
-    except TimeoutException:
-        # No <video> appeared within the wait window: the page simply has no
-        # embedded media to add. Other errors are intentionally not swallowed.
+    except WebDriverException:
+        # No <video> within the wait (TimeoutException), or the player re-rendered
+        # under us (StaleElementReferenceException): the page adds no assets, and the
+        # lesson keeps the ones discovery already found. Python errors still raise.
+        # Callers run this outside their try, so a raise here would end the whole run.
         pass
     return replace(lesson, assets=_dedupe_assets(assets))
 

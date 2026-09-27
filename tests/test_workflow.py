@@ -48,6 +48,46 @@ def fake_course() -> CourseManifest:
 
 
 class WorkflowTests(unittest.TestCase):
+    def test_selenium_error_on_the_lesson_page_does_not_end_the_run(self):
+        # Echo360's player can re-render while its <video> is read. That lesson keeps
+        # the assets discovery already found; the run carries on.
+        from selenium.common.exceptions import StaleElementReferenceException
+
+        class FakeDriver:
+            def get(self, _url):
+                return None
+
+        class BrowserWithDriver(FakeBrowser):
+            def __init__(self, *args, **kwargs):
+                super().__init__(*args, **kwargs)
+                self.driver = FakeDriver()
+
+        class StaleWait:
+            def __init__(self, *_args, **_kwargs):
+                pass
+
+            def until(self, _condition):
+                raise StaleElementReferenceException("player re-rendered")
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            options = ProcessOptions(output_root=Path(temp_dir), diarization_mode="off")
+            with patch("swinydl.workflow.BrowserSession", BrowserWithDriver), patch(
+                "swinydl.workflow.discover_course", return_value=fake_course()
+            ), patch("swinydl.discovery.WebDriverWait", StaleWait), patch(
+                "swinydl.workflow.load_native_caption_segments"
+            ) as load_native, patch("swinydl.workflow.download_lesson_media"), patch(
+                "swinydl.workflow.transcribe_audio"
+            ):
+                load_native.return_value = [
+                    __import__("swinydl.models", fromlist=["TranscriptSegment"]).TranscriptSegment(
+                        start=0.0, end=1.0, text="Hello world"
+                    )
+                ]
+                summary = process_course("https://swinydl.org.au/section/uuid/home", options)
+
+            self.assertEqual(summary.results[0].status, "success")
+            self.assertEqual(summary.results[0].transcript_source, "native")
+
     def test_process_prefers_native_caption(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             options = ProcessOptions(output_root=Path(temp_dir), diarization_mode="off")

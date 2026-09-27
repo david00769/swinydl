@@ -136,13 +136,7 @@ async function exportDebugLogForActiveTab(filename) {
 }
 
 async function launchJob(payload) {
-  const hosts = new Set();
-  for (const candidate of [payload.courseUrl, payload.sourcePageUrl]) {
-    for (const host of cookieHostsForUrl(candidate)) {
-      hosts.add(host);
-    }
-  }
-  const cookies = await exportCookies(Array.from(hosts));
+  const cookies = await exportCookies([payload.courseUrl, payload.sourcePageUrl]);
   const selectedLessonAssetCounts = selectedLessonAssetSummary(payload.course, payload.selectedLessonIds);
   const manifest = {
     source_page_url: payload.sourcePageUrl,
@@ -945,40 +939,18 @@ function mediaExtension(url) {
   return match ? match[1].toLowerCase() : null;
 }
 
-function cookieHostsForUrl(value) {
-  if (!value) {
-    return [];
-  }
-  let hostname;
-  try {
-    hostname = new URL(String(value)).hostname;
-  } catch (_error) {
-    return [];
-  }
-  if (!hostname) {
-    return [];
-  }
-  const parts = hostname.split(".");
-  // Authentication/session cookies are often set on the registrable parent
-  // domain (e.g. ".sydney.edu.au" or ".instructure.com") rather than the exact
-  // host of the course page. Query the host plus each parent domain down to the
-  // registrable domain so the handoff jar includes those session cookies.
-  const compoundTld = /\.(edu|com|net|org|gov|ac|co)\.[a-z]{2}$/i.test(hostname);
-  const minLabels = compoundTld ? 3 : 2;
-  const hosts = new Set();
-  for (let i = 0; i + minLabels <= parts.length; i += 1) {
-    hosts.add(parts.slice(i).join("."));
-  }
-  hosts.add(hostname);
-  return Array.from(hosts);
-}
-
-async function exportCookies(hosts) {
+// Export the cookies the browser would send to each page. getAll({ url }) includes
+// session cookies set on a parent domain (".sydney.edu.au", ".instructure.com") and
+// excludes sibling subdomains. A domain filter would return every cookie under the domain --
+// university sign-in, mail, library -- and those land in the job manifest on disk.
+async function exportCookies(urls) {
   const all = [];
   const seen = new Set();
-  for (const host of hosts) {
-    const cleanHost = String(host).replace(/^\./, "");
-    const cookies = await browser.cookies.getAll({ domain: cleanHost });
+  for (const url of urls) {
+    if (!isHttpUrl(url)) {
+      continue;
+    }
+    const cookies = await browser.cookies.getAll({ url: String(url) });
     for (const cookie of cookies) {
       const key = `${cookie.domain}:${cookie.path}:${cookie.name}`;
       if (seen.has(key)) {
@@ -998,4 +970,16 @@ async function exportCookies(hosts) {
     }
   }
   return all;
+}
+
+function isHttpUrl(value) {
+  if (!value) {
+    return false;
+  }
+  try {
+    const { protocol } = new URL(String(value));
+    return protocol === "https:" || protocol === "http:";
+  } catch (_error) {
+    return false;
+  }
 }

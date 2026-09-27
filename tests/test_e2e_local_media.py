@@ -55,6 +55,66 @@ class LocalMediaEndToEndTests(unittest.TestCase):
             self.assertIn("lesson", payload)
             self.assertEqual(len(payload["segments"]), 2)
 
+    def test_transcribe_local_srt_keeps_commas_and_splits_cues_without_blank_lines(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            source = temp_path / "lecture.srt"
+            # Numbered cues with no blank line between them, and commas in the spoken text.
+            source.write_text(
+                "\n".join(
+                    [
+                        "1",
+                        "00:00:01,000 --> 00:00:03,000",
+                        "Well, however, this is one sentence.",
+                        "2",
+                        "00:00:04,000 --> 00:00:06,500",
+                        "Second cue, with a comma.",
+                        "",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+            result = transcribe_file(source, TranscribeOptions(output_root=temp_path / "out"))
+
+            self.assertEqual(result.status, "success")
+            txt_output = result.artifacts.txt_path.read_text(encoding="utf-8")
+            self.assertEqual(txt_output.strip(), "Well, however, this is one sentence.\nSecond cue, with a comma.")
+            payload = json.loads(result.artifacts.json_path.read_text(encoding="utf-8"))
+            self.assertEqual(
+                [(s["start"], s["end"]) for s in payload["segments"]],
+                [(1.0, 3.0), (4.0, 6.5)],
+            )
+
+    def test_transcribe_local_vtt_accepts_minute_timestamps_and_adjacent_cues(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            source = temp_path / "lecture.vtt"
+            # WebVTT may omit the hours field, and these cues have no blank line between them.
+            source.write_text(
+                "\n".join(
+                    [
+                        "WEBVTT",
+                        "",
+                        "00:01.000 --> 00:02.000",
+                        "First cue.",
+                        "00:03.000 --> 00:04.500",
+                        "Second cue.",
+                        "",
+                    ]
+                ),
+                encoding="utf-8",
+            )
+
+            result = transcribe_file(source, TranscribeOptions(output_root=temp_path / "out"))
+
+            self.assertEqual(result.status, "success")
+            payload = json.loads(result.artifacts.json_path.read_text(encoding="utf-8"))
+            self.assertEqual(
+                [(s["text"], s["start"], s["end"]) for s in payload["segments"]],
+                [("First cue.", 1.0, 2.0), ("Second cue.", 3.0, 4.5)],
+            )
+
     def test_transcribe_local_audio_writes_speaker_aware_artifacts(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)

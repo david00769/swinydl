@@ -40,7 +40,7 @@ def parse_webvtt(text: str) -> list[TranscriptSegment]:
     segments: list[TranscriptSegment] = []
     buffer: list[str] = []
     start = end = None
-    for line in lines:
+    for position, line in enumerate(lines):
         stripped = line.strip()
         if not stripped or stripped == "WEBVTT":
             if start is not None and buffer:
@@ -70,7 +70,9 @@ def parse_webvtt(text: str) -> list[TranscriptSegment]:
             start = match.group("start")
             end = match.group("end")
             continue
-        if stripped.isdigit() and start is None:
+        if stripped.isdigit() and (start is None or _next_is_timestamp(lines, position)):
+            # An SRT cue number. Without a blank line between cues it follows the
+            # previous cue's text, so it is recognised by the timestamp after it.
             continue
         buffer.append(_strip_voice_tag(stripped))
     if start is not None and buffer:
@@ -114,6 +116,12 @@ def segments_to_srt(segments: list[TranscriptSegment]) -> str:
         chunks.append(prefix + segment.text)
         chunks.append("")
     return "\n".join(chunks).rstrip() + "\n"
+
+
+def _next_is_timestamp(lines: list[str], position: int) -> bool:
+    """Whether the line after ``position`` is a cue timing line."""
+    following = position + 1
+    return following < len(lines) and TIMESTAMP_PATTERN.match(lines[following].strip()) is not None
 
 
 def _parse_timestamp(value: str) -> float:

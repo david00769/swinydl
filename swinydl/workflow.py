@@ -354,6 +354,7 @@ def _process_lesson(
 
     transcript_source = _resolve_transcript_source(options, lesson)
 
+    media_warning: str | None = None
     temp_dir: Path | None = None
     try:
         if not lesson.assets:
@@ -445,14 +446,7 @@ def _process_lesson(
                         # The transcript is already done; losing it to an expired media URL
                         # during a long ASR run would be worse than not keeping the media.
                         stored_paths = []
-                        if status_callback is not None:
-                            status_callback(
-                                lesson_id=lesson.lesson_id,
-                                title=lesson.title,
-                                status="running",
-                                stage="writing_files",
-                                detail=f"Transcript kept; the media download to keep failed: {exc}",
-                            )
+                        media_warning = f"The transcript is ready, but downloading the media to keep failed: {exc}"
                     downloaded_media_paths = stored_paths
                     if options.keep_video:
                         video_paths = [path for path in stored_paths if path.suffix.lower() == ".mp4"]
@@ -485,6 +479,7 @@ def _process_lesson(
             segments=segments,
             words=words,
             artifacts=artifacts,
+            warning=media_warning,
         )
         _write_transcript_artifacts(result)
         return result
@@ -824,7 +819,7 @@ def _record_result_state(
     if result.status == "success":
         state["status"] = "success"
         state["stage"] = "done"
-        state["detail"] = "TXT transcript ready. Timed captions and structured JSON are also available."
+        state["detail"] = result.warning or "TXT transcript ready. Timed captions and structured JSON are also available."
         state["error"] = None
         state["transcript_files"] = [
             str(result.artifacts.txt_path),
@@ -834,6 +829,8 @@ def _record_result_state(
         state["transcript_folder"] = str(result.artifacts.txt_path.parent)
         state["retained_media_files"] = [str(path) for path in result.artifacts.downloaded_media_paths]
         events.append((timestamp, "success", f"{result.lesson.title}: transcription complete."))
+        if result.warning:
+            events.append((timestamp, "error", f"{result.lesson.title}: {result.warning}"))
         return
     if result.status == "skipped":
         state["status"] = "skipped"

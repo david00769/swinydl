@@ -245,6 +245,16 @@ class WorkflowTests(unittest.TestCase):
             self.assertEqual(result.status, "success")
             self.assertEqual(result.artifacts.txt_path.read_text(encoding="utf-8").strip(), "Hello from ASR")
             self.assertEqual(result.artifacts.downloaded_media_paths, [])
+            self.assertIn("signed URL expired", result.warning)
+
+            from swinydl.workflow import _record_result_state
+
+            states = {result.lesson.lesson_id: {}}
+            events = []
+            _record_result_state(states, events, result)
+            self.assertEqual(states[result.lesson.lesson_id]["status"], "success")
+            self.assertIn("downloading the media to keep failed", states[result.lesson.lesson_id]["detail"])
+            self.assertEqual(events[-1][1], "error")
 
     def test_hostile_lesson_ids_stay_inside_the_output_folder_and_duplicates_run_once(self):
         course = fake_course()

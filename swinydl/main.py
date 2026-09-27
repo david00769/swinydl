@@ -299,6 +299,8 @@ def _print_process_summary(summary) -> None:
         print(f"- {result.lesson.lesson_id}: {result.status} ({result.transcript_source}{backend}{diarized})")
         if result.error:
             print(f"  error: {result.error}")
+        if result.warning:
+            print(f"  warning: {result.warning}")
 
 
 if __name__ == "__main__":  # pragma: no cover

@@ -8,6 +8,13 @@ from swinydl.echo_exceptions import DiscoveryError
 
 
 class CliTests(unittest.TestCase):
+    def setUp(self):
+        # main() fetches missing CoreML models before process/transcribe/doctor; a unit test
+        # must never download them (a fresh clone or CI would pull about 1 GB).
+        bootstrap = patch("swinydl.bootstrap.ensure_runtime_model_artifacts", return_value=None)
+        bootstrap.start()
+        self.addCleanup(bootstrap.stop)
+
     def test_cli_help_uses_verified_uv_run_examples(self):
         help_text = main.build_parser().format_help()
 

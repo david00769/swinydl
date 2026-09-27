@@ -243,6 +243,8 @@ class TranscriptResult:
     words: list[TranscriptWord]
     artifacts: TranscriptArtifacts
     error: str | None = None
+    # Set on a successful lesson when something optional failed (e.g. keeping the media).
+    warning: str | None = None
 
 
 @dataclass

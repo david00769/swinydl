@@ -34,7 +34,7 @@ final class UpdateController: ObservableObject {
 
         do {
             let release = try await GitHubReleaseService.fetchLatestRelease()
-            guard shouldOffer(release: release) else {
+            guard shouldOffer(release: release, manual: manual) else {
                 if manual {
                     infoMessage = "You are already on the latest GitHub release (\(currentVersion))."
                 }
@@ -96,11 +96,15 @@ final class UpdateController: ObservableObject {
         NSWorkspace.shared.open(releasesURL)
     }
 
-    private func shouldOffer(release: GitHubRelease) -> Bool {
+    private func shouldOffer(release: GitHubRelease, manual: Bool) -> Bool {
         guard let latest = SemanticVersion(release.tagName),
               let current = SemanticVersion(currentVersion)
         else {
-            return true
+            // When either version cannot be parsed we cannot reliably compare.
+            // Surface the release only on an explicit manual check so the
+            // automatic launch check does not nag on every start (e.g. when the
+            // current version resolves to "unknown").
+            return manual
         }
         return latest > current
     }

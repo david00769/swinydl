@@ -21,7 +21,7 @@ function handleMessageUnsafe(message, sender) {
   switch (message?.type) {
     case "page-context-updated":
       rememberPageContext(sender, message.context);
-      return false;
+      return { ok: true };
     case "load-course":
       return loadCourseForActiveTab();
     case "launch-job":
@@ -35,7 +35,7 @@ function handleMessageUnsafe(message, sender) {
     case "export-debug-log":
       return exportDebugLogForActiveTab(message.filename);
     default:
-      return false;
+      return { ok: false, error: `Unknown message type: ${message?.type}` };
   }
 }
 
@@ -136,7 +136,12 @@ async function exportDebugLogForActiveTab(filename) {
 }
 
 async function launchJob(payload) {
-  const hosts = new Set([new URL(payload.courseUrl).hostname, new URL(payload.sourcePageUrl).hostname]);
+  const hosts = new Set();
+  for (const candidate of [payload.courseUrl, payload.sourcePageUrl]) {
+    for (const host of cookieHostsForUrl(candidate)) {
+      hosts.add(host);
+    }
+  }
   const cookies = await exportCookies(Array.from(hosts));
   const selectedLessonAssetCounts = selectedLessonAssetSummary(payload.course, payload.selectedLessonIds);
   const manifest = {
@@ -938,6 +943,34 @@ function extractLessonId(url) {
 function mediaExtension(url) {
   const match = String(url).match(/\.([a-zA-Z0-9]{2,5})(?:$|\?)/);
   return match ? match[1].toLowerCase() : null;
+}
+
+function cookieHostsForUrl(value) {
+  if (!value) {
+    return [];
+  }
+  let hostname;
+  try {
+    hostname = new URL(String(value)).hostname;
+  } catch (_error) {
+    return [];
+  }
+  if (!hostname) {
+    return [];
+  }
+  const parts = hostname.split(".");
+  // Authentication/session cookies are often set on the registrable parent
+  // domain (e.g. ".sydney.edu.au" or ".instructure.com") rather than the exact
+  // host of the course page. Query the host plus each parent domain down to the
+  // registrable domain so the handoff jar includes those session cookies.
+  const compoundTld = /\.(edu|com|net|org|gov|ac|co)\.[a-z]{2}$/i.test(hostname);
+  const minLabels = compoundTld ? 3 : 2;
+  const hosts = new Set();
+  for (let i = 0; i + minLabels <= parts.length; i += 1) {
+    hosts.add(parts.slice(i).join("."));
+  }
+  hosts.add(hostname);
+  return Array.from(hosts);
 }
 
 async function exportCookies(hosts) {

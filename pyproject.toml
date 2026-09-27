@@ -31,6 +31,12 @@ classifiers = [
 [dependency-groups]
 dev = ["pytest>=8.0.0"]
 
+[tool.pytest.ini_options]
+# Put the repo root on sys.path so root-level modules (e.g. app.py) and the
+# swinydl package both import cleanly when running `uv run pytest`.
+pythonpath = ["."]
+testpaths = ["tests"]
+
 [project.scripts]
 swinydl = "swinydl.main:main"
 

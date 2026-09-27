@@ -185,6 +185,9 @@ def _ffmpeg_audio_normalize_args(source: Path, destination: Path) -> list[str]:
     return [
         "-i",
         str(source),
+        "-vn",
+        "-map",
+        "0:a:0",
         "-ac",
         "1",
         "-ar",

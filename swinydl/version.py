@@ -1,3 +1,3 @@
 """Package version constant."""
 
-__version__ = "4.0.12"
+__version__ = "4.1.0"

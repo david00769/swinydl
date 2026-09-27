@@ -201,10 +201,10 @@ uv run swinydl doctor                               # check the runtime
 
 From the command line, output goes to `swinydl-output/` in the current folder unless you pass `--output`.
 
-See [docs/index.md](docs/index.md) for the full command reference, how the pipeline works, model sources and building from source.
+See [docs/technical.md](docs/technical.md) for the full command reference, how the pipeline works, model sources and building from source.
 
 ## More Detail
 
 - [User guide](docs/user-guide.md): click-by-click steps for the Safari app
-- [Technical overview](docs/index.md): commands, pipeline, models, building from source and releases
+- [Technical overview](docs/technical.md): commands, pipeline, models, building from source and releases
 - [Third-party notices](THIRD_PARTY_NOTICES.md)

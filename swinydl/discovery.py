@@ -3,7 +3,6 @@ from __future__ import annotations
 """Echo360 course discovery, lesson normalization, and asset inspection."""
 
 from dataclasses import replace
-from pathlib import Path
 import json
 import re
 from typing import Any
@@ -81,12 +80,28 @@ def inspect_course(course_url: str, browser: AuthenticatedSession) -> CourseMani
     )
 
 
+def _unique_lessons(lessons: list[LessonManifest]) -> list[LessonManifest]:
+    """Drop repeated lesson ids; job status is keyed by id, so a duplicate never completes."""
+    seen: set[str] = set()
+    unique: list[LessonManifest] = []
+    for lesson in lessons:
+        if lesson.lesson_id in seen:
+            continue
+        seen.add(lesson.lesson_id)
+        unique.append(lesson)
+    return unique
+
+
 def filter_lessons(course: CourseManifest, options: SelectionOptions) -> CourseManifest:
     """Apply CLI-style lesson filters and ordering to a discovered course."""
-    lessons = list(course.lessons)
+    lessons = _unique_lessons(course.lessons)
     if options.lesson_ids:
         wanted = {lesson_id.lower() for lesson_id in options.lesson_ids}
         lessons = [lesson for lesson in lessons if lesson.lesson_id.lower() in wanted]
+        if not lessons:
+            raise DiscoveryError(
+                "None of the selected lessons were found in this course: " + ", ".join(options.lesson_ids)
+            )
     if options.title_match:
         token = options.title_match.lower()
         lessons = [lesson for lesson in lessons if token in lesson.title.lower()]

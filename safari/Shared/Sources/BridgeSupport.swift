@@ -230,7 +230,8 @@ struct JobLessonStatus: Codable, Identifiable {
     var id: String { lessonID }
 
     private enum CodingKeys: String, CodingKey {
-        case lessonID
+        // bridgeDecoder's convertFromSnakeCase turns "lesson_id" into "lessonId", never "lessonID".
+        case lessonID = "lessonId"
         case title
         case status
         case stage
@@ -311,18 +312,19 @@ struct JobStatusPayload: Codable, Identifiable {
     var id: String { jobID }
 
     private enum CodingKeys: String, CodingKey {
-        case jobID
+        // convertFromSnakeCase yields "jobId", "sourcePageUrl", "activeLessonId"; name them so.
+        case jobID = "jobId"
         case command
         case overallStatus
         case courseTitle
-        case sourcePageURL
+        case sourcePageURL = "sourcePageUrl"
         case outputRoot
         case totalLessons
         case completedLessons
         case startedAt
         case updatedAt
         case elapsedSeconds
-        case activeLessonID
+        case activeLessonID = "activeLessonId"
         case activeLessonTitle
         case detail
         case requestedAction

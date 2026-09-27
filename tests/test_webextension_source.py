@@ -34,6 +34,15 @@ class WebExtensionSourceTests(unittest.TestCase):
         self.assertNotIn("getAll({ domain", contents)
         self.assertIn("exportCookies([payload.courseUrl, payload.sourcePageUrl])", contents)
 
+    def test_lesson_page_assets_do_not_need_domparser(self):
+        # background.js is an MV3 service worker, where DOMParser does not exist.
+        manifest = json.loads((WEBEXTENSION / "manifest.json").read_text(encoding="utf-8"))
+        contents = (WEBEXTENSION / "background.js").read_text(encoding="utf-8")
+
+        self.assertEqual(manifest["background"], {"service_worker": "background.js"})
+        self.assertNotIn("new DOMParser", contents)
+        self.assertIn('htmlTagAttributes(html, "video")', contents)
+
     def test_content_script_collects_canvas_lti_launch_forms(self):
         contents = (WEBEXTENSION / "content.js").read_text(encoding="utf-8")
 

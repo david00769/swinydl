@@ -6,6 +6,7 @@ from dataclasses import fields, is_dataclass
 from datetime import date, datetime
 from pathlib import Path
 import json
+import hashlib
 import re
 import unicodedata
 
@@ -39,9 +40,23 @@ def slugify(value: str, max_length: int = 80) -> str:
 
 def lesson_key(date_string: str | None, lesson_id: str | None, index: int, title: str) -> str:
     """Build the canonical lesson key used for filenames and manifests."""
-    date_token = date_string or "undated"
-    lesson_token = lesson_id or str(index)
+    date_token = _path_token(date_string, 32) or "undated"
+    lesson_token = _path_token(lesson_id, 64) or str(index)
     return f"{date_token}__{lesson_token}__{slugify(title)}"
+
+
+def _path_token(value: str | None, max_length: int) -> str:
+    """Make an id or date safe as part of a filename without renaming ordinary values.
+
+    Only path separators, NUL and leading dots (``..``) are changed, so existing outputs
+    keep their names and skip-if-exists still finds them. A value too long for a filename
+    keeps a hash of the whole value, so two long ids sharing a prefix cannot collide.
+    """
+    token = re.sub(r"[/\\\x00]+", "-", value or "").lstrip(".")
+    if len(token) > max_length:
+        digest = hashlib.sha1(token.encode("utf-8")).hexdigest()[:8]
+        token = f"{token[: max_length - 9]}-{digest}"
+    return token
 
 
 def media_extension(url: str) -> str | None:

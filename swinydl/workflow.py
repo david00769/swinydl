@@ -95,7 +95,13 @@ def process_manifest(path: Path | str) -> RunSummary:
             keep_video=manifest.keep_video,
         )
         session = CookieSession(manifest.cookies)
-        course = _course_from_manifest(session, manifest, options)
+        try:
+            course = _course_from_manifest(session, manifest, options)
+        except Echo360Error as exc:
+            # The app reads the status file, not stderr; without this it can only say
+            # "exited with status 2".
+            _write_manifest_failure(manifest, path, options, str(exc))
+            raise
         return _process_course_with_session(
             session=session,
             source_page_url=manifest.source_page_url,
@@ -122,21 +128,20 @@ def download_course(url: str, options: DownloadOptions) -> DownloadSummary:
         course_dir = ensure_dir(output_root / slugify(course.course_title))
         for lesson in course.lessons:
             key = lesson_key(lesson.date, lesson.lesson_id, lesson.index, lesson.title)
-            artifacts = download_lesson_media(
-                browser,
-                lesson,
-                course_dir,
-                media=options.media,
-                file_stem=key,
-            )
-            downloads.append(
-                {
-                    "lesson_id": lesson.lesson_id,
-                    "title": lesson.title,
-                    "media": options.media,
-                    "artifacts": [str(path) for path in artifacts],
-                }
-            )
+            entry: dict[str, object] = {"lesson_id": lesson.lesson_id, "title": lesson.title, "media": options.media}
+            try:
+                artifacts = download_lesson_media(
+                    session,
+                    lesson,
+                    course_dir,
+                    media=options.media,
+                    file_stem=key,
+                )
+                entry["artifacts"] = [str(path) for path in artifacts]
+            except Exception as exc:
+                entry["artifacts"] = []
+                entry["error"] = str(exc)
+            downloads.append(entry)
 
     summary = DownloadSummary(
         run_id=run_id,
@@ -428,13 +433,26 @@ def _process_lesson(
             downloaded_media_paths: list[Path] = []
             if options.requested_action == "download_and_transcribe":
                 if not options.delete_downloaded_media:
-                    stored_paths = download_lesson_media(
-                        session,
-                        lesson,
-                        output_root,
-                        media="both",
-                        file_stem=key,
-                    )
+                    try:
+                        stored_paths = download_lesson_media(
+                            session,
+                            lesson,
+                            output_root,
+                            media="both",
+                            file_stem=key,
+                        )
+                    except Exception as exc:
+                        # The transcript is already done; losing it to an expired media URL
+                        # during a long ASR run would be worse than not keeping the media.
+                        stored_paths = []
+                        if status_callback is not None:
+                            status_callback(
+                                lesson_id=lesson.lesson_id,
+                                title=lesson.title,
+                                status="running",
+                                stage="writing_files",
+                                detail=f"Transcript kept; the media download to keep failed: {exc}",
+                            )
                     downloaded_media_paths = stored_paths
                     if options.keep_video:
                         video_paths = [path for path in stored_paths if path.suffix.lower() == ".mp4"]
@@ -486,7 +504,7 @@ def _process_lesson(
             artifacts=artifacts,
             error=str(exc),
         )
-        _write_transcript_artifacts(failed)
+        _write_failure_artifacts(failed)
         return failed
     finally:
         if temp_dir is not None:
@@ -570,7 +588,7 @@ def _process_local_media(
             ),
             error=str(exc),
         )
-        _write_transcript_artifacts(failed)
+        _write_failure_artifacts(failed)
         return failed
     finally:
         if temp_dir is not None:
@@ -591,6 +609,34 @@ def _resolve_transcript_source(options: ProcessOptions, lesson) -> str:
     return "native" if select_caption_asset(lesson) is not None else "asr"
 
 
+def _write_manifest_failure(manifest: ProcessManifest, path: Path | str, options: ProcessOptions, message: str) -> None:
+    """Record a job that failed before any lesson ran, so the app can show why."""
+    now = now_utc().isoformat() + "Z"
+    status = build_job_status(
+        job_id=uuid.uuid4().hex[:12],
+        command="process-manifest",
+        overall_status="failed",
+        course_title=(manifest.course.course_title if manifest.course else "") or "",
+        source_page_url=manifest.source_page_url,
+        output_root=options.output_root,
+        total_lessons=0,
+        completed_lessons=0,
+        started_at=now,
+        updated_at=now,
+        elapsed_seconds=0.0,
+        lesson_snapshots=[],
+        detail=message,
+        requested_action=options.requested_action,
+        diarization_mode=options.diarization_mode,
+        delete_downloaded_media=options.delete_downloaded_media,
+        error=message,
+    )
+    try:
+        write_job_status(status_path_for_manifest(manifest.manifest_path or path), status)
+    except OSError:
+        pass
+
+
 def _cli_session(url: str, options: SelectionOptions) -> CookieSession:
     """Cookie session for a CLI course command, from --cookies or --cookies-from-browser."""
     return course_session(
@@ -598,6 +644,14 @@ def _cli_session(url: str, options: SelectionOptions) -> CookieSession:
         cookies_file=options.cookies_file,
         cookies_from_browser=options.cookies_from_browser,
     )
+
+
+def _write_failure_artifacts(result: TranscriptResult) -> None:
+    """Record a failed lesson without letting a second error (full disk, bad path) end the run."""
+    try:
+        _write_transcript_artifacts(result)
+    except OSError:
+        pass
 
 
 def _write_transcript_artifacts(result: TranscriptResult) -> None:

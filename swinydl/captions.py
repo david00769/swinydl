@@ -2,7 +2,7 @@ from __future__ import annotations
 
 """Fetch, parse, and emit caption formats used by Echo360 workflows."""
 
-from pathlib import Path
+import html
 import re
 
 import requests
@@ -28,7 +28,8 @@ def load_native_caption_segments(session: requests.Session, url: str) -> list[Tr
     if not response.ok:
         raise NativeCaptionError(f"Failed to retrieve native captions from {url}.")
     ext = media_extension(url)
-    text = response.text
+    # WebVTT is always UTF-8; requests would guess ISO-8859-1 for text/* without a charset.
+    text = response.content.decode("utf-8-sig", errors="replace")
     if ext == "srt":
         return parse_srt(text)
     return parse_webvtt(text)
@@ -36,14 +37,20 @@ def load_native_caption_segments(session: requests.Session, url: str) -> list[Tr
 
 def parse_webvtt(text: str) -> list[TranscriptSegment]:
     """Parse a WebVTT payload into normalized transcript segments."""
-    lines = text.splitlines()
+    lines = text.lstrip("\ufeff").splitlines()
     segments: list[TranscriptSegment] = []
     buffer: list[str] = []
     start = end = None
     for position, line in enumerate(lines):
         stripped = line.strip()
-        if not stripped or stripped == "WEBVTT":
-            if start is not None and buffer:
+        if not stripped or stripped.startswith("WEBVTT"):
+            if start is None or not buffer:
+                # Text outside a cue (header metadata, NOTE/STYLE/REGION blocks, cue ids),
+                # or a cue with no text: either way nothing to keep, and the cue is closed.
+                buffer = []
+                start = end = None
+                continue
+            if buffer:
                 segments.append(
                     TranscriptSegment(
                         start=_parse_timestamp(start),
@@ -56,7 +63,9 @@ def parse_webvtt(text: str) -> list[TranscriptSegment]:
             continue
         match = TIMESTAMP_PATTERN.match(stripped)
         if match:
-            if start is not None and buffer:
+            if start is None:
+                buffer = []  # a cue identifier line, not caption text
+            elif buffer:
                 # Flush a cue that was not terminated by a blank line before
                 # starting the next one, so adjacent cues do not merge.
                 segments.append(
@@ -147,6 +156,12 @@ def _format_timestamp(value: float) -> str:
     return f"{hours:02d}:{minutes:02d}:{seconds:02d},{milliseconds:03d}"
 
 
+CAPTION_TAG_PATTERN = re.compile(r"</?(?:v|c|i|b|u|ruby|rt|lang|font)\b[^>]*>|<\d[\d:.]*>", re.IGNORECASE)
+
+
 def _strip_voice_tag(text: str) -> str:
-    """Remove simple WebVTT voice tags from caption text."""
-    return re.sub(r"<v[^>]*>", "", text).replace("</v>", "").strip()
+    """Remove WebVTT/SRT markup (voice, class, i/b/u, ruby, lang, font, timestamps) and decode entities.
+
+    Only caption tags are removed, so a literal "a < b" in the text survives.
+    """
+    return re.sub(r"\s{2,}", " ", html.unescape(CAPTION_TAG_PATTERN.sub("", text))).strip()

@@ -48,7 +48,6 @@ def download_with_ytdlp(
     destination.mkdir(parents=True, exist_ok=True)
     cookie_file = browser.cookie_file()
     outtmpl = str(destination / f"{file_stem}.%(ext)s")
-    before = {path.resolve() for path in destination.glob("*")}
     options = {
         "cookiefile": cookie_file,
         "outtmpl": outtmpl,
@@ -59,10 +58,22 @@ def download_with_ytdlp(
         "format": "bestaudio/best" if media == "audio" else "bestvideo+bestaudio/best",
         "merge_output_format": "mp4",
     }
-    with YoutubeDL(options) as ydl:
-        ydl.extract_info(url, download=True)
-    after = [path.resolve() for path in destination.glob("*") if path.resolve() not in before]
-    return sorted(after)
+    try:
+        with YoutubeDL(options) as ydl:
+            info = ydl.extract_info(url, download=True) or {}
+    finally:
+        # The file holds live session cookies; do not leave it in temp/.
+        Path(cookie_file).unlink(missing_ok=True)
+    # yt-dlp reports what it wrote. Diffing the folder would miss a re-download that
+    # overwrote an existing file, and could pick up another job's files.
+    written = [
+        Path(item["filepath"]).resolve()
+        for item in info.get("requested_downloads") or []
+        if item.get("filepath") and Path(item["filepath"]).exists()
+    ]
+    if not written:
+        written = [path.resolve() for path in destination.glob(f"{file_stem}.*") if path.is_file()]
+    return sorted(set(written))
 
 
 def download_lesson_media(

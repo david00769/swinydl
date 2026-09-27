@@ -855,27 +855,65 @@ async function resolveLessonAssets(lessonUrl) {
   try {
     const response = await fetch(lessonUrl, { credentials: "include" });
     const html = await response.text();
-    const doc = new DOMParser().parseFromString(html, "text/html");
+    // This runs in the MV3 service worker, which has no DOMParser, so read the tags'
+    // attributes directly. Relative src values resolve against the lesson page.
     const assets = [];
-    for (const video of Array.from(doc.querySelectorAll("video[src]"))) {
-      assets.push({
-        kind: "media",
-        url: video.src,
-        label: "page-video",
-        ext: mediaExtension(video.src)
-      });
+    for (const attributes of htmlTagAttributes(html, "video")) {
+      const url = absoluteUrl(attributes.src, lessonUrl);
+      if (url) {
+        assets.push({ kind: "media", url, label: "page-video", ext: mediaExtension(url) });
+      }
     }
-    for (const track of Array.from(doc.querySelectorAll("track[src]"))) {
-      assets.push({
-        kind: "caption",
-        url: track.src,
-        label: track.getAttribute("label") || track.getAttribute("kind") || "track",
-        ext: mediaExtension(track.src)
-      });
+    for (const attributes of htmlTagAttributes(html, "track")) {
+      const url = absoluteUrl(attributes.src, lessonUrl);
+      if (url) {
+        assets.push({
+          kind: "caption",
+          url,
+          label: attributes.label || attributes.kind || "track",
+          ext: mediaExtension(url)
+        });
+      }
     }
     return assets;
   } catch (_error) {
     return [];
+  }
+}
+
+function htmlTagAttributes(html, tagName) {
+  const tags = [];
+  const tagPattern = new RegExp(`<${tagName}\\b([^>]*)>`, "gi");
+  const attributePattern = /([a-zA-Z_:][-a-zA-Z0-9_:.]*)\s*=\s*("([^"]*)"|'([^']*)'|([^\s"'>]+))/g;
+  for (const tag of String(html || "").matchAll(tagPattern)) {
+    const attributes = {};
+    for (const attribute of tag[1].matchAll(attributePattern)) {
+      const value = attribute[3] ?? attribute[4] ?? attribute[5] ?? "";
+      attributes[attribute[1].toLowerCase()] = decodeHtmlEntities(value);
+    }
+    tags.push(attributes);
+  }
+  return tags;
+}
+
+function decodeHtmlEntities(value) {
+  return String(value)
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">")
+    .replace(/&amp;/g, "&");
+}
+
+function absoluteUrl(value, base) {
+  if (!value) {
+    return null;
+  }
+  try {
+    const url = new URL(value, base);
+    return url.protocol === "https:" || url.protocol === "http:" ? url.href : null;
+  } catch (_error) {
+    return null;
   }
 }
 

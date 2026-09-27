@@ -60,10 +60,15 @@ DIARIZER_TARGET = BootstrapTarget(
 )
 
 
+def default_vendor_root() -> Path:
+    """The vendor/ tree transcription reads models from, whatever the working directory."""
+    return Path(__file__).resolve().parents[1] / "vendor"
+
+
 def bootstrap_models(*, target: str = "all", force: bool = False, vendor_root: Path | None = None) -> dict[str, object]:
     """Download one or both staged CoreML bundles into the repo-local vendor directory."""
     configure_runtime_ssl()
-    root = (vendor_root or Path.cwd() / "vendor").resolve()
+    root = (vendor_root or default_vendor_root()).resolve()
     root.mkdir(parents=True, exist_ok=True)
 
     results: list[dict[str, object]] = []
@@ -130,7 +135,7 @@ def ensure_runtime_model_artifacts(command: str) -> dict[str, object] | None:
 
 def normalize_local_model_layout(vendor_root: Path | None = None) -> dict[str, object]:
     """Align the local vendor tree with the layout expected from bootstrap-models."""
-    root = (vendor_root or Path.cwd() / "vendor").resolve()
+    root = (vendor_root or default_vendor_root()).resolve()
     actions: list[str] = []
 
     diarizer_dir = root / DEFAULT_DIARIZER_COREML_DIRNAME

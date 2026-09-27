@@ -11,6 +11,7 @@ from dataclasses import asdict
 from http.cookiejar import CookieJar, MozillaCookieJar
 from pathlib import Path
 from urllib.parse import urlsplit
+import time
 import uuid
 
 import requests
@@ -54,11 +55,16 @@ class CookieSession(AuthenticatedSession):
         """Build a requests session populated from exported browser cookies."""
         session = requests.Session()
         for cookie in self.cookies:
-            session.cookies.set(
-                cookie.name,
-                cookie.value,
-                domain=cookie.domain,
-                path=cookie.path,
+            # secure=True keeps an https-only session cookie off any http:// request.
+            session.cookies.set_cookie(
+                requests.cookies.create_cookie(
+                    name=cookie.name,
+                    value=cookie.value,
+                    domain=cookie.domain,
+                    path=cookie.path,
+                    secure=cookie.secure,
+                    expires=cookie.expiry,
+                )
             )
         return session
 
@@ -106,11 +112,16 @@ def course_session(
     else:
         cookies = cookies_from_browser_store(str(cookies_from_browser))
         source = f"the {cookies_from_browser} cookie store"
+    if not urlsplit(course_url).hostname:
+        raise CookieSourceError(
+            f"{course_url!r} is not a full course URL. Pass the https:// address of the "
+            "Echo360 course page, so SWinyDL knows which site's cookies to use."
+        )
     scoped = cookies_for_url(cookies, course_url)
     if not scoped:
         raise CookieSourceError(
-            f"No cookies for {urlsplit(course_url).hostname or course_url} were found in {source}. "
-            "Log in to the course in that browser first, then run the command again."
+            f"No current cookies for {urlsplit(course_url).hostname} were found in {source}. "
+            "Log in to the course in that browser (again, if the session expired), then run the command again."
         )
     return CookieSession(scoped)
 
@@ -157,8 +168,11 @@ def cookies_for_url(cookies: list[BrowserCookie], url: str) -> list[BrowserCooki
     host = (urlsplit(url).hostname or "").lower()
     if not host:
         return []
+    now = time.time()
     kept: list[BrowserCookie] = []
     for cookie in cookies:
+        if cookie.expiry and cookie.expiry < now:
+            continue  # a browser would not send it either
         domain = cookie.domain.lower().lstrip(".")
         if domain and (host == domain or host.endswith(f".{domain}")):
             kept.append(cookie)

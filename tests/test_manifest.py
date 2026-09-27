@@ -96,6 +96,7 @@ class ManifestTests(unittest.TestCase):
         )
 
         cookie_file = Path(session.cookie_file())
+        self.addCleanup(cookie_file.unlink, missing_ok=True)
         content = cookie_file.read_text(encoding="utf-8")
 
         self.assertIn("sessionid", content)

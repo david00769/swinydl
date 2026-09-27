@@ -1,5 +1,5 @@
 title: SWinyDL
-description: SWinyDL: transcript-first Echo360 tooling for macOS Apple Silicon
+description: "Download and transcribe Echo360 lectures locally on Apple Silicon Macs"
 show_downloads: false
 google_analytics:
 theme: jekyll-theme-leap-day

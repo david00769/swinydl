@@ -1,195 +1,178 @@
-# SWinyDL v4
+# SWinyDL Technical Overview
 
-See the repository root [README](../README.md) for the supported install and usage flow, and see the [user guide](user-guide.md) for the click-by-click normal-user workflow.
+SWinyDL downloads and transcribes Echo360 lecture recordings on Apple Silicon Macs. This page covers how it works, the command line, the speech models, building from source and releases.
 
-The v4 line is transcript-first:
+For installing and using the app, see the root [README](../README.md) and the [user guide](user-guide.md).
 
-- Safari wrapper app + Safari Web Extension
-- `uv run swinydl inspect COURSE_URL`
-- `uv run swinydl process COURSE_URL`
-- `uv run swinydl process-manifest PATH`
-- `uv run swinydl download COURSE_URL --media audio|video|both`
-- `uv run swinydl transcribe PATH`
-- `uv run swinydl doctor`
+## Parts
 
-Run those commands from the source checkout or copied `SWinyDL` folder after setup. `uv run swinydl download` retrieves Echo360 media files explicitly. `uv run swinydl process` is the normal end-to-end transcript workflow.
+- **Safari extension** (`safari/SWinyDLSafariExtension/`). Runs on Canvas (`*.instructure.com`) and Echo360 pages (`echo360.net.au`, `*.echo360.net.au`, `*.echo360.org`, `*.echo360.net`, `*.streaming.sydney.edu.au`). It finds the lessons on the page and lets you pick them.
+- **Mac app** (`safari/SWinyDLSafariApp/`). `SWinyDLSafariApp.app` contains the extension. It keeps the job queue, the output folder setting and the readiness checks, and it starts the Python backend for each job.
+- **Python backend** (`swinydl/`). The `swinydl` command line tool. It finds lessons, downloads media with yt-dlp, and writes the transcripts.
+- **CoreML runners** (`swift/ParakeetCoreMLRunner/`). Two Swift programs, `parakeet-coreml-runner` and `speaker-diarizer-coreml-runner`. The release DMG ships them prebuilt in `bin/`. A source checkout builds them with `swift build` when they are first needed.
 
-For day-to-day use, the simplest entrypoint is:
+## How a Safari Job Runs
 
-Open `SWinyDLSafariApp.app` from the copied GitHub DMG folder, choose an output folder, then use Safari to queue jobs.
+1. You pick lessons in the extension popup.
+2. The extension exports only the cookies Safari would send to the course page and the source page (`browser.cookies.getAll({url})` for each URL).
+3. It writes a job manifest with those cookies into the app-group container and opens the app.
+4. The app runs `swinydl process-manifest` on the manifest. Jobs wait until an output folder is chosen.
+5. The backend writes progress to a status file next to the manifest. The app shows it.
 
-`install.sh` remains the Terminal-owned setup and repair implementation. In a GitHub DMG release it uses the prebuilt `SWinyDLSafariApp.app` and prebuilt transcription helper programs, verifies the Safari extension files, runs `uv sync`, downloads the local speech models if they are missing, locally re-signs and verifies the app bundle, registers the app and extension with macOS, runs the doctor check, and opens the app plus Safari. The app's `Copy Repair Command` button copies the Terminal command; it does not run `install.sh` inside the sandbox. Use Terminal `./install.sh` if the app cannot launch, if Homebrew, `uv`, or `ffmpeg` need interactive installation, or if setup needs repair. `Copy Log Path` copies the app-group logs folder path, and `Export Diagnostics` creates a sanitized diagnostics zip. In a source checkout, `./install.sh` does not compile the Safari wrapper by default; use `./scripts/build_app.sh` first, or use `./install.sh --build-from-source` as a compatibility shortcut. For unsigned DMG installs, it also clears downloaded-file quarantine from the bundled app before opening it.
+Job manifests, logs, temporary files and debug exports live in the app-group container, in the `Jobs`, `Logs`, `Temp` and `DebugExports` folders. Transcripts go only to the output folder chosen in the app.
 
-The GitHub DMG is runtime-only. It includes install/runtime files, the prebuilt app, the WebExtension resources needed for Safari's temporary-extension fallback, the Python runtime package, an empty/staging `vendor/` folder for local speech models, and license notices. It intentionally does not include the Safari Xcode project, Swift package source, test suite, or build scripts. Developer build instructions remain in the GitHub repository.
+## Transcription Pipeline
 
-First download checklist for a non-technical Mac user:
+1. The lesson's media is downloaded and converted to mono 16 kHz WAV with `ffmpeg`.
+2. `parakeet-coreml-runner` transcribes it with the Parakeet CoreML model and returns token timings as JSON.
+3. `speaker-diarizer-coreml-runner` separates speakers, unless diarization is off.
+4. Python rebuilds words and segments and writes `.txt`, `.srt` and `.json`. The `.txt` file is the main transcript.
 
-1. download the latest `SWinyDL-v...dmg` from [GitHub Releases](https://github.com/david00769/swinydl/releases)
-2. open the DMG
-3. drag the `SWinyDL` folder out of the DMG and put it somewhere writable, such as `Desktop` or `Documents`
-4. Open the unsigned app from Finder: Control-click or right-click `SWinyDLSafariApp.app`, choose `Open`, and confirm the warning. If that is awkward on the trackpad, select the app and choose Finder `File > Open`.
-5. choose an output folder in the app if the Readiness panel asks for one
-6. if setup, Safari registration, signing, or models need repair, click `Copy Repair Command`, paste the command into Terminal, and press `Enter`
-7. if macOS asks whether `SWinyDLSafariApp` can access data from other apps, click `Allow` so the Safari handoff queue works
-8. if the app cannot open, open Terminal in the copied folder and run `./install.sh`
-9. if Terminal says permission is denied, run `chmod +x install.sh` and then `./install.sh` again
-10. enable `SWinyDL Safari` in Safari Settings
+Speaker separation is on by default. With `--diarization off`, `process` uses a lesson's existing Echo360 captions when it has them (`--transcript-source auto`), and falls back to speech recognition when it does not. The caption parser reads SRT and WebVTT. It accepts WebVTT timestamps with or without hours and cues that are not separated by blank lines.
 
-Terminal fallback is for unsigned-app launch failures, command-line dependencies, signing or Safari registration repair, and model setup.
+## Command Line
 
-If macOS blocks the unsigned app, use Finder to open it: Control-click or right-click `SWinyDLSafariApp.app`, choose `Open`, and confirm the warning. The equivalent menu path is to select `SWinyDLSafariApp.app` and choose Finder `File > Open`. If macOS still blocks it or says the app is damaged, run `./install.sh` from the copied folder.
+Run commands with `uv run` from the copied `SWinyDL` folder or a source checkout, after `./install.sh`. `uv run swinydl <command> --help` shows every option.
 
-If `./install.sh` says the folder is missing runtime files, or `uv` reports `No module named 'swinydl'`, delete the copied `SWinyDL` folder and download the latest DMG again. A complete runtime folder includes the `swinydl` Python runtime package and the `bin/` runner binaries.
+| Command | What it does |
+| --- | --- |
+| `inspect COURSE_URL` | Lists a course's lessons and assets. `--json` prints JSON. |
+| `process COURSE_URL` | Downloads and transcribes lessons. |
+| `download COURSE_URL` | Downloads media only. `--media audio` (default), `video` or `both`. |
+| `process-manifest PATH` | Runs a job manifest written by the Safari extension. The manifest carries its own cookies. |
+| `transcribe PATH` | Transcribes a local media file. A `.srt` or `.vtt` file is converted without speech recognition. |
+| `bootstrap-models` | Downloads the CoreML models. `--target all` (default), `parakeet` or `diarizer`. `--force` downloads again. |
+| `doctor` | Checks the runtime. `--json` prints JSON. |
 
-If Terminal shows `Library/Containers/.../Data/Desktop/SWinyDL/install.sh: Operation not permitted`, the command is using a sandbox-rewritten path. Open Terminal yourself, type `cd `, drag the real copied `SWinyDL` folder from Finder into Terminal, press `Enter`, then run `./install.sh`.
+### Cookies
 
-After that:
+`inspect`, `process` and `download` need exactly one cookie source:
 
-1. Open Safari `Settings > Advanced` and turn on `Show features for web developers`
-2. Open Safari `Settings > Developer` and turn on `Allow unsigned extensions`
-3. Open Safari `Settings > Extensions` and enable `SWinyDL Safari`
-4. If it still does not appear, quit and reopen `SWinyDLSafariApp.app` from the copied `SWinyDL` folder, or run `./install.sh` again
-5. If needed, use Safari `Settings > Developer > Add Temporary Extension...`, select the `WebExtension` folder from the copied `SWinyDL` folder without opening it, and click `Select`
-6. If the picker will not let you select that folder, select `SWinyDL-WebExtension.zip` from the same copied `SWinyDL` folder instead
-7. If you want to verify the extension is registered, run `pluginkit -mAvvv -p com.apple.Safari.web-extension | rg SWinyDL`
-8. Open a logged-in Canvas or Echo360 page in Safari
-9. Use `Open App` in the extension popup to bring the native wrapper window forward
-10. Use the extension popup to load the course, choose whether downloaded media should be deleted after transcription, and launch the transcription job into the native app window
+- `--cookies-from-browser {safari,chrome,chromium,firefox,edge,brave}` reads that browser's cookie store through yt-dlp. Log in to the course in that browser first. Reading Safari's cookies needs Full Disk Access for your terminal app. Chrome asks for Keychain access.
+- `--cookies FILE` reads a Netscape-format `cookies.txt` file.
 
-The normal first-transcript flow is documented in [docs/user-guide.md](user-guide.md). In short: open the app, choose an output folder, click `Allow` if macOS asks whether SWinyDL can access data from other apps, run the copied Terminal repair command only if setup needs repair, open a logged-in Canvas or EchoVideo page, use the Safari popup's `Reload`, `Check All`, `Uncheck All`, `Transcribe`, and `Download + Transcribe` controls, then watch the persistent popup handoff: `Queued for transcription. Progress appears in SWinyDL.` If the app does not open, the popup says `Queued, but SWinyDL did not open. Click Open App.`
+Only cookies for the course URL's host and its parent domains are used. If none match, the command stops and says so.
 
-Do not double-click `SWinyDLSafariExtension.appex`. Safari discovers the extension through the containing `SWinyDLSafariApp.app`; `./install.sh` also re-registers that containing app and extension with macOS.
+`process-manifest` and `transcribe` take no cookie options.
 
-The temporary extension fallback is not permanent. Safari removes temporary extensions after 24 hours or when Safari quits, and Safari's `Allow unsigned extensions` setting also resets when Safari quits. If you rely on `Add Temporary Extension...`, repeat that step after each Safari restart until SWinyDL ships as a signed/notarized app.
+### Lesson selection
 
-The native wrapper window shows whether Safari handoff is ready, shared queue status, whether the Parakeet ASR model bundle and speaker diarizer bundle are ready, per-lesson transcript files, and the saved output folder. Choose the transcript folder with `Defaults > Output folder > Choose` in the native app; Safari-launched jobs use that saved native-app setting. Jobs stay pending until an output folder is selected. `Open Outputs` shows and opens the current saved folder. Runtime scratch files, backend logs, job manifests, and debug exports live in the app-group container, not in guessed Desktop paths.
+`inspect`, `process` and `download` accept:
 
-If course discovery fails, click `Export Debug Log` in the Safari extension popup. SWinyDL saves a sanitized JSON file in the app-group `DebugExports` folder, with a Downloads fallback only if macOS permits it. Share that JSON file; it includes page/discovery state but excludes cookies, storage values, hidden input values, and full raw HTML.
+- `--lesson-id ID` (repeatable)
+- `--title-match TEXT`
+- `--after-date DATE` and `--before-date DATE`
+- `--latest N`
+- `--limit N`
 
-The backend has also been verified non-interactively on public sample media:
+### Output and processing options
 
-- local Parakeet CoreML ASR completes unattended
-- local CoreML diarization completes unattended
-- concurrent transcribes no longer share the same temp workspace or bootstrap state
+- `--output`, `-o` sets the output folder. The default is `swinydl-output/` in the current folder.
+- `--asr-backend auto` resolves to the local Parakeet CoreML runner. `parakeet` is the only other choice.
+- `--diarization {auto,on,off}` controls speaker separation. The default is `on`.
+- `--transcript-source {auto,native,asr}` (`process` only) chooses between existing captions and speech recognition when diarization is off.
+- `--keep-audio` (`process`, `transcribe`) keeps the converted `.wav` file in the output folder.
+- `--force` (`process`) transcribes a lesson again even when its `.json` already exists.
 
-The old Chrome-guided launcher exists only in source checkouts. It is not included in the runtime DMG:
+Examples:
 
 ```bash
-uv run app.py
+uv run swinydl inspect COURSE_URL --cookies-from-browser safari --json
+uv run swinydl process COURSE_URL --cookies-from-browser safari --latest 3
+uv run swinydl download COURSE_URL --cookies cookies.txt --media both
+uv run swinydl transcribe ~/Downloads/lecture.mp4 --output ~/Documents/transcripts
 ```
 
-Supported scope:
+When run from the command line, temporary files go to `temp/` in the current folder. `SWINYDL_TEMP_ROOT` overrides this.
 
-- macOS Apple Silicon
-- Safari-first, Chrome fallback
-- unsigned GitHub DMG distribution first; signed and notarized distribution is future work
-- Python `>=3.11`
-- Swift toolchain and xcodegen only for source checkouts and `./install.sh --build-from-source`
-- package install via `pip` or `uv`
+### Doctor
+
+`swinydl doctor` checks Python (3.11 or newer), macOS on Apple Silicon, `ffmpeg`, the macOS trust store for HTTPS, yt-dlp, and both CoreML models. It also checks the Xcode tools, Swift, `xcodegen` and the Safari project. Those developer checks pass automatically in a DMG folder, where the prebuilt app and runners are present.
+
+## Speech Models
+
+`swinydl bootstrap-models` downloads the models from Hugging Face into the `vendor/` folder of the SWinyDL folder or source checkout:
+
+- `vendor/parakeet-tdt-0.6b-v3-coreml`
+- `vendor/speaker-diarization-coreml`
+
+The backend reads the models from `vendor/` next to the `swinydl` package. Run the command from the SWinyDL folder or checkout. `./install.sh` runs it for you. Existing models are skipped unless you pass `--force`.
+
+To use models stored elsewhere, set `ECHO360_PARAKEET_COREML_DIR` and `ECHO360_DIARIZER_COREML_DIR`.
+
+### Model sources
+
+- ASR CoreML download: [FluidInference/parakeet-tdt-0.6b-v3-coreml](https://huggingface.co/FluidInference/parakeet-tdt-0.6b-v3-coreml)
+- ASR base model: [nvidia/parakeet-tdt-0.6b-v3](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3)
+- Diarizer CoreML download: [FluidInference/speaker-diarization-coreml](https://huggingface.co/FluidInference/speaker-diarization-coreml)
+- Diarizer base pipeline: [pyannote/speaker-diarization-community-1](https://huggingface.co/pyannote/speaker-diarization-community-1)
+
+The diarizer corresponds to:
+
+- segmentation from [pyannote/segmentation-3.0](https://huggingface.co/pyannote/segmentation-3.0)
+- speaker embeddings from [pyannote/wespeaker-voxceleb-resnet34-LM](https://huggingface.co/pyannote/wespeaker-voxceleb-resnet34-LM)
+- VBx-style clustering parameters from the `community-1` pipeline
+
+When updating models, use the CoreML repositories for the files and the base model cards to check architecture or license changes. See [THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md) for licenses.
 
 ## Building From Source
 
-The normal user path is the GitHub DMG. Source builds are for developers who want to modify or inspect the Safari wrapper, backend, or release packaging.
+The DMG is the normal install. Build from source only to change or inspect the app, backend or packaging.
 
-Source-build prerequisites:
+You need:
 
-- Apple Silicon Mac
-- Safari
-- internet access
-- Apple's command line tools, installed with `xcode-select --install` if needed
-- Homebrew, `uv`, `ffmpeg`, and `xcodegen`; `./install.sh --build-from-source` can offer to install these with Homebrew
-
-Clone the repo:
+- an Apple Silicon Mac with Safari
+- Apple's command line tools (`xcode-select --install`), with Xcode first-launch setup complete
+- Homebrew, `uv`, `ffmpeg` and `xcodegen`. `./install.sh --build-from-source` offers to install any that are missing.
 
 ```bash
 git clone https://github.com/david00769/swinydl.git
 cd swinydl
-```
-
-Then build the Safari app wrapper:
-
-```bash
 ./scripts/build_app.sh
-```
-
-Then run the installer:
-
-```bash
 ./install.sh
 ```
 
-`scripts/build_app.sh` regenerates `safari/SWinyDLSafari.xcodeproj` from `safari/project.yml`, builds `SWinyDLSafariApp.app` with `xcodebuild`, and locally re-signs and verifies the app bundle. `install.sh` then runs `uv sync`, downloads the local speech models if they are missing, verifies the app bundle, runs the doctor check, then opens the app and Safari.
-
-As a shortcut, developers can run:
+Or in one step:
 
 ```bash
 ./install.sh --build-from-source
 ```
 
-If you downloaded a source zip instead of cloning, unzip it, open Terminal in the unzipped folder, and run the same build/install commands.
+`scripts/build_app.sh` regenerates `safari/SWinyDLSafari.xcodeproj` from `safari/project.yml` with `xcodegen`, builds `SWinyDLSafariApp.app` with `xcodebuild`, copies the WebExtension files into the extension, ad-hoc signs the app and verifies it, and places it at `SWinyDLSafariApp.app` in the repository root. Run `./scripts/build_app.sh --help` for its options.
 
-The old video-downloader implementation, PhantomJS, Firefox, and custom HLS code are intentionally removed from the supported path.
+`./install.sh` without `--build-from-source` does not compile anything. It needs a prebuilt `SWinyDLSafariApp.app` in the folder.
 
-Dependency ranges live in `pyproject.toml`, the tested resolution lives in `uv.lock`, and `uv run swinydl doctor` is only for runtime readiness checks.
-
-GitHub Releases are the update source of truth. Each tagged release should include an unsigned `SWinyDL-v...dmg` built by `.github/workflows/release-dmg.yaml`.
-
-For non-technical users, the preferred update path is to use the app's update check, download the newer DMG, drag the new `SWinyDL` folder out of the DMG, replace the older `SWinyDL` folder, then run `./install.sh` from Terminal in the copied folder. `git pull` remains a technical-user fallback only.
-
-If no GitHub release has been published yet, or if the latest release has no DMG asset, the wrapper app will report that clearly.
-
-There is no separate `requirements.txt` or `MANIFEST.in` workflow in v4.
-
-The transcription stack now uses:
-
-- local Parakeet CoreML via the packaged runner binaries in the runtime DMG, or the repo-local Swift package in source checkouts
-- local CoreML speaker diarization via the packaged runner binaries in the runtime DMG, or the repo-local Swift package in source checkouts
-- a Safari-native entrypoint that launches the same workflow as `uv run swinydl process-manifest`
-
-`--asr-backend auto` resolves to Parakeet CoreML.
-
-The flow is:
-
-1. Python normalizes media to mono 16 kHz WAV.
-2. Python invokes the packaged runner binary from `bin/` in a runtime DMG install, or builds and invokes the source runner in a developer checkout.
-3. The runner loads the staged CoreML Parakeet bundles and runs transcription on Apple Silicon.
-4. Swift returns token timings as JSON.
-5. Python reconstructs words and transcript segments, then writes `.txt`, `.srt`, and `.json`, with `.txt` treated as the primary human-facing transcript.
-
-Speaker diarization is on by default and runs through the local CoreML diarizer bundles staged under `vendor/speaker-diarization-coreml` or pointed to by `ECHO360_DIARIZER_COREML_DIR`.
-
-Current validation status:
-
-- backend execution is working for unattended local-file transcription
-- transcript artifacts are written correctly for `.txt`, `.srt`, and `.json`
-- the native wrapper shows stage-level lesson progress, elapsed time, and recent activity from the manifest status sidecar
-- concurrency races in bootstrap and temp-workspace handling have been fixed
-- live Safari-authenticated Canvas/Echo360 runs still need continued real-world validation
-- diarization quality is still tuned for lecture-style media rather than fast two-speaker dialogue
-
-The supported staging path is:
+To check that macOS has registered the extension:
 
 ```bash
-uv run swinydl bootstrap-models
+pluginkit -mAvvv -p com.apple.Safari.web-extension | grep com.davidsiroky.swinydl
 ```
 
-Run that command from the copied `SWinyDL` folder or source checkout after setup. It downloads the local speech model bundles from the public Hugging Face sources documented below. The Safari app exposes `Copy Repair Command` in the `Readiness` panel so users can paste the correct Terminal repair command without learning the copied-folder path.
+Run the tests with:
 
-## Model Provenance
+```bash
+uv run pytest
+```
 
-The repo runs staged local CoreML bundles, but the update sources are public:
+Dependency ranges are in `pyproject.toml`. The tested resolution is in `uv.lock`.
 
-- ASR CoreML pull source: [FluidInference/parakeet-tdt-0.6b-v3-coreml](https://huggingface.co/FluidInference/parakeet-tdt-0.6b-v3-coreml)
-- ASR canonical base model: [nvidia/parakeet-tdt-0.6b-v3](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v3)
-- Diarizer CoreML pull source: [FluidInference/speaker-diarization-coreml](https://huggingface.co/FluidInference/speaker-diarization-coreml)
-- Diarizer canonical base pipeline: [pyannote/speaker-diarization-community-1](https://huggingface.co/pyannote/speaker-diarization-community-1)
+## Releases
 
-The diarizer bundle corresponds conceptually to:
+GitHub Releases are the update source. The app's update check reads the latest release from GitHub.
 
-- segmentation via [pyannote/segmentation-3.0](https://huggingface.co/pyannote/segmentation-3.0)
-- speaker embeddings via [pyannote/wespeaker-voxceleb-resnet34-LM](https://huggingface.co/pyannote/wespeaker-voxceleb-resnet34-LM)
-- VBx-style clustering parameters carried by the `community-1` pipeline sidecars
+Pushing a tag that starts with `v` runs `.github/workflows/release-dmg.yaml`. It installs `xcodegen`, runs `scripts/package_release.sh`, and attaches the unsigned `SWinyDL-vX.Y.Z.dmg` to the GitHub release. The workflow can also be run by hand with a version. Every run also uploads the DMG as a workflow artifact.
 
-When refreshing models, prefer the CoreML repos for direct staging updates and use the canonical upstream model cards to evaluate architecture or license changes.
+`scripts/package_release.sh` builds a Release app and the two CoreML runners, then stages a runtime-only folder. The DMG contains:
 
-The exact staging instructions now live in the root [README](../README.md) and use the built-in `uv run swinydl bootstrap-models` command.
+- `SWinyDLSafariApp.app`
+- `install.sh`, `pyproject.toml` and `uv.lock`
+- the `swinydl` Python package
+- `bin/parakeet-coreml-runner` and `bin/speaker-diarizer-coreml-runner`
+- `vendor/`, where setup puts the models
+- `WebExtension/` and `SWinyDL-WebExtension.zip`, for Safari's temporary-extension fallback
+- `README.md` (from [release-install.md](release-install.md)) and `USER-GUIDE.md` (from [user-guide.md](user-guide.md))
+- `LICENSE` and `THIRD_PARTY_NOTICES.md`
+
+It does not contain the Xcode project, Swift sources, build scripts or tests.
+
+The app is unsigned. Signing and notarization would remove the need for the Control-click open, the `Allow unsigned extensions` setting and the Terminal repair steps.

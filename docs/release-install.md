@@ -1,154 +1,54 @@
-# SWinyDL Runtime Install
+# SWinyDL
 
-This folder came from the SWinyDL GitHub release DMG.
+This folder came from the SWinyDL release DMG. It contains everything needed to run SWinyDL on a Mac with Apple Silicon. It does not need Xcode, Swift or any local compilation.
 
-It contains only the runtime install:
-- `SWinyDLSafariApp.app`
-- `install.sh`
-- the Python backend runtime package
-- prebuilt transcription helper programs in `bin/`
-- a `vendor/` folder where setup downloads the local speech models if they are missing
-- `WebExtension`, used only for Safari's temporary-extension fallback
-- `SWinyDL-WebExtension.zip`, the same temporary-extension files packaged as a selectable zip
-- `USER-GUIDE.md`, the normal-user click-by-click guide
-- this install guide and license notices
+For step-by-step instructions, open `USER-GUIDE.md` in this folder. It is also online at https://github.com/david00769/swinydl/blob/master/docs/user-guide.md
 
-Build instructions and source-build files live on GitHub:
-https://github.com/david00769/swinydl
+## What Is In This Folder
 
-Full user guide in this folder:
-`USER-GUIDE.md`
-
-Online user guide:
-https://github.com/david00769/swinydl/blob/master/docs/user-guide.md
-
-This runtime DMG does not include the Safari Xcode project, Swift package source, source-build scripts, test suite, or developer docs.
+- `SWinyDLSafariApp.app`: the Mac app. It contains the Safari extension.
+- `install.sh`: setup and repair.
+- `swinydl/`, `pyproject.toml` and `uv.lock`: the Python backend.
+- `bin/`: prebuilt transcription and speaker-separation programs.
+- `vendor/`: where setup puts the speech models.
+- `WebExtension/` and `SWinyDL-WebExtension.zip`: only for Safari's temporary-extension fallback.
+- `USER-GUIDE.md`, this file, `LICENSE` and `THIRD_PARTY_NOTICES.md`.
 
 ## Install
 
-First download checklist:
-
-1. Drag this `SWinyDL` folder out of the DMG.
-2. Put it somewhere you want to keep it, such as `Desktop` or `Documents`.
-3. Do not run anything from inside the mounted DMG.
-4. Open the unsigned app from Finder:
-   - Control-click or right-click `SWinyDLSafariApp.app`, choose `Open`, then confirm the warning.
-   - if that is awkward on the trackpad, select `SWinyDLSafariApp.app`, then use Finder `File > Open`.
-5. Choose an output folder in the app if the `Readiness` panel asks for one.
-6. If setup, Safari registration, signing, or models need repair, click `Copy Repair Command`, paste the command into Terminal, and press `Enter`.
-7. If macOS asks whether `SWinyDLSafariApp` can access data from other apps, click `Allow`. That lets the Safari extension and app share queued jobs.
-
-Terminal fallback:
-
-Use this if macOS will not open the unsigned app, if command-line tools are missing, or if setup needs repair.
-
-1. Open Terminal.
-2. Type `cd ` and drag this copied `SWinyDL` folder into Terminal.
-3. Press `Enter`.
-4. Run:
+1. Drag this `SWinyDL` folder out of the DMG to a place you will keep it, such as `Documents`. Do not run anything from inside the mounted DMG.
+2. Open Terminal, type `cd ` (with a trailing space), drag the copied `SWinyDL` folder into Terminal, and press `Enter`.
+3. Run:
 
 ```bash
 ./install.sh
 ```
 
-The release DMG should already make `install.sh` executable. If Terminal says `permission denied`, make the installer executable and run it again:
+4. Approve the prompts if Homebrew, `uv` or `ffmpeg` are missing.
 
-```bash
-chmod +x install.sh
-./install.sh
-```
+If Terminal says `permission denied`, run `chmod +x install.sh`, then `./install.sh` again.
 
-If Homebrew, `uv`, or `ffmpeg` are missing, approve the installer prompts.
+The installer sets up Python, downloads the speech models, signs the app for this Mac, registers the Safari extension, and opens the app and Safari.
 
-If signing fails with `resource fork, Finder information, or similar detritus not allowed`, download the latest release and run `./install.sh` again. Current installers scrub that metadata before signing.
+## Then
 
-If `./install.sh` says the folder is missing runtime files, or `uv` reports `No module named 'swinydl'`, delete the copied `SWinyDL` folder and download the latest DMG again. A complete runtime folder must include the `swinydl` Python runtime package plus the `bin/` runner binaries.
+1. In Safari, open `Settings > Advanced` and turn on `Show features for web developers`.
+2. Open `Settings > Developer` and turn on `Allow unsigned extensions`.
+3. Open `Settings > Extensions` and enable `SWinyDL Safari`.
+4. In the SWinyDL app, choose an output folder. If macOS asks whether SWinyDL can access data from other apps, click `Allow`.
+5. Open a Canvas or Echo360 course page in Safari, click the `SWinyDL Safari` toolbar button, pick lessons and click `Transcribe`.
 
-If Terminal shows `Library/Containers/.../Data/Desktop/SWinyDL/install.sh: Operation not permitted`, the command is using a sandbox-rewritten path. Open Terminal yourself, type `cd `, drag the real copied `SWinyDL` folder from Finder into Terminal, press `Enter`, then run `./install.sh`.
+Safari turns `Allow unsigned extensions` off whenever it quits. Repeat steps 2 and 3 after each restart.
 
-If macOS blocks the unsigned app after setup, use Finder to open it: Control-click or right-click `SWinyDLSafariApp.app`, choose `Open`, then confirm the warning. The equivalent menu path is to select `SWinyDLSafariApp.app` in Finder and choose `File > Open`. Do not open the app from inside the mounted DMG.
+If macOS will not open the app, Control-click or right-click `SWinyDLSafariApp.app`, choose `Open`, and confirm. If it still will not open or says the app is damaged, run `./install.sh` again.
 
-If Finder still will not open the app, run `./install.sh` from Terminal in the copied `SWinyDL` folder. The installer clears quarantine, repairs local signing, registers the Safari extension, then opens the app.
-
-The normal release install does not require Xcode, xcodegen, Swift, source code, or local compilation.
-
-Signing and notarization are the future fix for removing the remaining Control-click or Terminal fallback.
-
-## Enable Safari
-
-After the installer finishes:
-
-1. Open Safari `Settings > Advanced`.
-2. Turn on `Show features for web developers`.
-3. Open Safari `Settings > Developer`.
-4. Turn on `Allow unsigned extensions` and enter your Mac password when prompted.
-5. Open Safari `Settings > Extensions`.
-6. Enable `SWinyDL Safari`.
-7. Open your Canvas or Echo360 page in Safari.
-8. Open the `SWinyDL Safari` extension.
-9. Use `Open App` in the extension popup if you need to bring the full SWinyDL app window forward.
-10. Start a job.
-
-The full app entry point is either the popup's `Open App` button or `SWinyDLSafariApp.app` inside this copied `SWinyDL` folder.
-
-`Copy Repair Command` is always available in the app's `Readiness` panel. It copies a Terminal command for the real copied `SWinyDL` folder; the app does not run `install.sh` inside the sandbox. Terminal setup refreshes model checks, repairs local signing, and re-registers the Safari extension. Use `Copy Log Path` to copy the app-group logs folder path, or `Export Diagnostics` to create a sanitized diagnostics zip.
-
-The Readiness panel also shows `Safari handoff`. If it needs attention, click `Allow` if macOS asks whether SWinyDL can access data from other apps. That lets the extension queue jobs into the native app.
-
-Choose an output folder in SWinyDL before starting jobs. Safari-launched jobs stay pending until an output folder is selected. Runtime scratch files, backend logs, job manifests, and debug exports live in the app-group container; transcript outputs go only to the selected output folder.
-
-If course discovery fails, click `Export Debug Log` in the Safari extension popup. SWinyDL saves one sanitized JSON file in the app-group `DebugExports` folder, with a Downloads fallback only if macOS permits it, and excludes cookies, storage values, hidden input values, and full raw HTML.
-
-## First Transcript
-
-1. Open `SWinyDLSafariApp.app` from this copied `SWinyDL` folder.
-2. Open a logged-in Canvas or EchoVideo lecture page in Safari.
-3. Open the `SWinyDL Safari` extension popup.
-4. Click `Reload` if needed.
-5. Use `Check All` or `Uncheck All`, then choose the lessons you want.
-6. Leave `Delete downloaded media after transcription` on unless you want to keep media files.
-7. Click `Transcribe`, or click `Download + Transcribe` if you want the media retained during the run.
-8. The popup shows `Queued for transcription. Progress appears in SWinyDL.`
-9. If the app does not appear, the popup says `Queued, but SWinyDL did not open. Click Open App.`
-10. Use the app window to watch progress and open finished `.txt` transcripts.
-
-Choose a transcript output folder with `Defaults > Output folder > Choose` in the native app. SWinyDL saves that folder for future Safari-launched jobs, and the `Open Outputs` row shows and opens the saved folder. Queued jobs stay pending until a folder is selected.
-
-Temporary downloads, converted audio, backend logs, job manifests, debug exports, and cookie handoff files use the app-group container. Transcript outputs go only to the output folder chosen in SWinyDL.
-
-Safari resets `Allow unsigned extensions` when Safari quits, so repeat the Developer and Extensions steps after each Safari restart while SWinyDL is unsigned.
-
-Do not double-click `SWinyDLSafariExtension.appex`. Safari discovers the extension through `SWinyDLSafariApp.app`.
-
-## If The Extension Does Not Appear
-
-1. Open `SWinyDLSafariApp.app`.
-2. Run `./install.sh` from Terminal in the copied folder if Safari still does not list the extension.
-3. Confirm Safari `Settings > Developer > Allow unsigned extensions` is on.
-4. Go back to Safari `Settings > Extensions` and enable `SWinyDL Safari`.
-
-Temporary fallback:
-
-1. Open Safari `Settings > Developer`.
-2. Click `Add Temporary Extension...`.
-3. In the file picker, go to this copied `SWinyDL` folder.
-4. Select the `WebExtension` folder, but do not open it.
-5. Click `Select`.
-
-If Safari will not let you select that folder, select `SWinyDL-WebExtension.zip` from the same copied `SWinyDL` folder instead.
-
-Do not select `SWinyDLSafariApp.app`, `SWinyDLSafariExtension.appex`, or `manifest.json`. Safari wants the folder or zip file that contains `manifest.json`.
-
-Safari removes temporary extensions after 24 hours or when Safari quits, so repeat that step after each Safari restart if you use the fallback.
-
-If you installed an older temporary extension and EchoVideo still says the page is unsupported, remove the old temporary extension from Safari `Settings > Extensions`, then add the current `SWinyDL-WebExtension.zip` or `WebExtension` folder again. The current extension needs permission for `echo360.net.au`, which older temporary installs did not request.
+If something needs repair, click `Copy Repair Command` in the app, paste it into Terminal and press `Enter`. `USER-GUIDE.md` covers the other fixes.
 
 ## Update
 
-1. Download the newer SWinyDL DMG from GitHub Releases.
+1. Download the newer DMG, or use `Check for Updates` in the app.
 2. Quit SWinyDL.
-3. Drag the new `SWinyDL` folder out of the DMG.
-4. Replace the older copied `SWinyDL` folder.
-5. Open `SWinyDLSafariApp.app` from the new copied folder.
-6. Run `./install.sh` from Terminal in the new copied folder so signing, Safari registration, Python setup, and model checks are refreshed.
-7. Open `SWinyDLSafariApp.app` from the new copied folder.
+3. Replace this folder with the new `SWinyDL` folder from the DMG.
+4. Run `./install.sh` from Terminal in the new folder.
+
+Source code and build instructions: https://github.com/david00769/swinydl

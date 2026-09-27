@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-"""Runtime paths used for browser state, logs, caches, and outputs."""
+"""Runtime paths used for logs, caches, and outputs."""
 
 import os
 from pathlib import Path
@@ -13,13 +13,8 @@ def app_support_dir() -> Path:
     return Path.home() / "Library" / "Application Support" / APP_NAME
 
 
-def browser_profile_dir() -> Path:
-    """Return the persistent Chrome profile used for Echo360 sessions."""
-    return app_support_dir() / "browser-profile"
-
-
 def logs_dir() -> Path:
-    """Return the directory used for Selenium and runtime logs."""
+    """Return the directory used for runtime logs."""
     if override := _path_from_env("SWINYDL_LOG_ROOT"):
         return override
     return app_support_dir() / "logs"
@@ -44,7 +39,7 @@ def default_output_root() -> Path:
 
 def ensure_runtime_dirs() -> None:
     """Create the runtime directories needed by the app if they do not exist."""
-    for directory in (app_support_dir(), browser_profile_dir(), logs_dir(), cache_dir()):
+    for directory in (app_support_dir(), logs_dir(), cache_dir()):
         directory.mkdir(parents=True, exist_ok=True)
 
 

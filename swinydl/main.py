@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 
 from .app_paths import default_output_root
+from .auth import SUPPORTED_COOKIE_BROWSERS
 from .echo_exceptions import Echo360Error
 from .models import DownloadOptions, InspectOptions, ProcessOptions, TranscribeOptions
 from .system import configure_runtime_ssl
@@ -20,28 +21,27 @@ def build_parser() -> argparse.ArgumentParser:
         prog="swinydl",
         description=(
             "SWinyDL: transcript-first Echo360 CLI for macOS Apple Silicon.\n\n"
-            "Preferred interactive usage is the Safari wrapper and Safari Web Extension.\n"
-            "Run ./install.sh from the copied SWinyDL folder or source checkout to set up the local Python runtime, speech models, and Safari app.\n"
-            "CLI usage is still supported for fallback and automation. When running from the SWinyDL folder, prefix commands with uv run.\n\n"
-            "Common direct CLI usage:\n"
-            "  uv run swinydl process COURSE_URL\n"
-            "Safari/native-app job execution:\n"
-            "  uv run swinydl process-manifest /path/to/job.json\n"
-            "or the legacy guided Chrome launcher:\n"
-            "  uv run app.py\n\n"
-            "The Safari path launches jobs from a logged-in Safari page through the native wrapper app. "
-            "The guided launcher remains available as a Chrome-based fallback that captures the current browser URL "
-            "and runs the default process workflow against it. Generated outputs include TXT, SRT, and JSON, with TXT as the primary transcript."
+            "Most people use the Safari extension and SWinyDL app: pick lessons on a logged-in Echo360 page "
+            "and the app runs the job (`process-manifest`).\n"
+            "Run ./install.sh from the copied SWinyDL folder or a source checkout to set up the Python runtime, "
+            "speech models, and Safari app. From that folder, prefix commands with `uv run`.\n\n"
+            "The CLI's course commands (inspect, process, download) need your Echo360 login cookies. Log in to the "
+            "course in a browser, then either read that browser's cookies directly:\n"
+            "  uv run swinydl process COURSE_URL --cookies-from-browser safari\n"
+            "or pass a Netscape cookies.txt export:\n"
+            "  uv run swinydl process COURSE_URL --cookies cookies.txt\n"
+            "Reading Safari's cookies needs Full Disk Access for your terminal app; Chrome asks for Keychain access.\n\n"
+            "Outputs are TXT (the primary transcript), SRT, and JSON."
         ),
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=(
             "Setup:\n"
             "  ./install.sh\n\n"
             "Common flows:\n"
-            "  uv run swinydl inspect COURSE_URL\n"
-            "  uv run swinydl process COURSE_URL\n"
+            "  uv run swinydl inspect COURSE_URL --cookies-from-browser safari\n"
+            "  uv run swinydl process COURSE_URL --cookies-from-browser safari\n"
             "  uv run swinydl process-manifest /path/to/job.json\n"
-            "  uv run swinydl download COURSE_URL --media audio\n"
+            "  uv run swinydl download COURSE_URL --cookies cookies.txt --media audio\n"
             "  uv run swinydl transcribe /path/to/local/file.mp4\n"
             "  uv run swinydl bootstrap-models\n"
             "  uv run swinydl doctor"
@@ -133,6 +133,8 @@ def main(argv: list[str] | None = None) -> int:
             options = InspectOptions(
                 lesson_ids=tuple(args.lesson_id or ()),
                 title_match=args.title_match,
+                cookies_file=Path(args.cookies_file) if args.cookies_file else None,
+                cookies_from_browser=args.cookies_from_browser,
                 after_date=parse_date(args.after_date),
                 before_date=parse_date(args.before_date),
                 latest=args.latest,
@@ -154,6 +156,8 @@ def main(argv: list[str] | None = None) -> int:
                 output_root=Path(args.output or default_output_root()),
                 lesson_ids=tuple(args.lesson_id or ()),
                 title_match=args.title_match,
+                cookies_file=Path(args.cookies_file) if args.cookies_file else None,
+                cookies_from_browser=args.cookies_from_browser,
                 after_date=parse_date(args.after_date),
                 before_date=parse_date(args.before_date),
                 latest=args.latest,
@@ -182,6 +186,8 @@ def main(argv: list[str] | None = None) -> int:
                 output_root=Path(args.output or default_output_root()),
                 lesson_ids=tuple(args.lesson_id or ()),
                 title_match=args.title_match,
+                cookies_file=Path(args.cookies_file) if args.cookies_file else None,
+                cookies_from_browser=args.cookies_from_browser,
                 after_date=parse_date(args.after_date),
                 before_date=parse_date(args.before_date),
                 latest=args.latest,
@@ -237,6 +243,13 @@ def main(argv: list[str] | None = None) -> int:
 def _add_course_and_filters(parser: argparse.ArgumentParser) -> None:
     """Attach the shared course URL and lesson-filter arguments."""
     parser.add_argument("course_url")
+    cookies = parser.add_mutually_exclusive_group(required=True)
+    cookies.add_argument(
+        "--cookies-from-browser",
+        choices=SUPPORTED_COOKIE_BROWSERS,
+        help="Read Echo360 login cookies from this browser (log in to the course there first).",
+    )
+    cookies.add_argument("--cookies", dest="cookies_file", help="Netscape-format cookies.txt file.")
     parser.add_argument("--lesson-id", action="append")
     parser.add_argument("--title-match")
     parser.add_argument("--after-date")

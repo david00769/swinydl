@@ -6,10 +6,8 @@ import platform
 from typing import Any
 
 from .system import (
-    chrome_version,
     configure_runtime_ssl,
     ffmpeg_version,
-    find_chrome_binary,
     find_swift_binary,
     find_xcodebuild_binary,
     find_xcodegen_binary,
@@ -48,8 +46,6 @@ def doctor() -> dict[str, object]:
         "xcode_first_launch_ready": xcode_first_launch_ready(),
         "xcodegen_binary": find_xcodegen_binary(),
         "swift_version": swift_version(),
-        "chrome_binary": find_chrome_binary(),
-        "chrome_version": chrome_version(),
         "ffmpeg_version": ffmpeg_version(),
         "truststore_enabled": truststore_enabled,
     }
@@ -63,10 +59,8 @@ def doctor() -> dict[str, object]:
         _check_xcodegen(env),
         _check_safari_project(),
         _check_safari_build(),
-        _check_chrome(env),
         _check_ffmpeg(env),
         _check_ssl(env),
-        _check_package("selenium", required=False, message="Selenium is installed for the Chrome fallback flow."),
         _check_package("yt_dlp", required=True, message="yt-dlp is installed."),
         _check_asr_backend_parakeet(),
         _check_diarization_backend(),
@@ -111,18 +105,6 @@ def _check_platform(machine: str) -> dict[str, object]:
         "pass" if supported else "warn",
         "Running on macOS Apple Silicon." if supported else "This project is only validated on macOS Apple Silicon.",
         fix="Use a macOS Apple Silicon machine for the supported v4 runtime." if not supported else None,
-    )
-
-
-def _check_chrome(env: dict[str, object]) -> dict[str, object]:
-    chrome_binary = env["chrome_binary"]
-    if chrome_binary:
-        return _check("chrome", "pass", f"Chrome fallback is available at {chrome_binary}.")
-    return _check(
-        "chrome",
-        "warn",
-        "Chrome or Chromium was not found.",
-        fix="Safari is now the preferred interactive path. Install Chrome only if you want the legacy Selenium fallback.",
     )
 
 

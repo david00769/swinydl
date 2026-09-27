@@ -66,6 +66,8 @@ class SelectionOptions:
 
     lesson_ids: tuple[str, ...] = ()
     title_match: str | None = None
+    cookies_file: Path | None = None
+    cookies_from_browser: str | None = None
     after_date: date | None = None
     before_date: date | None = None
     latest: int | None = None

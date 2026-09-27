@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from .auth import BrowserSession
+from .auth import AuthenticatedSession
 from .echo_exceptions import DependencyMissingError, MediaResolutionError
 from .models import LessonAsset, LessonManifest
 
@@ -32,7 +32,7 @@ def select_media_asset(lesson: LessonManifest, *, prefer_audio: bool) -> LessonA
 
 
 def download_with_ytdlp(
-    browser: BrowserSession,
+    browser: AuthenticatedSession,
     url: str,
     destination: Path,
     *,
@@ -66,7 +66,7 @@ def download_with_ytdlp(
 
 
 def download_lesson_media(
-    browser: BrowserSession,
+    browser: AuthenticatedSession,
     lesson: LessonManifest,
     destination: Path,
     *,

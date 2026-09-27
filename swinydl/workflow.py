@@ -10,7 +10,7 @@ import shutil
 import uuid
 
 from .app_paths import cache_dir, ensure_runtime_dirs
-from .auth import AuthenticatedSession, BrowserSession, CookieSession
+from .auth import AuthenticatedSession, CookieSession, course_session
 from .captions import (
     load_native_caption_segments,
     parse_srt,
@@ -18,7 +18,7 @@ from .captions import (
     segments_to_srt,
     segments_to_text,
 )
-from .discovery import filter_lessons, inspect_course as discover_course, resolve_lesson_assets
+from .discovery import filter_lessons, inspect_course as discover_course
 from .echo_exceptions import DiscoveryError, Echo360Error, NativeCaptionError
 from .manifest import build_job_status, load_process_manifest, status_path_for_manifest, write_job_status
 from .media import download_lesson_media, select_caption_asset
@@ -31,6 +31,7 @@ from .models import (
     ProcessManifest,
     ProcessOptions,
     RunSummary,
+    SelectionOptions,
     TranscriptArtifacts,
     TranscriptResult,
     TranscribeOptions,
@@ -47,18 +48,18 @@ def inspect_course(url: str, options: InspectOptions | None = None) -> CourseMan
     """Inspect an Echo360 course and return the filtered lesson manifest."""
     options = options or InspectOptions()
     ensure_runtime_dirs()
-    with BrowserSession(course_url=url) as browser:
-        course = discover_course(url, browser)
+    with _cli_session(url, options) as session:
+        course = discover_course(url, session)
     return filter_lessons(course, options)
 
 
 def process_course(url: str, options: ProcessOptions) -> RunSummary:
     """Run the transcript-first workflow for every selected lesson in a course."""
     ensure_runtime_dirs()
-    with BrowserSession(course_url=url) as browser:
-        course = filter_lessons(discover_course(url, browser), options)
+    with _cli_session(url, options) as session:
+        course = filter_lessons(discover_course(url, session), options)
         return _process_course_with_session(
-            session=browser,
+            session=session,
             source_page_url=url,
             course=course,
             options=options,
@@ -68,7 +69,7 @@ def process_course(url: str, options: ProcessOptions) -> RunSummary:
 
 
 def process_manifest(path: Path | str) -> RunSummary:
-    """Run a manifest-launched Safari or native-wrapper job without Selenium."""
+    """Run a manifest-launched Safari or native-wrapper job with the cookies it carries."""
     manifest = load_process_manifest(path)
     previous_temp_root = os.environ.get("SWINYDL_TEMP_ROOT")
     previous_log_root = os.environ.get("SWINYDL_LOG_ROOT")
@@ -116,11 +117,10 @@ def download_course(url: str, options: DownloadOptions) -> DownloadSummary:
     created_at = now_utc().isoformat() + "Z"
     downloads: list[dict[str, object]] = []
 
-    with BrowserSession(course_url=url) as browser:
-        course = filter_lessons(discover_course(url, browser), options)
+    with _cli_session(url, options) as session:
+        course = filter_lessons(discover_course(url, session), options)
         course_dir = ensure_dir(output_root / slugify(course.course_title))
         for lesson in course.lessons:
-            lesson = _resolve_assets_if_possible(browser, lesson)
             key = lesson_key(lesson.date, lesson.lesson_id, lesson.index, lesson.title)
             artifacts = download_lesson_media(
                 browser,
@@ -347,7 +347,6 @@ def _process_lesson(
         except Exception:
             pass
 
-    lesson = _resolve_assets_if_possible(session, lesson)
     transcript_source = _resolve_transcript_source(options, lesson)
 
     temp_dir: Path | None = None
@@ -592,11 +591,13 @@ def _resolve_transcript_source(options: ProcessOptions, lesson) -> str:
     return "native" if select_caption_asset(lesson) is not None else "asr"
 
 
-def _resolve_assets_if_possible(session: AuthenticatedSession, lesson):
-    """Resolve page-level assets only when the session exposes a browser driver."""
-    if getattr(session, "driver", None) is None:
-        return lesson
-    return resolve_lesson_assets(session, lesson)
+def _cli_session(url: str, options: SelectionOptions) -> CookieSession:
+    """Cookie session for a CLI course command, from --cookies or --cookies-from-browser."""
+    return course_session(
+        url,
+        cookies_file=options.cookies_file,
+        cookies_from_browser=options.cookies_from_browser,
+    )
 
 
 def _write_transcript_artifacts(result: TranscriptResult) -> None:

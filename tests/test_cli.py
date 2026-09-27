@@ -11,9 +11,11 @@ class CliTests(unittest.TestCase):
     def test_cli_help_uses_verified_uv_run_examples(self):
         help_text = main.build_parser().format_help()
 
-        self.assertIn("uv run swinydl process COURSE_URL", help_text)
+        self.assertIn("uv run swinydl process COURSE_URL --cookies-from-browser safari", help_text)
+        self.assertIn("uv run swinydl process COURSE_URL --cookies cookies.txt", help_text)
         self.assertIn("uv run swinydl doctor", help_text)
-        self.assertIn("copied SWinyDL folder or source checkout", help_text)
+        self.assertIn("copied SWinyDL folder or a source checkout", help_text)
+        self.assertNotIn("app.py", help_text)
         self.assertNotIn("\n  swinydl process COURSE_URL", help_text)
 
     def test_url_without_subcommand_defaults_to_process(self):
@@ -22,10 +24,11 @@ class CliTests(unittest.TestCase):
             course=SimpleNamespace(course_title="Course"),
         )
         with patch("swinydl.workflow.process_course", return_value=summary) as process_course:
-            exit_code = main.main(["https://swinydl.org.au/section/123/home"])
+            exit_code = main.main(["https://swinydl.org.au/section/123/home", "--cookies-from-browser", "safari"])
 
         self.assertEqual(exit_code, 0)
         process_course.assert_called_once()
+        self.assertEqual(process_course.call_args.args[1].cookies_from_browser, "safari")
 
     def test_extract_course_helpers_still_work(self):
         from swinydl.discovery import (
@@ -49,7 +52,7 @@ class CliTests(unittest.TestCase):
         with patch("swinydl.workflow.inspect_course", side_effect=DiscoveryError("TLS certificate verification failed")), patch(
             "sys.stderr", stderr
         ):
-            exit_code = main.main(["inspect", "https://swinydl.org.au/section/123/home"])
+            exit_code = main.main(["inspect", "https://swinydl.org.au/section/123/home", "--cookies", "cookies.txt"])
 
         self.assertEqual(exit_code, 2)
         stderr.write.assert_called()

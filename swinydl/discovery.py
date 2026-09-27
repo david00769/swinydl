@@ -9,12 +9,8 @@ import re
 from typing import Any
 
 import requests
-from selenium.common.exceptions import WebDriverException
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support import expected_conditions as EC
-from selenium.webdriver.support.ui import WebDriverWait
 
-from .auth import BrowserSession
+from .auth import AuthenticatedSession
 from .echo_exceptions import DiscoveryError
 from .models import CourseManifest, LessonAsset, LessonManifest, SelectionOptions
 from .system import configure_runtime_ssl, https_error_hint
@@ -51,7 +47,7 @@ def extract_course_uuid(course_url: str, using_echo360_cloud: bool) -> str:
     return match.group()
 
 
-def inspect_course(course_url: str, browser: BrowserSession) -> CourseManifest:
+def inspect_course(course_url: str, browser: AuthenticatedSession) -> CourseManifest:
     """Discover course metadata and lessons from an authenticated Echo360 session."""
     configure_runtime_ssl()
     hostname = extract_course_hostname(course_url) or DEFAULT_CLASSIC_HOST
@@ -112,38 +108,6 @@ def filter_lessons(course: CourseManifest, options: SelectionOptions) -> CourseM
     if options.limit is not None:
         lessons = lessons[: options.limit]
     return replace(course, lessons=lessons)
-
-
-def resolve_lesson_assets(browser: BrowserSession, lesson: LessonManifest) -> LessonManifest:
-    """Open a lesson page and add any `<video>` or `<track>` assets found there."""
-    assert browser.driver is not None
-    assets: list[LessonAsset] = list(lesson.assets)
-    browser.driver.get(lesson.lesson_url)
-    try:
-        video = WebDriverWait(browser.driver, 15).until(
-            EC.presence_of_element_located((By.TAG_NAME, "video"))
-        )
-        src = video.get_attribute("src")
-        if src:
-            assets.append(LessonAsset(kind="media", url=src, label="page-video", ext=media_extension(src)))
-        for track in video.find_elements(By.TAG_NAME, "track"):
-            track_src = track.get_attribute("src")
-            if track_src:
-                assets.append(
-                    LessonAsset(
-                        kind="caption",
-                        url=track_src,
-                        label=track.get_attribute("label") or track.get_attribute("kind"),
-                        ext=media_extension(track_src),
-                    )
-                )
-    except WebDriverException:
-        # No <video> within the wait (TimeoutException), or the player re-rendered
-        # under us (StaleElementReferenceException): the page adds no assets, and the
-        # lesson keeps the ones discovery already found. Python errors still raise.
-        # Callers run this outside their try, so a raise here would end the whole run.
-        pass
-    return replace(lesson, assets=_dedupe_assets(assets))
 
 
 def _fetch_json(session: requests.Session, url: str) -> dict[str, Any]:

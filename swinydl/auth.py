@@ -1,29 +1,29 @@
 from __future__ import annotations
 
-"""Authenticated session providers for browser-backed and manifest-backed runs."""
+"""Cookie-backed sessions for Echo360 access.
 
-from contextlib import suppress
+Jobs launched from Safari carry the cookies the extension exported. The CLI loads
+cookies from a Netscape cookie file or reads them from a local browser through
+yt-dlp. No browser is automated.
+"""
+
 from dataclasses import asdict
-from http.cookiejar import MozillaCookieJar
+from http.cookiejar import CookieJar, MozillaCookieJar
 from pathlib import Path
-import time
+from urllib.parse import urlsplit
 import uuid
 
 import requests
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.chrome.service import Service
 
-from .app_paths import browser_profile_dir, ensure_runtime_dirs, logs_dir, temp_dir
-from .echo_exceptions import BrowserSetupError
+from .app_paths import ensure_runtime_dirs, temp_dir
+from .echo_exceptions import CookieSourceError
 from .models import BrowserCookie
-from .system import find_chrome_binary
+
+SUPPORTED_COOKIE_BROWSERS = ("safari", "chrome", "chromium", "firefox", "edge", "brave")
 
 
 class AuthenticatedSession:
     """Interface for a session provider that can back HTTP and yt-dlp access."""
-
-    driver = None
 
     def __enter__(self):
         return self
@@ -41,108 +41,6 @@ class AuthenticatedSession:
     def cookie_file(self) -> str:
         """Return a Netscape-format cookie file path for downstream tools."""
         raise NotImplementedError
-
-
-class BrowserSession(AuthenticatedSession):
-    """Manage the legacy Chrome fallback session and expose authenticated cookies."""
-
-    def __init__(self, *, course_url: str | None = None) -> None:
-        ensure_runtime_dirs()
-        self.course_url = course_url
-        self.driver: webdriver.Chrome | None = None
-
-    def __enter__(self) -> "BrowserSession":
-        chrome_binary = find_chrome_binary()
-        if chrome_binary is None:
-            raise BrowserSetupError("Chrome or Chromium was not found on this Mac.")
-
-        log_path = logs_dir() / "selenium.log"
-        options = Options()
-        options.binary_location = chrome_binary
-        options.add_argument(f"--user-data-dir={browser_profile_dir()}")
-        options.add_argument("--window-size=1600,1200")
-        service = Service(log_output=str(log_path))
-
-        try:
-            self.driver = webdriver.Chrome(service=service, options=options)
-        except Exception as exc:  # pragma: no cover - depends on local browser state
-            raise BrowserSetupError(f"Failed to start Chrome automation: {exc}") from exc
-        return self
-
-    def __exit__(self, exc_type, exc, tb) -> None:
-        if self.driver is not None:
-            with suppress(Exception):
-                self.driver.quit()
-
-    def ensure_access(self, url: str) -> None:
-        """Open a page and pause for manual login if Echo360 redirects to SSO."""
-        assert self.driver is not None
-        self.driver.get(url)
-        time.sleep(1.5)
-        if self._looks_like_login_page():
-            print("Echo360 needs an interactive login in Chrome.")
-            input("> Complete the login in the browser, then press [enter] to continue\n")
-            self.driver.get(url)
-            time.sleep(1.5)
-
-    def capture_course_url(self) -> str:
-        """Let the user navigate in the browser, then capture the current URL."""
-        assert self.driver is not None
-        self.driver.get(self.course_url or "about:blank")
-        print("Chrome opened with your persistent profile.")
-        print("Log in if needed, then navigate to the course or lecture page you want to process.")
-        print("The app will capture the current browser URL when you continue.")
-        input("> When Chrome is on the right page, press [enter] here to continue\n")
-        time.sleep(0.5)
-
-        current_url = (self.driver.current_url or "").strip()
-        if not current_url or current_url in {"about:blank", "data:,"}:
-            raise BrowserSetupError("No usable URL was captured from Chrome.")
-        if self._looks_like_login_page():
-            raise BrowserSetupError(
-                "Chrome is still on a login page. Finish login and navigate to the target page before continuing."
-            )
-        return current_url
-
-    def requests_session(self) -> requests.Session:
-        """Build a `requests.Session` populated with the current browser cookies."""
-        assert self.driver is not None
-        session = requests.Session()
-        for cookie in self.driver.get_cookies():
-            session.cookies.set(cookie["name"], cookie["value"])
-        return session
-
-    def cookie_file(self) -> str:
-        """Write browser cookies to a Netscape-format file for `yt-dlp`."""
-        assert self.driver is not None
-        cookie_path = _cookie_file_path()
-        jar = MozillaCookieJar(str(cookie_path))
-        for cookie in self.driver.get_cookies():
-            domain = cookie.get("domain", "")
-            path = cookie.get("path", "/")
-            secure = bool(cookie.get("secure", False))
-            expires = cookie.get("expiry")
-            jar.set_cookie(
-                requests.cookies.create_cookie(
-                    domain=domain,
-                    name=cookie["name"],
-                    value=cookie["value"],
-                    path=path,
-                    secure=secure,
-                    expires=expires,
-                )
-            )
-        jar.save(ignore_discard=True, ignore_expires=True)
-        return str(cookie_path)
-
-    def _looks_like_login_page(self) -> bool:
-        """Heuristically detect an Echo360 or institution login page."""
-        assert self.driver is not None
-        current_url = self.driver.current_url.lower()
-        page = self.driver.page_source.lower()
-        if any(token in current_url for token in ("login", "sso", "auth")):
-            return True
-        return all(token in page for token in ("password", "username"))
 
 
 class CookieSession(AuthenticatedSession):
@@ -186,6 +84,103 @@ class CookieSession(AuthenticatedSession):
             )
         jar.save(ignore_discard=True, ignore_expires=True)
         return str(cookie_path)
+
+
+def course_session(
+    course_url: str,
+    *,
+    cookies_file: Path | str | None = None,
+    cookies_from_browser: str | None = None,
+) -> CookieSession:
+    """Build a cookie session for a CLI course command from exactly one cookie source."""
+    if bool(cookies_file) == bool(cookies_from_browser):
+        raise CookieSourceError(
+            "Course commands need Echo360 cookies: pass --cookies-from-browser safari "
+            "(or chrome, firefox, ...) after logging in there, or --cookies with a "
+            "Netscape cookies.txt file. Jobs launched from the Safari extension carry "
+            "their own cookies."
+        )
+    if cookies_file:
+        cookies = cookies_from_file(cookies_file)
+        source = str(cookies_file)
+    else:
+        cookies = cookies_from_browser_store(str(cookies_from_browser))
+        source = f"the {cookies_from_browser} cookie store"
+    scoped = cookies_for_url(cookies, course_url)
+    if not scoped:
+        raise CookieSourceError(
+            f"No cookies for {urlsplit(course_url).hostname or course_url} were found in {source}. "
+            "Log in to the course in that browser first, then run the command again."
+        )
+    return CookieSession(scoped)
+
+
+def cookies_from_file(path: Path | str) -> list[BrowserCookie]:
+    """Load a Netscape-format cookies.txt file."""
+    jar = MozillaCookieJar(str(path))
+    try:
+        jar.load(ignore_discard=True, ignore_expires=True)
+    except (OSError, ValueError) as exc:
+        raise CookieSourceError(f"Could not read the cookie file {path}: {exc}") from exc
+    return _cookies_from_jar(jar)
+
+
+def cookies_from_browser_store(browser: str) -> list[BrowserCookie]:
+    """Read cookies from a local browser's cookie store through yt-dlp."""
+    name = browser.strip().lower()
+    if name not in SUPPORTED_COOKIE_BROWSERS:
+        raise CookieSourceError(
+            f"Unsupported browser {browser!r}. Choose one of: {', '.join(SUPPORTED_COOKIE_BROWSERS)}."
+        )
+    try:
+        from yt_dlp.cookies import extract_cookies_from_browser
+    except ImportError as exc:  # pragma: no cover - yt-dlp is a declared dependency
+        raise CookieSourceError("yt-dlp is required to read browser cookies.") from exc
+    try:
+        jar = extract_cookies_from_browser(name)
+    except Exception as exc:  # yt-dlp raises plain errors for locked or unreadable stores
+        hint = (
+            " Safari's cookie store needs Full Disk Access for the app running this command "
+            "(System Settings > Privacy & Security > Full Disk Access)."
+            if name == "safari"
+            else ""
+        )
+        raise CookieSourceError(f"Could not read {name} cookies: {exc}.{hint}") from exc
+    return _cookies_from_jar(jar)
+
+
+def cookies_for_url(cookies: list[BrowserCookie], url: str) -> list[BrowserCookie]:
+    """Keep the cookies a browser would send to ``url``'s host (its own and parent domains).
+
+    A browser cookie store holds every site's cookies; only the course host's belong in a job.
+    """
+    host = (urlsplit(url).hostname or "").lower()
+    if not host:
+        return []
+    kept: list[BrowserCookie] = []
+    for cookie in cookies:
+        domain = cookie.domain.lower().lstrip(".")
+        if domain and (host == domain or host.endswith(f".{domain}")):
+            kept.append(cookie)
+    return kept
+
+
+def _cookies_from_jar(jar: CookieJar) -> list[BrowserCookie]:
+    cookies: list[BrowserCookie] = []
+    for cookie in jar:
+        rest = getattr(cookie, "_rest", {}) or {}
+        cookies.append(
+            BrowserCookie(
+                name=cookie.name,
+                value=cookie.value or "",
+                domain=cookie.domain,
+                path=cookie.path or "/",
+                secure=bool(cookie.secure),
+                http_only=any(key.lower() == "httponly" for key in rest),
+                expiry=int(cookie.expires) if cookie.expires else None,
+            )
+        )
+    return cookies
 
 
 def _cookie_file_path() -> Path:

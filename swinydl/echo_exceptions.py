@@ -4,8 +4,8 @@ class Echo360Error(Exception):
     """Base exception for the package."""
 
 
-class BrowserSetupError(Echo360Error):
-    """Raised when Chrome or Selenium cannot be started."""
+class CookieSourceError(Echo360Error):
+    """Raised when a CLI course command has no usable Echo360 cookies."""
 
 
 class AuthenticationRequired(Echo360Error):

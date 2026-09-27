@@ -48,32 +48,29 @@ def fake_course() -> CourseManifest:
 
 
 class WorkflowTests(unittest.TestCase):
-    def test_selenium_error_on_the_lesson_page_does_not_end_the_run(self):
-        # Echo360's player can re-render while its <video> is read. That lesson keeps
-        # the assets discovery already found; the run carries on.
-        from selenium.common.exceptions import StaleElementReferenceException
+    def test_course_commands_use_only_the_course_hosts_cookies(self):
+        # A cookies.txt from a browser holds every site's cookies; discovery must see the
+        # course host's own and parent-domain cookies and nothing else.
+        seen = {}
 
-        class FakeDriver:
-            def get(self, _url):
-                return None
-
-        class BrowserWithDriver(FakeBrowser):
-            def __init__(self, *args, **kwargs):
-                super().__init__(*args, **kwargs)
-                self.driver = FakeDriver()
-
-        class StaleWait:
-            def __init__(self, *_args, **_kwargs):
-                pass
-
-            def until(self, _condition):
-                raise StaleElementReferenceException("player re-rendered")
+        def fake_discover(_url, session):
+            seen["cookies"] = sorted((c.domain, c.name) for c in session.cookies)
+            return fake_course()
 
         with tempfile.TemporaryDirectory() as temp_dir:
-            options = ProcessOptions(output_root=Path(temp_dir), diarization_mode="off")
-            with patch("swinydl.workflow.BrowserSession", BrowserWithDriver), patch(
-                "swinydl.workflow.discover_course", return_value=fake_course()
-            ), patch("swinydl.discovery.WebDriverWait", StaleWait), patch(
+            cookie_file = Path(temp_dir) / "cookies.txt"
+            cookie_file.write_text(
+                "# Netscape HTTP Cookie File\n"
+                ".swinydl.org.au\tTRUE\t/\tTRUE\t0\tsso\tparent\n"
+                "swinydl.org.au\tFALSE\t/\tTRUE\t0\tsession\thost\n"
+                ".example.com\tTRUE\t/\tFALSE\t0\tother\tunrelated\n"
+                ".mail.org.au\tTRUE\t/\tFALSE\t0\tmail\tsibling\n",
+                encoding="utf-8",
+            )
+            options = ProcessOptions(
+                output_root=Path(temp_dir) / "out", diarization_mode="off", cookies_file=cookie_file
+            )
+            with patch("swinydl.workflow.discover_course", side_effect=fake_discover), patch(
                 "swinydl.workflow.load_native_caption_segments"
             ) as load_native, patch("swinydl.workflow.download_lesson_media"), patch(
                 "swinydl.workflow.transcribe_audio"
@@ -85,15 +82,24 @@ class WorkflowTests(unittest.TestCase):
                 ]
                 summary = process_course("https://swinydl.org.au/section/uuid/home", options)
 
-            self.assertEqual(summary.results[0].status, "success")
-            self.assertEqual(summary.results[0].transcript_source, "native")
+        self.assertEqual(summary.results[0].status, "success")
+        self.assertEqual(seen["cookies"], [(".swinydl.org.au", "sso"), ("swinydl.org.au", "session")])
+
+    def test_course_commands_without_cookies_explain_how_to_supply_them(self):
+        from swinydl.echo_exceptions import CookieSourceError
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            options = ProcessOptions(output_root=Path(temp_dir), diarization_mode="off")
+            with self.assertRaises(CookieSourceError) as raised:
+                process_course("https://swinydl.org.au/section/uuid/home", options)
+        self.assertIn("--cookies-from-browser", str(raised.exception))
 
     def test_process_prefers_native_caption(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             options = ProcessOptions(output_root=Path(temp_dir), diarization_mode="off")
-            with patch("swinydl.workflow.BrowserSession", FakeBrowser), patch(
+            with patch("swinydl.workflow.course_session", lambda *_args, **_kwargs: FakeBrowser()), patch(
                 "swinydl.workflow.discover_course", return_value=fake_course()
-            ), patch("swinydl.workflow.resolve_lesson_assets", side_effect=lambda _browser, lesson: lesson), patch(
+            ), patch(
                 "swinydl.workflow.load_native_caption_segments"
             ) as load_native, patch("swinydl.workflow.download_lesson_media") as download_media, patch(
                 "swinydl.workflow.transcribe_audio"
@@ -115,9 +121,9 @@ class WorkflowTests(unittest.TestCase):
             options = ProcessOptions(output_root=Path(temp_dir), transcript_source="asr")
             media_file = Path(temp_dir) / "lesson.m4a"
             media_file.write_text("media", encoding="utf-8")
-            with patch("swinydl.workflow.BrowserSession", FakeBrowser), patch(
+            with patch("swinydl.workflow.course_session", lambda *_args, **_kwargs: FakeBrowser()), patch(
                 "swinydl.workflow.discover_course", return_value=fake_course()
-            ), patch("swinydl.workflow.resolve_lesson_assets", side_effect=lambda _browser, lesson: lesson), patch(
+            ), patch(
                 "swinydl.workflow.download_lesson_media", return_value=[media_file]
             ) as download_media, patch(
                 "swinydl.workflow.normalize_media_to_wav", return_value=Path(temp_dir) / "lesson.wav"
@@ -150,9 +156,9 @@ class WorkflowTests(unittest.TestCase):
             )
             media_file = Path(temp_dir) / "lesson.m4a"
             media_file.write_text("media", encoding="utf-8")
-            with patch("swinydl.workflow.BrowserSession", FakeBrowser), patch(
+            with patch("swinydl.workflow.course_session", lambda *_args, **_kwargs: FakeBrowser()), patch(
                 "swinydl.workflow.discover_course", return_value=fake_course()
-            ), patch("swinydl.workflow.resolve_lesson_assets", side_effect=lambda _browser, lesson: lesson), patch(
+            ), patch(
                 "swinydl.workflow.download_lesson_media", return_value=[media_file]
             ) as download_media, patch(
                 "swinydl.workflow.normalize_media_to_wav", return_value=Path(temp_dir) / "lesson.wav"
@@ -188,9 +194,9 @@ class WorkflowTests(unittest.TestCase):
             retained_video = Path(temp_dir) / "2026-04-01__lesson-1__lesson-one__video.mp4"
             for path in (media_file, retained_audio, retained_video):
                 path.write_text("media", encoding="utf-8")
-            with patch("swinydl.workflow.BrowserSession", FakeBrowser), patch(
+            with patch("swinydl.workflow.course_session", lambda *_args, **_kwargs: FakeBrowser()), patch(
                 "swinydl.workflow.discover_course", return_value=fake_course()
-            ), patch("swinydl.workflow.resolve_lesson_assets", side_effect=lambda _browser, lesson: lesson), patch(
+            ), patch(
                 "swinydl.workflow.download_lesson_media", side_effect=[[media_file], [retained_audio, retained_video]]
             ) as download_media, patch(
                 "swinydl.workflow.normalize_media_to_wav", return_value=Path(temp_dir) / "lesson.wav"
@@ -225,7 +231,7 @@ class WorkflowTests(unittest.TestCase):
             json_path = course_dir / "2026-04-01__lesson-1__lesson-one.json"
             json_path.write_text('{"status":"success","transcript_source":"native"}', encoding="utf-8")
             options = ProcessOptions(output_root=Path(temp_dir))
-            with patch("swinydl.workflow.BrowserSession", FakeBrowser), patch(
+            with patch("swinydl.workflow.course_session", lambda *_args, **_kwargs: FakeBrowser()), patch(
                 "swinydl.workflow.discover_course", return_value=course
             ):
                 summary = process_course("https://swinydl.org.au/section/uuid/home", options)

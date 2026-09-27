@@ -13,7 +13,6 @@ authors = [{ name = "David Siroky" }]
 dependencies = [
   "huggingface-hub>=0.31.0",
   "requests>=2.32.0",
-  "selenium>=4.21.0",
   "truststore>=0.10.0",
   "yt-dlp>=2025.1.15",
 ]
@@ -32,8 +31,8 @@ classifiers = [
 dev = ["pytest>=8.0.0"]
 
 [tool.pytest.ini_options]
-# Put the repo root on sys.path so root-level modules (e.g. app.py) and the
-# swinydl package both import cleanly when running `uv run pytest`.
+# Put the repo root on sys.path so the swinydl package imports cleanly when running
+# `uv run pytest` from a fresh clone.
 pythonpath = ["."]
 testpaths = ["tests"]
 

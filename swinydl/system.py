@@ -10,12 +10,6 @@ import subprocess
 
 import requests
 
-COMMON_CHROME_PATHS = (
-    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-    "/Applications/Google Chrome Beta.app/Contents/MacOS/Google Chrome Beta",
-    "/Applications/Chromium.app/Contents/MacOS/Chromium",
-)
-
 _TRUSTSTORE_CONFIGURED = False
 
 
@@ -57,18 +51,6 @@ def xcode_first_launch_ready() -> bool | None:
     except Exception:  # pragma: no cover - depends on local Xcode tooling
         return None
     return completed.returncode == 0
-
-
-def find_chrome_binary() -> str | None:
-    """Return the preferred local Chrome or Chromium binary, if available."""
-    for candidate in COMMON_CHROME_PATHS:
-        if Path(candidate).exists():
-            return candidate
-    for candidate in ("google-chrome", "chromium", "chrome"):
-        resolved = shutil.which(candidate)
-        if resolved:
-            return resolved
-    return None
 
 
 def find_swift_binary() -> str | None:
@@ -120,23 +102,6 @@ def safari_built_app_path(base_dir: Path | None = None) -> Path:
 def safari_extension_bundle_path(base_dir: Path | None = None) -> Path:
     """Return the embedded Safari extension bundle path inside the built app."""
     return safari_built_app_path(base_dir) / "Contents" / "PlugIns" / "SWinyDLSafariExtension.appex"
-
-
-def chrome_version() -> str | None:
-    """Return the local Chrome or Chromium version string."""
-    chrome_binary = find_chrome_binary()
-    if chrome_binary is None:
-        return None
-    try:
-        completed = subprocess.run(
-            [chrome_binary, "--version"],
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-    except Exception:  # pragma: no cover - depends on local browser binary
-        return None
-    return completed.stdout.strip()
 
 
 def configure_runtime_ssl() -> bool:

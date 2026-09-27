@@ -15,7 +15,6 @@ Separately staged model artifacts under `vendor/` are third-party assets and are
 The project depends on third-party libraries installed through Python packaging, including:
 
 - `requests`
-- `selenium`
 - `truststore`
 - `yt-dlp`
 - `huggingface-hub`

@@ -31,20 +31,12 @@ This file connects this repository to Buildshop's shared skill library.
 5. Skip bootstrap if already done:
    - `/Users/david/Documents/memory-system/shared-agent-library/optional-tools/workflow-log.sh is-done onboarding-buildshop`
 
-## Multi-Agent Safety (Required If >1 Agent)
+## Backlog Discipline
 
-- If more than one agent is active, start with `Use skill: multi-agent-coordination`.
-- Create or use one backlog board as the source of truth before autonomous work starts.
-- Every intended autonomous scope must have a backlog ticket before dispatch or launch.
+- One backlog board is the source of truth for planned and autonomous work.
+- Every autonomous scope gets a backlog ticket before it starts.
 - Do not create floating scopes; if new work is discovered mid-flight, write it onto the backlog board before continuing.
-- Every agent must set a unique `AGENT_ID` and register before editing files.
-- No writes without a lock for the target scope.
-- Release locks immediately when work is done.
-- Any active scope must produce a same-day handoff in `.buildshop/coordination/handoffs/YYYY-MM-DD/`.
-- Every handoff must include machine-readable `Ticket`, `Outcome`, and `Lock Action` fields.
-- Before commit, check for lock collisions:
-  - `AGENT_ID="<agent-id>" /Users/david/Documents/memory-system/shared-agent-library/optional-tools/check-active-locks.sh`
-- Register, lock and release with `/Users/david/Documents/memory-system/shared-agent-library/optional-tools/agent-lock.sh` (`register`, `acquire`, `heartbeat`, `release`).
+- Treat unticketed active work as drift and reconcile it on the backlog board before continuing.
 
 ## High-Level Prompting
 
